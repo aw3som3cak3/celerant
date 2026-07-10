@@ -421,3 +421,91 @@ table.plain-table th {
 .playerbtn:hover {
   border-color: var(--accent);
 }
+
+/* --- login card ---------------------------------------------------------- */
+.login-card {
+  max-width: 440px;
+  margin: 7vh auto;
+  padding: 2rem 1.6rem 1.6rem;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.06);
+}
+.slot-row {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  margin: 1.4rem 0;
+}
+.slot {
+  width: 92px;
+  height: 92px;
+  border: 2px dashed var(--line);
+  border-radius: 18px;
+  background: var(--bg);
+  font-size: 2.8rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+.slot:hover {
+  border-color: var(--accent);
+}
+.slot.filled {
+  border-style: solid;
+  border-color: var(--accent);
+  background: #fff;
+  color: inherit;
+}
+.login-divider {
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  margin: 1.6rem 0 0.6rem;
+}
+.cached-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.family-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.4rem 0.85rem;
+  background: #fff;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.family-chip:hover {
+  border-color: var(--accent);
+}
+
+/* --- modal (emoji picker) ------------------------------------------------ */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 20, 25, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+.modal-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 1rem 1.1rem;
+  width: min(600px, 96vw);
+  max-height: 86vh;
+  overflow-y: auto;
+}
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}

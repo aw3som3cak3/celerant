@@ -2,9 +2,23 @@
 
 import { useEffect, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
-import { familyIcons, BY_KEY } from '@/icons';
+import { familyIcons, familyKey, BY_KEY } from '@/icons';
 import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
+
+// Families used on THIS device, most-recent first — for quick login.
+function readCached(): string[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    return JSON.parse(localStorage.getItem(CACHE_KEY) || '[]');
+  } catch {
+    return [];
+  }
+}
+function rememberFamily(pair: string): void {
+  const list = [pair, ...readCached().filter((p) => p !== pair)].slice(0, 8);
+  localStorage.setItem(CACHE_KEY, JSON.stringify(list));
+}
 
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: { id: string; icon: string; schoolYear: number }[] };
 type Families = { pairs: string[]; empty: boolean };
@@ -14,7 +28,7 @@ const CACHE_KEY = 'celerant.family';
 export default function Home() {
   const [me, setMe] = useState<Me | null>(null);
   const [families, setFamilies] = useState<Families | null>(null);
-  const [mode, setMode] = useState<'landing' | 'login' | 'create' | 'addplayer'>('landing');
+  const [mode, setMode] = useState<'login' | 'create' | 'addplayer'>('login');
 
   useEffect(() => {
     getJSON<Me>('/api/me').then(setMe);
@@ -28,57 +42,113 @@ export default function Home() {
     return <Players me={me} onAdd={() => setMode('addplayer')} />;
   }
 
-  if (mode === 'create') return <CreateFamily onDone={() => location.reload()} onBack={() => setMode('landing')} />;
-  if (mode === 'login') return <Login pairs={families.pairs} onBack={() => setMode('landing')} />;
+  if (mode === 'create') return <CreateFamily onDone={() => location.reload()} onBack={() => setMode('login')} />;
+  return <LoginCard pairs={families.pairs} onCreate={() => setMode('create')} />;
+}
+
+// --- login card ------------------------------------------------------------
+
+function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void }) {
+  const [a, setA] = useState<string | null>(null);
+  const [b, setB] = useState<string | null>(null);
+  const [modalSlot, setModalSlot] = useState<'a' | 'b' | null>(null);
+  const [err, setErr] = useState('');
+
+  const both = a && b;
+  // Only offer cached families that still exist.
+  const cached = readCached().filter((p) => pairs.includes(p));
+
+  function pick(key: string) {
+    setErr('');
+    if (modalSlot === 'a') setA(key);
+    else if (modalSlot === 'b') setB(key);
+    setModalSlot(null);
+  }
+
+  async function submit(pin: string) {
+    if (!a || !b) return;
+    setErr('');
+    const iconPair = familyKey(a, b);
+    const r = await postJSON<{ ok?: boolean }>('/api/login', { iconPair, pin });
+    if (r.ok) {
+      rememberFamily(iconPair);
+      location.reload();
+    } else setErr('Fel — kontrollera ikonerna och PIN.');
+  }
+
+  function chooseCached(pair: string) {
+    const [x, y] = pair.split('+');
+    setErr('');
+    setA(x);
+    setB(y);
+  }
+
   return (
-    <Landing
-      pairs={families.pairs}
-      empty={families.empty}
-      onLogin={() => setMode('login')}
-      onCreate={() => setMode('create')}
-    />
+    <div className="login-card">
+      <h1 style={{ marginTop: 0 }}>Logga in</h1>
+      <p className="muted" style={{ marginTop: '-0.4rem' }}>Välj familjens två ikoner</p>
+
+      <div className="slot-row">
+        <Slot value={a} onClick={() => setModalSlot('a')} />
+        <Slot value={b} onClick={() => setModalSlot('b')} />
+      </div>
+
+      {both ? (
+        <>
+          <PinPad label="Skriv PIN" onComplete={submit} />
+          {err && <p className="muted">{err}</p>}
+          <button className="idk" onClick={() => { setA(null); setB(null); setErr(''); }}>börja om</button>
+        </>
+      ) : (
+        <p className="muted" style={{ fontSize: '0.85rem' }}>Tryck på + för att välja en ikon.</p>
+      )}
+
+      {cached.length > 0 && !both && (
+        <>
+          <div className="login-divider">eller logga in med en av dessa</div>
+          <div className="cached-row">
+            {cached.map((p) => (
+              <button key={p} className="family-chip" onClick={() => chooseCached(p)} title="logga in">
+                {familyIcons(p).map((i) => i.glyph).join(' ')}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div style={{ marginTop: '1.8rem' }}>
+        <button className="primary" onClick={onCreate}>Ny familj</button>
+      </div>
+
+      {modalSlot && (
+        <IconModal
+          exclude={new Set([a, b].filter(Boolean) as string[])}
+          onClose={() => setModalSlot(null)}
+          onPick={pick}
+        />
+      )}
+    </div>
   );
 }
 
-// --- landing: log in or register ------------------------------------------
-
-function Landing({
-  pairs,
-  empty,
-  onLogin,
-  onCreate,
-}: {
-  pairs: string[];
-  empty: boolean;
-  onLogin: () => void;
-  onCreate: () => void;
-}) {
-  // Surface the family last used on this device, if it still exists.
-  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_KEY) : null;
-  const cachedOk = cached && pairs.includes(cached) ? cached : null;
-
+function Slot({ value, onClick }: { value: string | null; onClick: () => void }) {
   return (
-    <div className="plain" style={{ textAlign: 'center' }}>
-      <h1>Celerant</h1>
-      {cachedOk && (
-        <>
-          <p className="muted">Fortsätt som</p>
-          <button className="namebtn" style={{ fontSize: '2rem', textAlign: 'center' }} onClick={onLogin}>
-            {familyIcons(cachedOk).map((i) => i.glyph).join(' ')}
-          </button>
-        </>
-      )}
-      <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-        {!empty && (
-          <button className="primary" onClick={onLogin}>
-            Logga in
-          </button>
-        )}
-        <button className={empty ? 'primary' : 'namebtn'} style={empty ? undefined : { padding: '0.7rem 1.4rem' }} onClick={onCreate}>
-          Ny familj
-        </button>
+    <button className={`slot ${value ? 'filled' : ''}`} onClick={onClick} aria-label={value ? 'byt ikon' : 'välj ikon'}>
+      {value ? BY_KEY.get(value)?.glyph : '+'}
+    </button>
+  );
+}
+
+function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose: () => void; onPick: (k: string) => void }) {
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <strong>Välj en ikon</strong>
+          <button className="idk" onClick={onClose}>stäng</button>
+        </div>
+        <IconGrid allowSearch exclude={exclude} onPick={onPick} />
       </div>
-      {empty && <p className="muted" style={{ marginTop: '1rem' }}>Ingen familj än — skapa en för att börja.</p>}
     </div>
   );
 }
@@ -108,77 +178,12 @@ function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
           className="idk"
           onClick={async () => {
             await postJSON('/api/logout', {});
-            localStorage.removeItem(CACHE_KEY);
-            location.reload();
+            location.reload(); // keep the cached-families list for quick re-login
           }}
         >
           byt familj
         </button>
       </p>
-    </div>
-  );
-}
-
-// --- family login ----------------------------------------------------------
-
-function Login({ pairs, onBack }: { pairs: string[]; onBack: () => void }) {
-  const [pair, setPair] = useState<string | null>(() => (typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_KEY) : null));
-  const [err, setErr] = useState('');
-
-  // Only offer the cached pair if it still exists.
-  const cached = pair && pairs.includes(pair) ? pair : null;
-
-  async function submit(pin: string) {
-    if (!pair) return;
-    setErr('');
-    const r = await postJSON<{ ok?: boolean }>('/api/login', { iconPair: pair, pin });
-    if (r.ok) {
-      localStorage.setItem(CACHE_KEY, pair);
-      location.reload();
-    } else setErr('Fel PIN.');
-  }
-
-  if (cached && pair) {
-    const [a, b] = familyIcons(cached);
-    return (
-      <div className="plain" style={{ textAlign: 'center' }}>
-        <div className="bigpair">{a.glyph} {b.glyph}</div>
-        <PinPad label="Skriv PIN" onComplete={submit} />
-        {err && <p className="muted">{err}</p>}
-        <button className="idk" onClick={() => { localStorage.removeItem(CACHE_KEY); setPair(null); }}>
-          byt familj
-        </button>
-      </div>
-    );
-  }
-
-  if (pair) {
-    const [a, b] = familyIcons(pair);
-    return (
-      <div className="plain" style={{ textAlign: 'center' }}>
-        <div className="bigpair">{a.glyph} {b.glyph}</div>
-        <PinPad label="Skriv PIN" onComplete={submit} />
-        {err && <p className="muted">{err}</p>}
-        <button className="idk" onClick={() => setPair(null)}>annan familj</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="plain">
-      <h1>Vilken familj?</h1>
-      <div className="playergrid">
-        {pairs.map((p) => {
-          const [a, b] = familyIcons(p);
-          return (
-            <button key={p} className="playerbtn" style={{ fontSize: '1.8rem' }} onClick={() => setPair(p)}>
-              {a.glyph}
-              {b.glyph}
-            </button>
-          );
-        })}
-      </div>
-      <button className="idk" onClick={onBack}>tillbaka</button>
     </div>
   );
 }
