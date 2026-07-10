@@ -15,10 +15,26 @@ export function GET(req: NextRequest) {
   if (!s) return json({ authenticated: false });
   const family = repo.familyById(s.familyId)!;
   const [a, b] = familyIcons(family.icon_pair);
+  const goalRow = repo.getGoal(s.familyId);
   return json({
     authenticated: true,
     parent: parentFamilyFromRequest(req, now) === s.familyId,
     icons: [a.glyph, b.glyph],
-    players: repo.playersInFamily(s.familyId).map((p) => ({ id: p.id, icon: p.icon, schoolYear: p.school_year })),
+    players: repo.playersInFamily(s.familyId).map((p) => ({
+      id: p.id,
+      icon: p.icon,
+      schoolYear: p.school_year,
+      days: repo.sessionDaysLast7(p.id, now), // last-7-days session record
+    })),
+    // The family goal is cooperative and family-wide, so the family may see it
+    // (no per-child breakdown). Only the progress number, never who did what.
+    goal: goalRow
+      ? {
+          label: goalRow.label,
+          target: goalRow.target,
+          reached: goalRow.reached_at != null,
+          progress: repo.completedSessionsForFamily(s.familyId, goalRow.created_at),
+        }
+      : null,
   });
 }

@@ -416,6 +416,30 @@ export function endSessionRunEarly(id: number, now: number): void {
   getDb().prepare('UPDATE session_run SET ended_at = ?, ended_early = 1 WHERE id = ? AND ended_at IS NULL').run(now, id);
 }
 
+// A factual record of the last 7 days for one player: did they complete a full
+// session that day? index 0 = 6 days ago ... index 6 = today. NOT a streak (no
+// consecutive-day counter, no penalty) — just a record, like the card shelf.
+export function sessionDaysLast7(playerId: string, now: number): boolean[] {
+  const dayMs = 24 * 3600 * 1000;
+  const midnight = new Date(now);
+  midnight.setHours(0, 0, 0, 0);
+  const start = midnight.getTime() - 6 * dayMs;
+  const rows = getDb()
+    .prepare(
+      `SELECT started_at FROM session_run
+       WHERE player_id = ? AND ended_at IS NOT NULL AND ended_early = 0 AND completed >= target AND started_at >= ?`,
+    )
+    .all(playerId, start) as { started_at: number }[];
+  const days = new Array(7).fill(false);
+  for (const r of rows) {
+    const d = new Date(r.started_at);
+    d.setHours(0, 0, 0, 0);
+    const idx = Math.round((d.getTime() - start) / dayMs);
+    if (idx >= 0 && idx < 7) days[idx] = true;
+  }
+  return days;
+}
+
 // Completed sessions family-wide (§4.1). No per-player breakdown exists.
 export function completedSessionsForFamily(familyId: string, sinceMs: number): number {
   const r = getDb()

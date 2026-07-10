@@ -522,6 +522,43 @@ table.plain-table th {
   justify-content: center;
   padding: 0.4rem;
 }
+.child-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+}
+/* last-7-days session record: a factual row of dots, today marked, not a streak */
+.day-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.day-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+}
+.day-dot.on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.day-dot.today {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--accent);
+}
+
+/* family goal, shown to the family near the heading — one number, no per-child */
+.goal-chip {
+  max-width: 260px;
+  margin: 0.2rem auto 1rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+.goal-chip .sessionbar {
+  margin-top: 0.35rem;
+}
 .child-tile {
   position: relative;
   width: 96px;

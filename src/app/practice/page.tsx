@@ -141,6 +141,7 @@ function Practice() {
             </button>
           ))}
         </div>
+        <a className="quit-btn" href="/">{t('common.back')}</a>
       </div>
     );
   }

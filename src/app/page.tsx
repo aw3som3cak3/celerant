@@ -24,7 +24,9 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: { id: string; icon: string; schoolYear: number }[] };
+type Player = { id: string; icon: string; schoolYear: number; days: boolean[] };
+type Goal = { label: string; target: number; reached: boolean; progress: number };
+type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
 
 export default function Home() {
@@ -172,15 +174,32 @@ function Players({ me }: { me: Me }) {
       <div className="family-card">
         <h2>{t('family.heading')}</h2>
         <div className="bigpair" style={{ margin: '0.4rem 0' }}>{me.icons!.join(' ')}</div>
+        {me.goal && (
+          <div className="goal-chip">
+            <div>
+              🎯 {me.goal.label} · {me.goal.progress}/{me.goal.target}{me.goal.reached ? ' 🎉' : ''}
+            </div>
+            <div className="sessionbar">
+              <span style={{ width: `${Math.min(100, Math.round((me.goal.progress / me.goal.target) * 100))}%` }} />
+            </div>
+          </div>
+        )}
 
         <div className="or-divider">{t('family.children')}</div>
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            <button key={p.id} className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
-              {BY_KEY.get(p.icon)?.glyph ?? '?'}
-              <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
-            </button>
+            <div key={p.id} className="child-item">
+              <button className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
+                {BY_KEY.get(p.icon)?.glyph ?? '?'}
+                <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
+              </button>
+              <div className="day-row" aria-label="senaste 7 dagarna">
+                {(p.days ?? []).map((on, i) => (
+                  <span key={i} className={`day-dot ${on ? 'on' : ''} ${i === 6 ? 'today' : ''}`} />
+                ))}
+              </div>
+            </div>
           ))}
           <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
             +
