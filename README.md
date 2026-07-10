@@ -56,21 +56,20 @@ network hop per query, and the write path is O(1) incremental.
 Files: `Dockerfile` (validated — builds, serves, and persists across restarts),
 `fly.toml`, and a `deploy` job in `.github/workflows/ci.yml`.
 
-One-time setup:
+One-time setup (the app name in `fly.toml` is `celerant-obitz`):
 
 ```bash
-# 1. Create the app + a volume (SQLite lives here; keep the names in fly.toml).
-fly launch --no-deploy            # pick an app name; set the same name in fly.toml
-fly volumes create celerant_data --region arn --size 1
+fly auth login
+fly apps create celerant-obitz
+fly volumes create celerant_data --region arn --size 1 -a celerant-obitz
 
-# 2. First deploy, then pin to a SINGLE machine — SQLite has one writer.
-fly deploy
-fly scale count 1
+# First deploy, then pin to a SINGLE machine — SQLite has one writer.
+fly deploy -a celerant-obitz
+fly scale count 1 -a celerant-obitz
 
-# 3. A deploy token for CI, added to GitHub as the FLY_API_TOKEN secret:
+# A deploy token for CI, stored as the GitHub secret FLY_API_TOKEN:
 fly tokens create deploy
-#   GitHub → repo → Settings → Secrets and variables → Actions → New secret
-#   Name: FLY_API_TOKEN   Value: <the token>
+gh secret set FLY_API_TOKEN        # paste the token when prompted
 ```
 
 After that, every push to `main` runs the workflow: **build + test**, and only

@@ -2,7 +2,7 @@
 # SQLite lives on the mounted volume, so there must be exactly ONE machine
 # (SQLite has one writer). After first deploy: `fly scale count 1`.
 
-app = "celerant"
+app = "celerant-obitz"
 primary_region = "arn"  # Stockholm
 
 [build]
