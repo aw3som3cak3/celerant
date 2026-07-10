@@ -150,6 +150,12 @@ function Practice() {
     return (
       <div className="stage">
         <div className="prompt" style={{ fontSize: '2rem' }}>{t('practice.done')}</div>
+        {/* completion-in-the-moment: today counts, said on the child's own end
+            screen where no sibling stands — not a badge carried on the menu */}
+        <div className="done-today">
+          <span className="day-dot on today" />
+          {t('practice.doneToday')}
+        </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
           <button className="next-btn" onClick={startSession}>{t('common.again')}</button>

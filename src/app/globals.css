@@ -549,6 +549,16 @@ table.plain-table th {
   box-shadow: 0 0 0 2px #fff, 0 0 0 3px var(--accent);
 }
 
+/* end-of-session mark: today counts, on the child's own screen */
+.done-today {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  color: var(--accent);
+  font-size: 1.1rem;
+}
+
 /* family goal, shown to the family near the heading — one number, no per-child */
 .goal-chip {
   max-width: 260px;

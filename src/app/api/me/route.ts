@@ -20,12 +20,10 @@ export function GET(req: NextRequest) {
     authenticated: true,
     parent: parentFamilyFromRequest(req, now) === s.familyId,
     icons: [a.glyph, b.glyph],
-    players: repo.playersInFamily(s.familyId).map((p) => ({
-      id: p.id,
-      icon: p.icon,
-      schoolYear: p.school_year,
-      days: repo.sessionDaysLast7(p.id, now), // last-7-days session record
-    })),
+    // No per-child activity on this shared screen: two siblings' rows side by
+    // side is a comparison surface (§4.1). The 7-day record is private, shown
+    // only behind the child's own icon (the shelf).
+    players: repo.playersInFamily(s.familyId).map((p) => ({ id: p.id, icon: p.icon, schoolYear: p.school_year })),
     // The family goal is cooperative and family-wide, so the family may see it
     // (no per-child breakdown). Only the progress number, never who did what.
     goal: goalRow

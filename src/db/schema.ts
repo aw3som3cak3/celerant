@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS player (
   icon         TEXT NOT NULL,
   school_year  INTEGER NOT NULL CHECK (school_year BETWEEN 0 AND 9),  -- 0 = förskoleklass
   stretch      INTEGER NOT NULL DEFAULT 0,   -- "svårare": shifts selector target 0.80 -> 0.65
+  session_target INTEGER NOT NULL DEFAULT 20, -- items per session; shorter for young children
   created_at   INTEGER NOT NULL,
   archived_at  INTEGER,
   UNIQUE (family_id, icon)

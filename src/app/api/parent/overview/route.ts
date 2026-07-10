@@ -65,8 +65,11 @@ export function GET(req: NextRequest) {
   rows.sort((a, b) => a.year - b.year || a.code.localeCompare(b.code));
 
   return json({
-    player: { id: player.id, icon: player.icon, schoolYear: player.school_year },
+    player: { id: player.id, icon: player.icon, schoolYear: player.school_year, sessionTarget: player.session_target },
     attemptsLast7Days: repo.attemptsLast7Days(playerId, now),
+    // A plain number for the parent to notice, not to optimise (§3.6). No child
+    // ever sees a count of sessions — enthusiasm shows for them as done maths.
+    sessionsThisWeek: repo.sessionsThisWeek(playerId, now),
     diagnostics, // usually empty — an empty parent view is the normal one
     skills: rows,
   });

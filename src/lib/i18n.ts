@@ -57,6 +57,7 @@ const sv: Dict = {
 
   'practice.choosePrompt': 'Vad vill du börja med?',
   'practice.done': 'Klart.',
+  'practice.doneToday': 'Idag är klart',
   'practice.doneCount': '{n} problem.',
   'practice.cards': 'Korten',
   'practice.somethingNew': 'Något nytt.',
@@ -86,6 +87,9 @@ const sv: Dict = {
   'parent.intro': 'Inget att kolla dagligen. En tom sida är en frisk sida — meddelanden dyker upp bara om något i grafen ser fel ut.',
   'parent.year': 'Årskurs',
   'parent.attempts7': 'Svar senaste 7 dagarna: {n}',
+  'parent.sessionsWeek': 'Pass senaste 7 dagarna: {n}',
+  'parent.sessionLen': 'passlängd: {n}',
+  'parent.changeLen': 'ändra passlängd',
   'parent.changeYear': 'ändra årskurs',
   'parent.rebuild': 'bygg om cache',
   'parent.export': 'exportera',
@@ -110,6 +114,7 @@ const sv: Dict = {
   'shelf.harder': 'svårare',
   'shelf.harderOn': 'svårare: på',
   'shelf.practise': 'träna',
+  'shelf.week': 'senaste 7 dagarna',
 
   'warmup.title': 'Skrivhastighet',
   'warmup.intro': 'Skriv av siffrorna så snabbt du bekvämt kan i en minut. Det finns inget rätt eller fel här.',
@@ -171,6 +176,7 @@ const en: Dict = {
 
   'practice.choosePrompt': 'What do you want to start with?',
   'practice.done': 'Done.',
+  'practice.doneToday': "Today's done",
   'practice.doneCount': '{n} problems.',
   'practice.cards': 'Cards',
   'practice.somethingNew': 'Something new.',
@@ -200,6 +206,9 @@ const en: Dict = {
   'parent.intro': 'Nothing to check daily. An empty page is a healthy page — notes appear only if something in the graph looks wrong.',
   'parent.year': 'School year',
   'parent.attempts7': 'Answers in the last 7 days: {n}',
+  'parent.sessionsWeek': 'Sessions in the last 7 days: {n}',
+  'parent.sessionLen': 'session length: {n}',
+  'parent.changeLen': 'change session length',
   'parent.changeYear': 'change school year',
   'parent.rebuild': 'rebuild cache',
   'parent.export': 'export',
@@ -224,6 +233,7 @@ const en: Dict = {
   'shelf.harder': 'harder',
   'shelf.harderOn': 'harder: on',
   'shelf.practise': 'practise',
+  'shelf.week': 'last 7 days',
 
   'warmup.title': 'Writing speed',
   'warmup.intro': "Copy the digits as fast as you comfortably can for a minute. There's no right or wrong here.",

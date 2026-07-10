@@ -126,6 +126,7 @@ export type PlayerRow = {
   icon: string;
   school_year: number;
   stretch: number;
+  session_target: number;
   created_at: number;
   archived_at: number | null;
 };
@@ -175,6 +176,12 @@ export function updatePlayerYear(id: string, schoolYear: number): void {
 // "svårare" toggle (motivation §3.2). A setting, not evidence — no replay.
 export function setStretch(id: string, on: boolean): void {
   getDb().prepare('UPDATE player SET stretch = ? WHERE id = ?').run(on ? 1 : 0, id);
+}
+// Items per session — shorter for a young child, so finishing (and today's dot)
+// is actually reachable. A setting, not evidence; affects only future sessions.
+export function setSessionTarget(id: string, target: number): void {
+  const clamped = Math.max(4, Math.min(30, Math.round(target)));
+  getDb().prepare('UPDATE player SET session_target = ? WHERE id = ?').run(clamped, id);
 }
 export function archivePlayer(id: string, now: number): void {
   getDb().prepare('UPDATE player SET archived_at = ? WHERE id = ?').run(now, id);
@@ -416,28 +423,61 @@ export function endSessionRunEarly(id: number, now: number): void {
   getDb().prepare('UPDATE session_run SET ended_at = ?, ended_early = 1 WHERE id = ? AND ended_at IS NULL').run(now, id);
 }
 
-// A factual record of the last 7 days for one player: did they complete a full
-// session that day? index 0 = 6 days ago ... index 6 = today. NOT a streak (no
-// consecutive-day counter, no penalty) — just a record, like the card shelf.
+// The day boundary is the CHILD's day, not the server's. A session at 22:30 on a
+// summer evening must land on that evening, not two hours into "tomorrow" in UTC.
+// Intl in a fixed zone also handles the March/October DST shift for free.
+const DAY_TZ = 'Europe/Stockholm';
+const dayFmt = new Intl.DateTimeFormat('sv-SE', { timeZone: DAY_TZ, year: 'numeric', month: '2-digit', day: '2-digit' });
+// "YYYY-MM-DD" for an instant, in the child's local day (sv-SE renders ISO order).
+function localDayKey(ts: number): string {
+  return dayFmt.format(ts);
+}
+// The 7 local day-keys ending today (index 6 = today), oldest first.
+function last7DayKeys(now: number): string[] {
+  const [y, m, d] = localDayKey(now).split('-').map(Number);
+  const keys: string[] = [];
+  for (let i = 6; i >= 0; i--) {
+    // Noon UTC of the calendar date (today - i): far from any midnight/DST edge,
+    // so formatting it back into the child's zone yields exactly that day.
+    keys.push(localDayKey(Date.UTC(y, m - 1, d - i, 12)));
+  }
+  return keys;
+}
+
+// A completed session, at the CHILD's own target — ending early is a button, not
+// a failure (§3.1), so a child on a 6-item target who does 6 counts. Only full
+// completion sets ended_at with completed >= target.
+const DONE_SESSION = 'ended_at IS NOT NULL AND completed >= target';
+
+// A factual record of the last 7 days for one player: did they complete a
+// session that day? index 0 = 6 days ago ... index 6 = today. Private to the
+// child (shown only behind their own icon). NOT a streak — no consecutive-day
+// counter, no penalty, no nagging; just a record, like the card shelf.
 export function sessionDaysLast7(playerId: string, now: number): boolean[] {
-  const dayMs = 24 * 3600 * 1000;
-  const midnight = new Date(now);
-  midnight.setHours(0, 0, 0, 0);
-  const start = midnight.getTime() - 6 * dayMs;
+  const keys = last7DayKeys(now);
+  const idxByKey = new Map(keys.map((k, i) => [k, i] as const));
+  const lowerBound = now - 8 * 24 * 3600 * 1000; // loose prefilter; exact bucketing by day-key below
   const rows = getDb()
-    .prepare(
-      `SELECT started_at FROM session_run
-       WHERE player_id = ? AND ended_at IS NOT NULL AND ended_early = 0 AND completed >= target AND started_at >= ?`,
-    )
-    .all(playerId, start) as { started_at: number }[];
+    .prepare(`SELECT started_at FROM session_run WHERE player_id = ? AND ${DONE_SESSION} AND started_at >= ?`)
+    .all(playerId, lowerBound) as { started_at: number }[];
   const days = new Array(7).fill(false);
   for (const r of rows) {
-    const d = new Date(r.started_at);
-    d.setHours(0, 0, 0, 0);
-    const idx = Math.round((d.getTime() - start) / dayMs);
-    if (idx >= 0 && idx < 7) days[idx] = true;
+    const idx = idxByKey.get(localDayKey(r.started_at));
+    if (idx !== undefined) days[idx] = true;
   }
   return days;
+}
+
+// Completed sessions in the last 7 days for one player. For the PARENT view only
+// (§3.6 relatedness): a plain number the parent can notice and name at the table
+// — "you did three today?". The child never sees a count; enthusiasm shows up for
+// them as a fuller shelf and a steeper chart, never a score.
+export function sessionsThisWeek(playerId: string, now: number): number {
+  const lowerBound = now - 7 * 24 * 3600 * 1000;
+  const r = getDb()
+    .prepare(`SELECT COUNT(*) c FROM session_run WHERE player_id = ? AND ${DONE_SESSION} AND started_at >= ?`)
+    .get(playerId, lowerBound) as { c: number };
+  return r.c;
 }
 
 // Completed sessions family-wide (§4.1). No per-player breakdown exists.

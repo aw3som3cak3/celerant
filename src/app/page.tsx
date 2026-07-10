@@ -24,7 +24,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; days: boolean[] };
+type Player = { id: string; icon: string; schoolYear: number };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -189,17 +189,10 @@ function Players({ me }: { me: Me }) {
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            <div key={p.id} className="child-item">
-              <button className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
-                {BY_KEY.get(p.icon)?.glyph ?? '?'}
-                <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
-              </button>
-              <div className="day-row" aria-label="senaste 7 dagarna">
-                {(p.days ?? []).map((on, i) => (
-                  <span key={i} className={`day-dot ${on ? 'on' : ''} ${i === 6 ? 'today' : ''}`} />
-                ))}
-              </div>
-            </div>
+            <button key={p.id} className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
+              {BY_KEY.get(p.icon)?.glyph ?? '?'}
+              <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
+            </button>
           ))}
           <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
             +

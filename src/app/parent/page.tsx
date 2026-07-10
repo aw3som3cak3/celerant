@@ -9,8 +9,9 @@ import { useI18n } from '../_components/LocaleProvider';
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
 type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
 type Overview = {
-  player: { id: string; icon: string; schoolYear: number };
+  player: { id: string; icon: string; schoolYear: number; sessionTarget: number };
   attemptsLast7Days: number;
+  sessionsThisWeek: number;
   diagnostics: Diagnostic[];
   skills: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[];
 };
@@ -91,7 +92,7 @@ export default function Parent() {
       {data && (
         <>
           <p className="muted">
-            {t('parent.year')} {data.player.schoolYear === 0 ? 'F' : data.player.schoolYear} · {t('parent.attempts7', { n: data.attemptsLast7Days })}
+            {t('parent.year')} {data.player.schoolYear === 0 ? 'F' : data.player.schoolYear} · {t('parent.attempts7', { n: data.attemptsLast7Days })} · {t('parent.sessionsWeek', { n: data.sessionsThisWeek })}
           </p>
 
           {data.diagnostics.length > 0 && (
@@ -106,6 +107,8 @@ export default function Parent() {
 
           <div style={{ margin: '0.5rem 0' }}>
             <YearChange playerId={data.player.id} current={data.player.schoolYear} />
+            {' · '}
+            <SessionLen playerId={data.player.id} current={data.player.sessionTarget} />
             {' · '}
             <button className="idk" onClick={async () => { await postJSON('/api/parent/replay', { playerId: data.player.id }); getJSON<Overview>(`/api/parent/overview?playerId=${data.player.id}`).then(setData); }}>
               {t('parent.rebuild')}
@@ -172,6 +175,33 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
         {t('goal.set')}
       </button>
     </div>
+  );
+}
+
+// Session length — shorter for a young child, so finishing (and the day's dot)
+// is reachable. Ending early was never a failure; a smaller target just makes
+// "done" honest for a six-year-old.
+function SessionLen({ playerId, current }: { playerId: string; current: number }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  if (!open)
+    return <button className="idk" onClick={() => setOpen(true)}>{t('parent.changeLen')} · {t('parent.sessionLen', { n: current })}</button>;
+  return (
+    <span>
+      {[6, 10, 15, 20].map((n) => (
+        <button
+          key={n}
+          className="idk"
+          style={{ color: current === n ? 'var(--accent)' : undefined }}
+          onClick={async () => {
+            await postJSON('/api/player/target', { playerId, target: n });
+            location.reload();
+          }}
+        >
+          {n}
+        </button>
+      ))}
+    </span>
   );
 }
 

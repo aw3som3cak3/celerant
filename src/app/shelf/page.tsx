@@ -11,12 +11,15 @@ function Shelf() {
   const { t } = useI18n();
   const p = useSearchParams().get('p') ?? '';
   const [cards, setCards] = useState<Card[] | null>(null);
+  const [days, setDays] = useState<boolean[]>([]);
   const [stretch, setStretch] = useState<boolean>(false);
 
   useEffect(() => {
     if (!p) return void (location.href = '/');
-    getJSON<{ cards: Card[] }>(`/api/shelf?playerId=${p}`).then((r) => setCards(r.cards));
-    getJSON<{ players?: { id: string; stretch?: boolean }[] }>('/api/me').then(() => {});
+    getJSON<{ cards: Card[]; days: boolean[] }>(`/api/shelf?playerId=${p}`).then((r) => {
+      setCards(r.cards);
+      setDays(r.days ?? []);
+    });
   }, [p]);
 
   async function toggleStretch() {
@@ -30,6 +33,19 @@ function Shelf() {
   return (
     <div className="plain">
       <h1>{t('shelf.title')}</h1>
+
+      {/* the child's own last-7-days record — private, no sibling to compare */}
+      {days.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.2rem 0 1.4rem' }}>
+          <span className="muted" style={{ fontSize: '0.8rem' }}>{t('shelf.week')}</span>
+          <div className="day-row">
+            {days.map((on, i) => (
+              <span key={i} className={`day-dot ${on ? 'on' : ''} ${i === 6 ? 'today' : ''}`} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {cards.length === 0 ? (
         <p className="muted">{t('shelf.empty')}</p>
       ) : (

@@ -18,8 +18,24 @@ function open(): Database.Database {
   db.pragma('foreign_keys = ON');
   db.exec(SCHEMA); // bundled, not read from disk
 
+  // Idempotent migrations for pre-existing DBs. SCHEMA is all CREATE ... IF NOT
+  // EXISTS, so a new column on an existing table must be added explicitly. On a
+  // fresh DB the column already exists and the ALTER throws "duplicate column
+  // name", which is expected and ignored.
+  for (const stmt of MIGRATIONS) {
+    try {
+      db.exec(stmt);
+    } catch {
+      /* column already present */
+    }
+  }
+
   return db;
 }
+
+const MIGRATIONS = [
+  'ALTER TABLE player ADD COLUMN session_target INTEGER NOT NULL DEFAULT 20',
+];
 
 export function getDb(): Database.Database {
   if (!globalForDb.__db) {
