@@ -422,6 +422,69 @@ table.plain-table th {
   border-color: var(--accent);
 }
 
+/* --- top bar ------------------------------------------------------------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.7rem 1.2rem;
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+}
+.topbar .brand {
+  font-weight: 600;
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+.lang-btn {
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 0.9rem;
+  padding: 0.2rem 0.35rem;
+}
+.lang-btn.on {
+  color: var(--accent);
+  font-weight: 600;
+}
+.topbar-login {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.95rem;
+}
+.topbar-login:hover {
+  border-color: var(--accent);
+}
+
+/* centered "── eller ──" divider */
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+  margin: 1.6rem 0;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 /* --- login card ---------------------------------------------------------- */
 .login-card {
   max-width: 440px;

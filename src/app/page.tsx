@@ -5,6 +5,10 @@ import { getJSON, postJSON } from '@/lib/client';
 import { familyIcons, familyKey, BY_KEY } from '@/icons';
 import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
+import { TopBar } from './_components/TopBar';
+import { useI18n } from './_components/LocaleProvider';
+
+const CACHE_KEY = 'celerant.family';
 
 // Families used on THIS device, most-recent first — for quick login.
 function readCached(): string[] {
@@ -23,8 +27,6 @@ function rememberFamily(pair: string): void {
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: { id: string; icon: string; schoolYear: number }[] };
 type Families = { pairs: string[]; empty: boolean };
 
-const CACHE_KEY = 'celerant.family';
-
 export default function Home() {
   const [me, setMe] = useState<Me | null>(null);
   const [families, setFamilies] = useState<Families | null>(null);
@@ -42,20 +44,28 @@ export default function Home() {
     return <Players me={me} onAdd={() => setMode('addplayer')} />;
   }
 
-  if (mode === 'create') return <CreateFamily onDone={() => location.reload()} onBack={() => setMode('login')} />;
-  return <LoginCard pairs={families.pairs} onCreate={() => setMode('create')} />;
+  return (
+    <>
+      <TopBar onLogin={() => setMode('login')} />
+      {mode === 'create' ? (
+        <CreateFamily onDone={() => location.reload()} onBack={() => setMode('login')} />
+      ) : (
+        <LoginCard pairs={families.pairs} onCreate={() => setMode('create')} />
+      )}
+    </>
+  );
 }
 
 // --- login card ------------------------------------------------------------
 
 function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void }) {
+  const { t } = useI18n();
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
   const [modalSlot, setModalSlot] = useState<'a' | 'b' | null>(null);
   const [err, setErr] = useState('');
 
   const both = a && b;
-  // Only offer cached families that still exist.
   const cached = readCached().filter((p) => pairs.includes(p));
 
   function pick(key: string) {
@@ -73,7 +83,7 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
     if (r.ok) {
       rememberFamily(iconPair);
       location.reload();
-    } else setErr('Fel — kontrollera ikonerna och PIN.');
+    } else setErr(t('login.error'));
   }
 
   function chooseCached(pair: string) {
@@ -85,8 +95,8 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
 
   return (
     <div className="login-card">
-      <h1 style={{ marginTop: 0 }}>Logga in</h1>
-      <p className="muted" style={{ marginTop: '-0.4rem' }}>Välj familjens två ikoner</p>
+      <h1 style={{ marginTop: 0 }}>{t('login.title')}</h1>
+      <p className="muted" style={{ marginTop: '-0.4rem' }}>{t('login.pickTwo')}</p>
 
       <div className="slot-row">
         <Slot value={a} onClick={() => setModalSlot('a')} />
@@ -95,20 +105,20 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
 
       {both ? (
         <>
-          <PinPad label="Skriv PIN" onComplete={submit} />
+          <PinPad label={t('login.pin')} onComplete={submit} />
           {err && <p className="muted">{err}</p>}
-          <button className="idk" onClick={() => { setA(null); setB(null); setErr(''); }}>börja om</button>
+          <button className="idk" onClick={() => { setA(null); setB(null); setErr(''); }}>{t('login.restart')}</button>
         </>
       ) : (
-        <p className="muted" style={{ fontSize: '0.85rem' }}>Tryck på + för att välja en ikon.</p>
+        <p className="muted" style={{ fontSize: '0.85rem' }}>{t('login.pressPlus')}</p>
       )}
 
       {cached.length > 0 && !both && (
         <>
-          <div className="login-divider">eller logga in med en av dessa</div>
+          <div className="login-divider">{t('login.orCached')}</div>
           <div className="cached-row">
             {cached.map((p) => (
-              <button key={p} className="family-chip" onClick={() => chooseCached(p)} title="logga in">
+              <button key={p} className="family-chip" onClick={() => chooseCached(p)} title={t('nav.login')}>
                 {familyIcons(p).map((i) => i.glyph).join(' ')}
               </button>
             ))}
@@ -116,9 +126,8 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
         </>
       )}
 
-      <div style={{ marginTop: '1.8rem' }}>
-        <button className="primary" onClick={onCreate}>Ny familj</button>
-      </div>
+      <div className="or-divider">{t('common.or')}</div>
+      <button className="primary" onClick={onCreate}>{t('login.newFamily')}</button>
 
       {modalSlot && (
         <IconModal
@@ -132,20 +141,22 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
 }
 
 function Slot({ value, onClick }: { value: string | null; onClick: () => void }) {
+  const { t } = useI18n();
   return (
-    <button className={`slot ${value ? 'filled' : ''}`} onClick={onClick} aria-label={value ? 'byt ikon' : 'välj ikon'}>
+    <button className={`slot ${value ? 'filled' : ''}`} onClick={onClick} aria-label={value ? t('slot.change') : t('slot.choose')}>
       {value ? BY_KEY.get(value)?.glyph : '+'}
     </button>
   );
 }
 
 function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose: () => void; onPick: (k: string) => void }) {
+  const { t } = useI18n();
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>Välj en ikon</strong>
-          <button className="idk" onClick={onClose}>stäng</button>
+          <strong>{t('modal.pickIcon')}</strong>
+          <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
         <IconGrid allowSearch exclude={exclude} onPick={onPick} />
       </div>
@@ -156,6 +167,7 @@ function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose
 // --- logged in: pick a player ----------------------------------------------
 
 function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
+  const { t } = useI18n();
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
       <div className="bigpair">{me.icons!.join(' ')}</div>
@@ -170,9 +182,7 @@ function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
         </button>
       </div>
       <p>
-        <a className="idk" href="/parent">
-          förälder
-        </a>{' '}
+        <a className="idk" href="/parent">{t('players.parent')}</a>{' '}
         ·{' '}
         <button
           className="idk"
@@ -181,7 +191,7 @@ function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
             location.reload(); // keep the cached-families list for quick re-login
           }}
         >
-          byt familj
+          {t('players.switch')}
         </button>
       </p>
     </div>
@@ -191,6 +201,7 @@ function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
 // --- create family ---------------------------------------------------------
 
 function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
+  const { t } = useI18n();
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
   const [pin, setPin] = useState<string | null>(null);
@@ -200,10 +211,10 @@ function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   if (!a || !b) {
     return (
       <div className="plain">
-        <h1>{!a ? 'Välj första ikonen' : 'Välj andra ikonen'}</h1>
+        <h1>{!a ? t('create.firstIcon') : t('create.secondIcon')}</h1>
         <p className="muted">
-          En familj är två ikoner — t.ex. räven och varmkorven.{' '}
-          <button className="idk" onClick={a ? () => setA(null) : onBack}>tillbaka</button>
+          {t('create.familyIsTwo')}{' '}
+          <button className="idk" onClick={a ? () => setA(null) : onBack}>{t('common.back')}</button>
         </p>
         {a && <div className="bigpair">{BY_KEY.get(a)?.glyph}</div>}
         <IconGrid allowSearch exclude={a ? new Set([a]) : undefined} onPick={(k) => (a ? setB(k) : setA(k))} selected={a ? [a] : []} />
@@ -212,36 +223,29 @@ function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   }
 
   if (!pin) {
-    return (
-      <ConfirmPin
-        title="Familjens PIN"
-        hint="Barnen kommer att kunna den."
-        onDone={setPin}
-        onBad={() => setErr('')}
-      />
-    );
+    return <ConfirmPin title={t('create.familyPin')} hint={t('create.familyPinHint')} onDone={setPin} />;
   }
   if (!parentPin) {
     return (
       <ConfirmPin
-        title="Förälderns PIN"
-        hint="Måste skilja sig från familjens PIN. Barnen ska inte kunna den."
+        title={t('create.parentPin')}
+        hint={t('create.parentPinHint')}
         onDone={async (pp) => {
           setErr('');
-          if (pp === pin) return setErr('Förälderns PIN måste skilja sig.');
+          if (pp === pin) return setErr(t('create.pinsMustDiffer'));
           const r = await postJSON<{ ok?: boolean; error?: string }>('/api/family', { iconA: a, iconB: b, pin, parentPin: pp });
           if (r.ok) setParentPin(pp);
-          else setErr(r.error === 'pair_taken' ? 'Paret är taget.' : r.error === 'weak_pin' ? 'För enkel PIN (inga 1111 eller 1234).' : 'Något blev fel.');
+          else setErr(r.error === 'pair_taken' ? t('create.pairTaken') : r.error === 'weak_pin' ? t('create.weakPin') : t('create.somethingWrong'));
         }}
       />
     );
   }
 
-  // parentPin is set, family + entry session exist: create the first player.
   return <CreatePlayer used={[]} onDone={onDone} firstTime />;
 }
 
-function ConfirmPin({ title, hint, onDone }: { title: string; hint: string; onDone: (pin: string) => void; onBad?: () => void }) {
+function ConfirmPin({ title, hint, onDone }: { title: string; hint: string; onDone: (pin: string) => void }) {
+  const { t } = useI18n();
   const [first, setFirst] = useState<string | null>(null);
   const [err, setErr] = useState('');
   return (
@@ -249,12 +253,12 @@ function ConfirmPin({ title, hint, onDone }: { title: string; hint: string; onDo
       <h1>{title}</h1>
       <p className="muted">{hint}</p>
       <PinPad
-        label={first ? 'Skriv igen' : 'Fyra siffror'}
+        label={first ? t('pin.again') : t('pin.four')}
         onComplete={(p) => {
           if (!first) setFirst(p);
           else if (p === first) onDone(p);
           else {
-            setErr('Matchade inte, försök igen.');
+            setErr(t('pin.noMatch'));
             setFirst(null);
           }
         }}
@@ -267,6 +271,7 @@ function ConfirmPin({ title, hint, onDone }: { title: string; hint: string; onDo
 // --- create player ---------------------------------------------------------
 
 function CreatePlayer({ used, onDone, firstTime }: { used: string[]; onDone: () => void; firstTime?: boolean }) {
+  const { t } = useI18n();
   const [icon, setIcon] = useState<string | null>(null);
   const [year, setYear] = useState<number | null>(null);
   const [err, setErr] = useState('');
@@ -275,13 +280,13 @@ function CreatePlayer({ used, onDone, firstTime }: { used: string[]; onDone: () 
     if (!icon) return;
     const r = await postJSON<{ ok?: boolean; playerId?: string; error?: string }>('/api/player', { icon, schoolYear: y });
     if (r.ok && r.playerId) location.href = `/practice?p=${r.playerId}`;
-    else setErr('Ikonen är tagen — välj en annan.');
+    else setErr(t('player.iconTaken'));
   }
 
   if (!icon) {
     return (
       <div className="plain">
-        <h1>{firstTime ? 'Nu barnet: välj en ikon' : 'Välj en ikon'}</h1>
+        <h1>{firstTime ? t('player.firstIcon') : t('player.pickIcon')}</h1>
         <IconGrid exclude={new Set(used)} onPick={setIcon} />
       </div>
     );
@@ -289,8 +294,8 @@ function CreatePlayer({ used, onDone, firstTime }: { used: string[]; onDone: () 
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
       <div className="bigpair">{BY_KEY.get(icon)?.glyph}</div>
-      <h1>Vilken årskurs?</h1>
-      <p className="muted">Inte ålder — årskurs. F är förskoleklass.</p>
+      <h1>{t('player.whichYear')}</h1>
+      <p className="muted">{t('player.yearHint')}</p>
       <div className="yearrow">
         {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (
           <button key={y} className={`yearbtn ${year === i ? 'on' : ''}`} onClick={() => { setYear(i); create(i); }}>
