@@ -1,0 +1,15 @@
+/node_modules
+/.next
+/out
+/build
+*.tsbuildinfo
+next-env.d.ts
+
+# the database lives on disk; back it up with cp, never commit it
+/data/*.db
+/data/*.db-shm
+/data/*.db-wal
+
+.env
+.env.local
+.DS_Store

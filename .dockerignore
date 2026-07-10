@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+data
+.git
+.github
+test
+docs
+*.md
+*.log
+.env
+.env.*
+.DS_Store
+Dockerfile
+.dockerignore

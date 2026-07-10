@@ -1,0 +1,31 @@
+# Fly.io config. Rename `app` after `fly launch --no-deploy` picks/creates one.
+# SQLite lives on the mounted volume, so there must be exactly ONE machine
+# (SQLite has one writer). After first deploy: `fly scale count 1`.
+
+app = "celerant"
+primary_region = "arn"  # Stockholm
+
+[build]
+
+[env]
+  DATABASE_PATH = "/data/celerant.db"
+  PORT = "3000"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # A home app: suspend when idle, resume fast on the next request. The volume
+  # keeps the data across suspends. Keep min at 0 to avoid always-on cost, or set
+  # to 1 for zero cold start.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+# The one file on disk (brief §3), on a persistent volume.
+[mounts]
+  source = "celerant_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

@@ -1,0 +1,180 @@
+import 'server-only';
+import { randomUUID } from 'node:crypto';
+import * as repo from '@/db/repo';
+import { SKILLS, generateCanon } from '@/skills';
+import { buildStates } from './practice';
+import { computeUnlocked } from './selector';
+import { aimFor, celeration, SPRINT_ACCURACY_GATE, SPRINT_ACCURACY_WINDOW, type SprintPoint } from './fluency';
+import { makeRng, randomSeed } from './rng';
+import { grade } from './grade';
+
+const SKILL_META = new Map(SKILLS.map((s) => [s.code, s]));
+
+function schoolYearOf(playerId: string): number {
+  return repo.playerById(playerId)?.school_year ?? 0;
+}
+
+// --- Sprint eligibility (addendum §3) --------------------------------------
+// A component, unlocked, at ≥95% first-try accuracy over the last 20 practice
+// attempts. Fluency building on an inaccurate skill drills the error in.
+export type SprintEligible = { code: string; family: string; accuracy: number; aim: number; rate: number | null };
+
+export function eligibleSprintSkills(playerId: string): SprintEligible[] {
+  const schoolYear = schoolYearOf(playerId);
+  const states = buildStates(playerId, schoolYear);
+  const unlocked = computeUnlocked(states);
+  const ability = repo.abilities(playerId);
+  const aim = aimFor(repo.latestToolRate(playerId), schoolYear);
+
+  const out: SprintEligible[] = [];
+  for (const s of states) {
+    if (s.mode !== 'component' || !unlocked.get(s.code)) continue;
+    const { acc, count } = repo.recentFirstTryAccuracy(playerId, s.code, SPRINT_ACCURACY_WINDOW);
+    if (count < SPRINT_ACCURACY_WINDOW || acc < SPRINT_ACCURACY_GATE) continue;
+    const ab = ability.get(s.code);
+    out.push({ code: s.code, family: s.family, accuracy: acc, aim, rate: ab?.rate_state === 'measured' ? ab.rate : null });
+  }
+  return out;
+}
+
+// --- Live sprint sessions (in-process; a single-process home server) --------
+
+type SprintSession = {
+  id: string;
+  playerId: string;
+  schoolYear: number;
+  skillCode: string;
+  durationS: number;
+  endsAt: number;
+  correct: number;
+  errors: number;
+  current: { prompt: string; answer: string } | null;
+  finalized: boolean;
+};
+type ToolSession = { id: string; playerId: string; target: string; durationS: number; endsAt: number };
+
+const g = globalThis as unknown as { __sprints?: Map<string, SprintSession>; __tools?: Map<string, ToolSession> };
+const sprints = (g.__sprints ??= new Map());
+const tools = (g.__tools ??= new Map());
+
+function genItem(code: string): { prompt: string; answer: string } {
+  const it = generateCanon(code, makeRng(randomSeed()));
+  return { prompt: it.prompt, answer: it.answer };
+}
+
+export type SprintStart = { sprintId: string; prompt: string; durationS: number; endsAt: number };
+
+export function startSprint(playerId: string, code: string, durationS: number, now: number): SprintStart | null {
+  const meta = SKILL_META.get(code);
+  if (!meta || meta.mode !== 'component') return null; // never time a compound
+  if (!eligibleSprintSkills(playerId).some((e) => e.code === code)) return null;
+
+  const first = genItem(code);
+  const id = randomUUID();
+  const endsAt = now + durationS * 1000;
+  sprints.set(id, {
+    id,
+    playerId,
+    schoolYear: schoolYearOf(playerId),
+    skillCode: code,
+    durationS,
+    endsAt,
+    correct: 0,
+    errors: 0,
+    current: first,
+    finalized: false,
+  });
+  return { sprintId: id, prompt: first.prompt, durationS, endsAt };
+}
+
+export type SprintResult = {
+  correct: number;
+  errors: number;
+  durationS: number;
+  correctPerMin: number;
+  errorsPerMin: number;
+  aim: number;
+};
+export type SprintStep = { done: false; prompt: string; endsAt: number } | { done: true; result: SprintResult };
+
+function finalize(s: SprintSession, now: number): SprintResult {
+  if (!s.finalized) {
+    s.finalized = true;
+    repo.appendSprint(s.playerId, s.skillCode, s.durationS, s.correct, s.errors, now); // ledger write → replay
+  }
+  return {
+    correct: s.correct,
+    errors: s.errors,
+    durationS: s.durationS,
+    correctPerMin: (s.correct * 60) / s.durationS,
+    errorsPerMin: (s.errors * 60) / s.durationS,
+    aim: aimFor(repo.latestToolRate(s.playerId), s.schoolYear),
+  };
+}
+
+export function sprintAnswer(playerId: string, sprintId: string, given: string, now: number): SprintStep | null {
+  const s = sprints.get(sprintId);
+  if (!s || s.playerId !== playerId) return null;
+  if (now <= s.endsAt && s.current) {
+    if (grade(given, s.current.answer)) s.correct++;
+    else s.errors++;
+  }
+  if (now >= s.endsAt) {
+    const result = finalize(s, now);
+    sprints.delete(sprintId);
+    return { done: true, result };
+  }
+  s.current = genItem(s.skillCode);
+  return { done: false, prompt: s.current.prompt, endsAt: s.endsAt };
+}
+
+export function finishSprint(playerId: string, sprintId: string, now: number): SprintResult | null {
+  const s = sprints.get(sprintId);
+  if (!s || s.playerId !== playerId) return null;
+  const result = finalize(s, now);
+  sprints.delete(sprintId);
+  return result;
+}
+
+// --- Tool-skill (writing-speed) measurement (addendum §4, ui-lifecycle §4.5) -
+// Opt-in; runs the first time a child opens sprint mode. A measurement
+// overwrites the provisional default outright on the next replay.
+
+export type ToolStart = { toolId: string; target: string; durationS: number; endsAt: number };
+
+export function startToolMeasure(playerId: string, durationS: number, now: number): ToolStart {
+  const rng = makeRng(randomSeed());
+  let target = '';
+  for (let i = 0; i < 600; i++) target += rng.int(0, 9);
+  const id = randomUUID();
+  const endsAt = now + durationS * 1000;
+  tools.set(id, { id, playerId, target, durationS, endsAt });
+  return { toolId: id, target, durationS, endsAt };
+}
+
+export function submitToolMeasure(playerId: string, toolId: string, typed: string, now: number): { digitsPerMin: number } | null {
+  const t = tools.get(toolId);
+  if (!t || t.playerId !== playerId) return null;
+  tools.delete(toolId);
+  const clean = typed.replace(/\D/g, '');
+  let matches = 0;
+  for (let i = 0; i < clean.length && i < t.target.length; i++) if (clean[i] === t.target[i]) matches++;
+  const digitsPerMin = (matches * 60) / t.durationS;
+  repo.appendToolRate(playerId, digitsPerMin, now); // ledger write → replay
+  return { digitsPerMin };
+}
+
+// --- The celeration chart (addendum §5) ------------------------------------
+
+export type ChartData = { code: string; points: SprintPoint[]; aim: number; celeration: number | null };
+
+export function chartForSkill(playerId: string, code: string): ChartData {
+  const asc = repo.sprintsForSkill(playerId, code, 8).slice().reverse();
+  const day0 = asc.length ? asc[0].at : 0;
+  const points: SprintPoint[] = asc.map((sp) => ({
+    day: (sp.at - day0) / (24 * 3600 * 1000),
+    correctPerMin: (sp.correct * 60) / sp.duration_s,
+    errorsPerMin: (sp.errors * 60) / sp.duration_s,
+  }));
+  return { code, points, aim: aimFor(repo.latestToolRate(playerId), schoolYearOf(playerId)), celeration: celeration(points) };
+}
