@@ -1,12 +1,20 @@
 'use client';
 
+import { postJSON } from '@/lib/client';
 import { LOCALES, LOCALE_LABEL } from '@/lib/i18n';
 import { useI18n } from './LocaleProvider';
 
-// Chrome top bar: wordmark, a language selector, and a login button. Not shown
-// on the child's practice screen, which stays deliberately bare.
-export function TopBar({ onLogin }: { onLogin?: () => void }) {
+// Chrome top bar: wordmark, a language selector, and the session actions
+// (login when logged out; parent + logout when logged in). Not shown on the
+// child's practice screen, which stays deliberately bare.
+export function TopBar({ onLogin, authed }: { onLogin?: () => void; authed?: boolean }) {
   const { locale, setLocale, t } = useI18n();
+
+  async function logout() {
+    await postJSON('/api/logout', {});
+    location.reload(); // keep the cached-families list for quick re-login
+  }
+
   return (
     <div className="topbar">
       <a className="brand" href="/">
@@ -25,7 +33,17 @@ export function TopBar({ onLogin }: { onLogin?: () => void }) {
             </button>
           ))}
         </div>
-        {onLogin && (
+        {authed && (
+          <>
+            <a className="topbar-login" href="/parent">
+              {t('players.parent')}
+            </a>
+            <button className="topbar-login" onClick={logout}>
+              {t('nav.logout')}
+            </button>
+          </>
+        )}
+        {onLogin && !authed && (
           <button className="topbar-login" onClick={onLogin}>
             {t('nav.login')}
           </button>

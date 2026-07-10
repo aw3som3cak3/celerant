@@ -1,21 +1,42 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useI18n } from './LocaleProvider';
 
-// A numeric pad — never a text field on a child's screen. Calls onComplete when
-// four digits are entered.
+// A numeric pad — never a text field on a child's screen. Also accepts the
+// physical keyboard/numpad (digits, Backspace, Enter). Submit is explicit, via
+// the OK button or Enter, so a confirm-twice flow is not surprising.
 export function PinPad({ onComplete, label }: { onComplete: (pin: string) => void; label?: string }) {
+  const { t } = useI18n();
   const [pin, setPin] = useState('');
 
-  function push(d: string) {
-    if (pin.length >= 4) return;
-    const next = pin + d;
-    setPin(next);
-    if (next.length === 4) {
-      onComplete(next);
-      setTimeout(() => setPin(''), 150);
+  const add = (d: string) => setPin((p) => (p.length < 4 ? p + d : p));
+  const del = () => setPin((p) => p.slice(0, -1));
+  const submit = () => {
+    if (pin.length === 4) {
+      onComplete(pin);
+      setPin('');
     }
-  }
+  };
+
+  // Physical keyboard / numpad. Re-registered each render so `submit` sees the
+  // current pin.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (/^[0-9]$/.test(e.key)) {
+        e.preventDefault();
+        add(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        del();
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        submit();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div>
@@ -23,16 +44,18 @@ export function PinPad({ onComplete, label }: { onComplete: (pin: string) => voi
       <div className="pindots">{'•'.repeat(pin.length)}{'◦'.repeat(4 - pin.length)}</div>
       <div className="pinpad">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (
-          <button key={d} className="pinkey" onClick={() => push(d)}>
+          <button key={d} className="pinkey" onClick={() => add(d)}>
             {d}
           </button>
         ))}
-        <button className="pinkey" style={{ visibility: 'hidden' }} disabled />
-        <button className="pinkey" onClick={() => push('0')}>
+        <button className="pinkey" onClick={del} aria-label="backspace">
+          ←
+        </button>
+        <button className="pinkey" onClick={() => add('0')}>
           0
         </button>
-        <button className="pinkey" onClick={() => setPin((p) => p.slice(0, -1))}>
-          ←
+        <button className="pinkey submit" onClick={submit} disabled={pin.length !== 4} aria-label={t('pin.submit')}>
+          ✓
         </button>
       </div>
     </div>

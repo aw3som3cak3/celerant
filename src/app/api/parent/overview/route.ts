@@ -37,7 +37,9 @@ export function GET(req: NextRequest) {
   const aim = aimFor(repo.latestToolRate(playerId), player.school_year);
 
   const rows: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[] = [];
-  const diagnostics: string[] = [];
+  // Codes, not sentences — the client translates them (parent.diagCollapse /
+  // parent.diagTrivial), so the diagnostic honours the chosen locale.
+  const diagnostics: { code: 'collapse' | 'trivial'; skill: string }[] = [];
 
   for (const ab of ability.values()) {
     const meta = META.get(ab.skill_code);
@@ -54,9 +56,9 @@ export function GET(req: NextRequest) {
 
     const { acc, count } = repo.recentFirstTryAccuracy(playerId, ab.skill_code, 20);
     if (count >= COLLAPSE_MIN_N && acc < COLLAPSE_ACC) {
-      diagnostics.push(`${skillLabel(ab.skill_code)} — svarsandelen föll direkt efter att den låstes upp. Trolig saknad förkunskap.`);
+      diagnostics.push({ code: 'collapse', skill: skillLabel(ab.skill_code) });
     } else if (count >= TRIVIAL_MIN_N && acc >= TRIVIAL_ACC && ab.theta > TRIVIAL_THETA) {
-      diagnostics.push(`${skillLabel(ab.skill_code)} — nästan alltid rätt, θ klättrar utan tak. Årskursen kan vara för hög.`);
+      diagnostics.push({ code: 'trivial', skill: skillLabel(ab.skill_code) });
     }
   }
 

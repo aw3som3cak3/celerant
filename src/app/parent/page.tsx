@@ -4,24 +4,28 @@ import { useCallback, useEffect, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { PinPad } from '../_components/PinPad';
+import { useI18n } from '../_components/LocaleProvider';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
+type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
 type Overview = {
   player: { id: string; icon: string; schoolYear: number };
   attemptsLast7Days: number;
-  diagnostics: string[];
+  diagnostics: Diagnostic[];
   skills: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
+type T = (key: string, params?: Record<string, string | number>) => string;
 
-function fluencyCell(s: Overview['skills'][number]): string {
+function fluencyCell(s: Overview['skills'][number], t: T): string {
   if (s.mode !== 'component') return '—';
-  if (s.rate == null) return 'okänd';
-  const tag = s.rateState === 'measured' ? 'mätt' : 'preliminärt';
+  if (s.rate == null) return t('parent.fluUnknown');
+  const tag = s.rateState === 'measured' ? t('parent.fluMeasured') : t('parent.fluProvisional');
   return `${s.rate.toFixed(0)}${s.aim ? `/${s.aim.toFixed(0)}` : ''} (${tag})`;
 }
 
 export default function Parent() {
+  const { t } = useI18n();
   const [gate, setGate] = useState<'checking' | 'pin' | 'ok'>('checking');
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -55,26 +59,24 @@ export default function Parent() {
     setErr('');
     const r = await postJSON<{ ok?: boolean }>('/api/parent/login', { parentPin: pin });
     if (r.ok) loadAll();
-    else setErr('Fel PIN.');
+    else setErr(t('parent.wrongPin'));
   }
 
   if (gate === 'checking') return <div className="plain muted">…</div>;
   if (gate === 'pin')
     return (
       <div className="plain" style={{ textAlign: 'center' }}>
-        <h1>Förälder</h1>
-        <PinPad label="Förälderns PIN" onComplete={unlock} />
+        <h1>{t('parent.title')}</h1>
+        <PinPad label={t('parent.pinLabel')} onComplete={unlock} />
         {err && <p className="muted">{err}</p>}
-        <a className="idk" href="/">tillbaka</a>
+        <a className="idk" href="/">{t('common.back')}</a>
       </div>
     );
 
   return (
     <div className="plain">
-      <h1>Översikt</h1>
-      <p className="muted">
-        Inget att kolla dagligen. En tom sida är en frisk sida — meddelanden dyker upp bara om något i grafen ser fel ut.
-      </p>
+      <h1>{t('parent.overview')}</h1>
+      <p className="muted">{t('parent.intro')}</p>
 
       <FamilyGoal goal={goal} onChange={async () => setGoal(await getJSON<Goal>('/api/parent/goal'))} />
 
@@ -89,13 +91,15 @@ export default function Parent() {
       {data && (
         <>
           <p className="muted">
-            Årskurs {data.player.schoolYear === 0 ? 'F' : data.player.schoolYear} · Svar senaste 7 dagarna: {data.attemptsLast7Days}
+            {t('parent.year')} {data.player.schoolYear === 0 ? 'F' : data.player.schoolYear} · {t('parent.attempts7', { n: data.attemptsLast7Days })}
           </p>
 
           {data.diagnostics.length > 0 && (
             <div style={{ margin: '0.8rem 0' }}>
               {data.diagnostics.map((d, i) => (
-                <p key={i} style={{ color: 'var(--accent)' }}>⚠ {d}</p>
+                <p key={i} style={{ color: 'var(--accent)' }}>
+                  ⚠ {t(d.code === 'collapse' ? 'parent.diagCollapse' : 'parent.diagTrivial', { skill: d.skill })}
+                </p>
               ))}
             </div>
           )}
@@ -104,20 +108,20 @@ export default function Parent() {
             <YearChange playerId={data.player.id} current={data.player.schoolYear} />
             {' · '}
             <button className="idk" onClick={async () => { await postJSON('/api/parent/replay', { playerId: data.player.id }); getJSON<Overview>(`/api/parent/overview?playerId=${data.player.id}`).then(setData); }}>
-              bygg om cache
+              {t('parent.rebuild')}
             </button>
             {' · '}
-            <a className="idk" href="/api/family/export" target="_blank" rel="noreferrer">exportera</a>
+            <a className="idk" href="/api/family/export" target="_blank" rel="noreferrer">{t('parent.export')}</a>
           </div>
 
           <div style={{ overflowX: 'auto' }}>
             <table className="plain-table">
               <thead>
                 <tr>
-                  <th>färdighet</th>
-                  <th>åk</th>
+                  <th>{t('parent.thSkill')}</th>
+                  <th>{t('parent.thYear')}</th>
                   <th>θ</th>
-                  <th>flyt</th>
+                  <th>{t('parent.thFluency')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -126,7 +130,7 @@ export default function Parent() {
                     <td>{s.code.replace(/_/g, ' ')}</td>
                     <td>{s.year}</td>
                     <td>{s.theta.toFixed(2)}</td>
-                    <td>{fluencyCell(s)}</td>
+                    <td>{fluencyCell(s, t)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -136,13 +140,14 @@ export default function Parent() {
       )}
 
       <p style={{ marginTop: '2rem' }}>
-        <a className="idk" href="/">tillbaka</a>
+        <a className="idk" href="/">{t('common.back')}</a>
       </p>
     </div>
   );
 }
 
 function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => void }) {
+  const { t } = useI18n();
   const [label, setLabel] = useState('');
   const [target, setTarget] = useState('');
   if (!goal) return null;
@@ -150,31 +155,30 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   if (goal.goal) {
     return (
       <div className="namebtn" style={{ cursor: 'default' }}>
-        Mål: <strong>{goal.goal.label}</strong> — {goal.progress}/{goal.goal.target} pass
-        {goal.goal.reached ? ' · nått! 🎉' : ''}
+        {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
+        {goal.goal.reached ? ` · ${t('goal.reached')} 🎉` : ''}
         <button className="idk" onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}>
-          ta bort
+          {t('goal.remove')}
         </button>
-        <p className="muted" style={{ fontSize: '0.8rem' }}>
-          Räknas i pass, för hela familjen. Vem som gjort vad visas aldrig — alla åker till simhallen, eller ingen.
-        </p>
+        <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
       </div>
     );
   }
   return (
     <div className="namebtn" style={{ cursor: 'default' }}>
-      <input className="field" placeholder="mål, t.ex. simhallen" value={label} onChange={(e) => setLabel(e.target.value)} />
-      <input className="field" placeholder="antal pass" inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))} />
+      <input className="field" placeholder={t('goal.labelPlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
+      <input className="field" placeholder={t('goal.targetPlaceholder')} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))} />
       <button className="primary" disabled={!label || !target} onClick={async () => { await postJSON('/api/parent/goal', { label, target: Number(target) }); setLabel(''); setTarget(''); onChange(); }}>
-        Sätt familjemål
+        {t('goal.set')}
       </button>
     </div>
   );
 }
 
 function YearChange({ playerId, current }: { playerId: string; current: number }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
-  if (!open) return <button className="idk" onClick={() => setOpen(true)}>ändra årskurs</button>;
+  if (!open) return <button className="idk" onClick={() => setOpen(true)}>{t('parent.changeYear')}</button>;
   return (
     <span>
       {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (

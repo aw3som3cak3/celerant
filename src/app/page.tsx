@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
-import { familyIcons, familyKey, BY_KEY } from '@/icons';
+import { familyIcons, BY_KEY } from '@/icons';
 import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
 import { TopBar } from './_components/TopBar';
@@ -39,10 +39,7 @@ export default function Home() {
 
   if (!me || !families) return <div className="plain muted">…</div>;
 
-  if (me.authenticated) {
-    if (mode === 'addplayer') return <CreatePlayer used={me.players!.map((p) => p.icon)} onDone={() => location.reload()} />;
-    return <Players me={me} onAdd={() => setMode('addplayer')} />;
-  }
+  if (me.authenticated) return <Players me={me} />;
 
   return (
     <>
@@ -78,10 +75,10 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
   async function submit(pin: string) {
     if (!a || !b) return;
     setErr('');
-    const iconPair = familyKey(a, b);
-    const r = await postJSON<{ ok?: boolean }>('/api/login', { iconPair, pin });
+    const iconPair = `${a}+${b}`; // entered order; the server matches either way
+    const r = await postJSON<{ ok?: boolean; iconPair?: string }>('/api/login', { iconPair, pin });
     if (r.ok) {
-      rememberFamily(iconPair);
+      rememberFamily(r.iconPair ?? iconPair); // remember the family's canonical order
       location.reload();
     } else setErr(t('login.error'));
   }
@@ -164,36 +161,74 @@ function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose
   );
 }
 
-// --- logged in: pick a player ----------------------------------------------
+// --- logged in: the children card -------------------------------------------
 
-function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
+function Players({ me }: { me: Me }) {
   const { t } = useI18n();
+  const [adding, setAdding] = useState(false);
   return (
-    <div className="plain" style={{ textAlign: 'center' }}>
-      <div className="bigpair">{me.icons!.join(' ')}</div>
-      <div className="playergrid">
-        {me.players!.map((p) => (
-          <button key={p.id} className="playerbtn" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
-            {BY_KEY.get(p.icon)?.glyph ?? '?'}
+    <>
+      <TopBar authed />
+      <div className="family-card">
+        <h2>{t('family.heading')}</h2>
+        <div className="bigpair" style={{ margin: '0.4rem 0' }}>{me.icons!.join(' ')}</div>
+
+        <div className="or-divider">{t('family.children')}</div>
+
+        <div className="children-grid">
+          {me.players!.map((p) => (
+            <button key={p.id} className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
+              {BY_KEY.get(p.icon)?.glyph ?? '?'}
+              <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
+            </button>
+          ))}
+          <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
+            +
           </button>
-        ))}
-        <button className="playerbtn" style={{ fontSize: '2rem', color: 'var(--faint)' }} onClick={onAdd}>
-          +
-        </button>
+        </div>
       </div>
-      <p>
-        <a className="idk" href="/parent">{t('players.parent')}</a>{' '}
-        ·{' '}
-        <button
-          className="idk"
-          onClick={async () => {
-            await postJSON('/api/logout', {});
-            location.reload(); // keep the cached-families list for quick re-login
-          }}
-        >
-          {t('players.switch')}
-        </button>
-      </p>
+      {adding && <AddChildModal used={me.players!.map((p) => p.icon)} onClose={() => setAdding(false)} />}
+    </>
+  );
+}
+
+// Add a child from the family card, in a modal: pick an icon, then årskurs.
+function AddChildModal({ used, onClose }: { used: string[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const [icon, setIcon] = useState<string | null>(null);
+  const [err, setErr] = useState('');
+
+  async function create(year: number) {
+    if (!icon) return;
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon, schoolYear: year });
+    if (r.ok) location.reload();
+    else setErr(t('player.iconTaken'));
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <strong>{t('players.addChild')}</strong>
+          <button className="idk" onClick={onClose}>{t('common.close')}</button>
+        </div>
+        {!icon ? (
+          <IconGrid allowSearch exclude={new Set(used)} onPick={setIcon} />
+        ) : (
+          <div style={{ textAlign: 'center' }}>
+            <div className="bigpair">{BY_KEY.get(icon)?.glyph}</div>
+            <p className="muted">{t('player.whichYear')}</p>
+            <div className="yearrow">
+              {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (
+                <button key={y} className="yearbtn" onClick={() => create(i)}>
+                  {y}
+                </button>
+              ))}
+            </div>
+            {err && <p className="muted">{err}</p>}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -223,19 +258,24 @@ function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => vo
   }
 
   if (!pin) {
-    return <ConfirmPin title={t('create.familyPin')} hint={t('create.familyPinHint')} onDone={setPin} />;
+    // key: distinct instance per challenge, so the "confirm" state never leaks
+    // from the family PIN into the parent PIN.
+    return <ConfirmPin key="family-pin" title={t('create.familyPin')} hint={t('create.familyPinHint')} onDone={setPin} />;
   }
   if (!parentPin) {
     return (
       <ConfirmPin
+        key="parent-pin"
         title={t('create.parentPin')}
         hint={t('create.parentPinHint')}
         onDone={async (pp) => {
           setErr('');
           if (pp === pin) return setErr(t('create.pinsMustDiffer'));
-          const r = await postJSON<{ ok?: boolean; error?: string }>('/api/family', { iconA: a, iconB: b, pin, parentPin: pp });
-          if (r.ok) setParentPin(pp);
-          else setErr(r.error === 'pair_taken' ? t('create.pairTaken') : r.error === 'weak_pin' ? t('create.weakPin') : t('create.somethingWrong'));
+          const r = await postJSON<{ ok?: boolean; error?: string; iconPair?: string }>('/api/family', { iconA: a, iconB: b, pin, parentPin: pp });
+          if (r.ok) {
+            if (r.iconPair) rememberFamily(r.iconPair); // cache the new family for quick login
+            setParentPin(pp);
+          } else setErr(r.error === 'pair_taken' ? t('create.pairTaken') : r.error === 'weak_pin' ? t('create.weakPin') : t('create.somethingWrong'));
         }}
       />
     );

@@ -1,5 +1,7 @@
 'use client';
 
+import { useI18n } from './LocaleProvider';
+
 // The Standard Celeration Chart (addendum §5): correct-per-minute on a
 // semi-logarithmic vertical axis against calendar days. On the log scale a
 // constant multiplicative growth rate is a straight line. Corrects are dots
@@ -17,8 +19,9 @@ const H = 300;
 const PAD = 40;
 
 export function CelerationChart({ data }: { data: ChartData }) {
+  const { t } = useI18n();
   if (data.points.length === 0) {
-    return <p className="muted">No sprints yet for this skill. Run one and your line begins here.</p>;
+    return <p className="muted">{t('chart.noSprints')}</p>;
   }
 
   // Log vertical scale. Clamp the visible band to [1, top].
@@ -79,14 +82,14 @@ export function CelerationChart({ data }: { data: ChartData }) {
         <line x1={PAD} x2={PAD} y1={PAD} y2={H - PAD} stroke="#ccc" />
         <line x1={PAD} x2={W - PAD} y1={H - PAD} y2={H - PAD} stroke="#ccc" />
         <text x={W / 2} y={H - 6} fontSize={11} fill="#9aa" textAnchor="middle">
-          days
+          {t('chart.days')}
         </text>
       </svg>
       <p className="muted">
         {data.celeration != null ? (
-          <>Celeration ×{data.celeration.toFixed(2)} per week.</>
+          <>{t('chart.celeration', { x: data.celeration.toFixed(2) })}</>
         ) : (
-          <>Four sprints draw a slope. Keep going.</>
+          <>{t('chart.keepGoing')}</>
         )}
       </p>
     </div>

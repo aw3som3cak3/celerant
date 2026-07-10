@@ -58,6 +58,8 @@ export type FamilyRow = {
   deleted_at: number | null;
 };
 
+// iconPair is stored in the ENTERED order (so the family shows as it was made);
+// uniqueness and lookup are order-independent via familyByIcons.
 export function createFamily(iconPair: string, pinHash: string, parentHash: string, now: number): string {
   const id = randomUUID();
   getDb()
@@ -70,10 +72,12 @@ export function familyById(id: string): FamilyRow | undefined {
   return getDb().prepare('SELECT * FROM family WHERE id = ? AND deleted_at IS NULL').get(id) as FamilyRow | undefined;
 }
 
-export function familyByIconPair(iconPair: string): FamilyRow | undefined {
+// A family is an unordered pair, so match either order (older families were
+// stored sorted; newer ones keep the entered order for display).
+export function familyByIcons(a: string, b: string): FamilyRow | undefined {
   return getDb()
-    .prepare('SELECT * FROM family WHERE icon_pair = ? AND deleted_at IS NULL')
-    .get(iconPair) as FamilyRow | undefined;
+    .prepare('SELECT * FROM family WHERE icon_pair IN (?, ?) AND deleted_at IS NULL')
+    .get(`${a}+${b}`, `${b}+${a}`) as FamilyRow | undefined;
 }
 
 // Icon pairs only — never player counts (ui-lifecycle §5.1).

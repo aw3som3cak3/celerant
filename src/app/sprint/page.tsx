@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { CelerationChart, type ChartData } from '../_components/CelerationChart';
+import { useI18n } from '../_components/LocaleProvider';
 
 type Eligible = { code: string; family: string; accuracy: number; aim: number; rate: number | null };
 type Started = { sprintId: string; prompt: string; durationS: number; endsAt: number };
@@ -11,6 +12,7 @@ type Result = { correct: number; errors: number; durationS: number; correctPerMi
 type Step = { done: false; prompt: string; endsAt: number } | { done: true; result: Result };
 
 function Sprint() {
+  const { t } = useI18n();
   const p = useSearchParams().get('p') ?? '';
   const [phase, setPhase] = useState<'pick' | 'run' | 'result'>('pick');
   const [eligible, setEligible] = useState<Eligible[] | null>(null);
@@ -84,14 +86,13 @@ function Sprint() {
   if (phase === 'pick') {
     return (
       <div className="plain">
-        <h1>Sprint</h1>
+        <h1>{t('sprint.title')}</h1>
         <p className="muted">
-          <a href={`/warmup?p=${p}`}>Mät skrivhastighet</a> (frivilligt — gör målen mer exakta).
+          <a href={`/warmup?p=${p}`}>{t('sprint.measure')}</a> {t('sprint.measureHint')}
         </p>
         {eligible.length === 0 ? (
           <p className="muted">
-            Inga färdigheter är redo att sprinta än. En färdighet blir sprintbar när den nästan alltid är rätt i
-            träning. Fortsätt träna.
+            {t('sprint.noneReady')}
           </p>
         ) : (
           <>
@@ -104,13 +105,13 @@ function Sprint() {
             </div>
             {eligible.map((s) => (
               <button key={s.code} className="namebtn" onClick={() => start(s.code)}>
-                {s.family} · {s.code.replace(/_/g, ' ')} <span className="muted">· mål {s.aim.toFixed(0)}/min</span>
+                {s.family} · {s.code.replace(/_/g, ' ')} <span className="muted">· {t('sprint.aimPerMin', { n: s.aim.toFixed(0) })}</span>
               </button>
             ))}
           </>
         )}
         <p style={{ marginTop: '2rem' }}>
-          <a className="idk" href="/">tillbaka</a>
+          <a className="idk" href="/">{t('common.back')}</a>
         </p>
       </div>
     );
@@ -130,16 +131,16 @@ function Sprint() {
 
   return (
     <div className="plain">
-      <h1>Sprint klar</h1>
+      <h1>{t('sprint.done')}</h1>
       {result && (
         <p className="muted">
-          {result.correctPerMin.toFixed(0)} rätt/min · {result.errorsPerMin.toFixed(0)} fel/min · mål {result.aim.toFixed(0)}
+          {t('sprint.result', { c: result.correctPerMin.toFixed(0), e: result.errorsPerMin.toFixed(0), a: result.aim.toFixed(0) })}
         </p>
       )}
       {chart && <CelerationChart data={chart} />}
       <p style={{ marginTop: '1.5rem' }}>
-        <button className="primary" onClick={() => { setPhase('pick'); loadEligible(); }}>Igen</button>{' '}
-        <a className="idk" href="/">tillbaka</a>
+        <button className="primary" onClick={() => { setPhase('pick'); loadEligible(); }}>{t('common.again')}</button>{' '}
+        <a className="idk" href="/">{t('common.back')}</a>
       </p>
     </div>
   );

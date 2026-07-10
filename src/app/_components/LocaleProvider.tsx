@@ -5,7 +5,8 @@ import { DEFAULT_LOCALE, LOCALES, translate, type Locale } from '@/lib/i18n';
 
 const LOCALE_KEY = 'celerant.locale';
 
-type Ctx = { locale: Locale; setLocale: (l: Locale) => void; t: (key: string) => string };
+type Params = Record<string, string | number>;
+type Ctx = { locale: Locale; setLocale: (l: Locale) => void; t: (key: string, params?: Params) => string };
 const LocaleContext = createContext<Ctx>({ locale: DEFAULT_LOCALE, setLocale: () => {}, t: (k) => k });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
@@ -27,7 +28,7 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const t = (key: string) => translate(locale, key);
+  const t = (key: string, params?: Params) => translate(locale, key, params);
   return <LocaleContext.Provider value={{ locale, setLocale, t }}>{children}</LocaleContext.Provider>;
 }
 

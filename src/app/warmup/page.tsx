@@ -3,10 +3,12 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { postJSON } from '@/lib/client';
+import { useI18n } from '../_components/LocaleProvider';
 
 type Started = { toolId: string; target: string; durationS: number; endsAt: number };
 
 function Warmup() {
+  const { t } = useI18n();
   const p = useSearchParams().get('p') ?? '';
   const [phase, setPhase] = useState<'intro' | 'run' | 'done'>('intro');
   const [started, setStarted] = useState<Started | null>(null);
@@ -51,10 +53,10 @@ function Warmup() {
   if (phase === 'intro') {
     return (
       <div className="plain">
-        <h1>Skrivhastighet</h1>
-        <p className="muted">Skriv av siffrorna så snabbt du bekvämt kan i en minut. Det finns inget rätt eller fel här.</p>
-        <button className="primary" onClick={begin}>Börja</button>{' '}
-        <a className="idk" href={`/sprint?p=${p}`}>senare</a>
+        <h1>{t('warmup.title')}</h1>
+        <p className="muted">{t('warmup.intro')}</p>
+        <button className="primary" onClick={begin}>{t('warmup.start')}</button>{' '}
+        <a className="idk" href={`/sprint?p=${p}`}>{t('warmup.later')}</a>
       </div>
     );
   }
@@ -65,18 +67,18 @@ function Warmup() {
       <div className="plain">
         <p className="muted">{remaining}s</p>
         <div style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.15em', lineHeight: 2, fontSize: '1.2rem' }}>{groups}</div>
-        <textarea ref={areaRef} className="field" rows={4} style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.15em', fontSize: '1.2rem' }} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="skriv siffrorna här" />
-        <button className="idk" onClick={finish}>klar</button>
+        <textarea ref={areaRef} className="field" rows={4} style={{ fontVariantNumeric: 'tabular-nums', letterSpacing: '0.15em', fontSize: '1.2rem' }} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={t('warmup.type')} />
+        <button className="idk" onClick={finish}>{t('warmup.doneEarly')}</button>
       </div>
     );
   }
 
   return (
     <div className="plain">
-      <h1>Klart.</h1>
-      <p className="muted">Skrivhastighet: {result?.toFixed(0)} siffror per minut.</p>
-      <a className="menu-link" href={`/sprint?p=${p}`}>Till sprint</a>
-      <a className="menu-link" href="/">Hem</a>
+      <h1>{t('warmup.done')}</h1>
+      <p className="muted">{t('warmup.result', { n: result?.toFixed(0) ?? '' })}</p>
+      <a className="menu-link" href={`/sprint?p=${p}`}>{t('warmup.toSprint')}</a>
+      <a className="menu-link" href="/">{t('common.home')}</a>
     </div>
   );
 }

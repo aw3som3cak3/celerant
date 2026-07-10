@@ -4,15 +4,21 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
+import { useI18n } from '../_components/LocaleProvider';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp = { status: 'retry' | 'correct' | 'revealed' | 'expired'; steps?: string[]; session?: Session; error?: string };
 type Choice = { code: string; label: string };
 
-const QUIET = ['Ja.', 'Rätt.', 'Bra.', 'Just det.', 'Precis.'];
+const QUIET_WORDS: Record<string, string[]> = {
+  sv: ['Ja.', 'Rätt.', 'Bra.', 'Just det.', 'Precis.'],
+  en: ['Yes.', 'Right.', 'Good.', "That's it.", 'Exactly.'],
+};
 
 function Practice() {
+  const { t, locale } = useI18n();
+  const QUIET = QUIET_WORDS[locale] ?? QUIET_WORDS.sv;
   const playerId = useSearchParams().get('p') ?? '';
   const [phase, setPhase] = useState<'loading' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -125,8 +131,8 @@ function Practice() {
   if (phase === 'choose') {
     return (
       <div className="stage">
-        {icon && <div className="whoami" title="du">{icon}</div>}
-        <p className="muted" style={{ marginBottom: '2rem' }}>Vad vill du börja med?</p>
+        {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
+        <p className="muted" style={{ marginBottom: '2rem' }}>{t('practice.choosePrompt')}</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
             <button key={c.code} className="next-btn" style={{ fontSize: '1.2rem', padding: '1rem 1.4rem' }} onClick={() => load(c.code)}>
@@ -141,12 +147,12 @@ function Practice() {
   if (phase === 'done') {
     return (
       <div className="stage">
-        <div className="prompt" style={{ fontSize: '2rem' }}>Klart.</div>
-        <p className="muted">{target} problem.</p>
+        <div className="prompt" style={{ fontSize: '2rem' }}>{t('practice.done')}</div>
+        <p className="muted">{t('practice.doneCount', { n: target })}</p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-          <button className="next-btn" onClick={startSession}>Igen</button>
-          <a className="next-btn" href={`/shelf?p=${playerId}`}>Korten</a>
-          <a className="next-btn" href="/">Hem</a>
+          <button className="next-btn" onClick={startSession}>{t('common.again')}</button>
+          <a className="next-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
+          <a className="next-btn" href="/">{t('common.home')}</a>
         </div>
       </div>
     );
@@ -156,10 +162,10 @@ function Practice() {
 
   return (
     <div className="stage">
-      {icon && <div className="whoami" title="du">{icon}</div>}
+      {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
       <SessionBar completed={completed} target={target} />
 
-      {item.novel && phase === 'answer' && <div className="muted fade" style={{ marginBottom: '0.8rem' }}>Något nytt.</div>}
+      {item.novel && phase === 'answer' && <div className="muted fade" style={{ marginBottom: '0.8rem' }}>{t('practice.somethingNew')}</div>}
 
       <Problem
         prompt={item.prompt}
@@ -172,7 +178,7 @@ function Practice() {
         onEnter={submit}
       />
 
-      <div className="quiet-word fade">{phase === 'correct' ? word : retry ? 'Prova en gång till.' : ''}</div>
+      <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
 
       {phase === 'revealed' && (
         <>
@@ -181,14 +187,14 @@ function Practice() {
               <div key={i} className="step" style={{ animationDelay: `${i * 320}ms` }}>{s}</div>
             ))}
           </div>
-          <button className="next-btn" onClick={afterReveal}>Nästa</button>
+          <button className="next-btn" onClick={afterReveal}>{t('practice.next')}</button>
         </>
       )}
 
       {phase === 'answer' && (
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '2rem' }}>
-          <button className="softbtn" onClick={idk}>vet inte</button>
-          <button className="softbtn" onClick={endEarly}>sluta</button>
+          <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
+          <button className="softbtn" onClick={endEarly}>{t('practice.stop')}</button>
         </div>
       )}
 

@@ -16,11 +16,14 @@ export async function POST(req: NextRequest) {
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json({ error: 'bad_request' }, 400);
 
-  const family = repo.familyByIconPair(parsed.data.iconPair);
+  const [a, b] = parsed.data.iconPair.split('+');
+  const family = a && b ? repo.familyByIcons(a, b) : undefined;
   if (!family || !verifyPin(parsed.data.pin, family.pin_hash)) return json({ error: 'invalid' }, 401);
 
   const { token, tokenHash } = newSessionToken();
   repo.createSession(tokenHash, family.id, false, now, now + SESSION_MAX_AGE_MS);
-  const res = json({ ok: true, familyId: family.id });
+  // Return the family's canonical (entered-order) pair so the client caches it
+  // for quick login in the order it was created.
+  const res = json({ ok: true, familyId: family.id, iconPair: family.icon_pair });
   return setCookie(res, SESSION_COOKIE, token, SESSION_MAX_AGE_MS);
 }

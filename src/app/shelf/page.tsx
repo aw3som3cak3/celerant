@@ -3,10 +3,12 @@
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
+import { useI18n } from '../_components/LocaleProvider';
 
 type Card = { label: string; prompt: string; given: string | null; earnedAt: number };
 
 function Shelf() {
+  const { t } = useI18n();
   const p = useSearchParams().get('p') ?? '';
   const [cards, setCards] = useState<Card[] | null>(null);
   const [stretch, setStretch] = useState<boolean>(false);
@@ -27,9 +29,9 @@ function Shelf() {
 
   return (
     <div className="plain">
-      <h1>Korten</h1>
+      <h1>{t('shelf.title')}</h1>
       {cards.length === 0 ? (
-        <p className="muted">Här samlas det första problemet du löser av varje sort. Lös ett så börjar hyllan.</p>
+        <p className="muted">{t('shelf.empty')}</p>
       ) : (
         <div className="playergrid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
           {cards.map((c, i) => (
@@ -47,9 +49,9 @@ function Shelf() {
 
       <p style={{ marginTop: '2rem' }}>
         <button className="idk" onClick={toggleStretch}>
-          {stretch ? 'svårare: på' : 'svårare'}
+          {stretch ? t('shelf.harderOn') : t('shelf.harder')}
         </button>{' '}
-        · <a className="idk" href={`/practice?p=${p}`}>träna</a> · <a className="idk" href="/">hem</a>
+        · <a className="idk" href={`/practice?p=${p}`}>{t('shelf.practise')}</a> · <a className="idk" href="/">{t('common.home')}</a>
       </p>
     </div>
   );
