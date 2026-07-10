@@ -77,10 +77,11 @@ export type NextOpts = {
   peakEnd?: boolean; // last item of a session: highest-p eligible (§3.3)
 };
 
-// Three eligible skills near the success target, labelled by content, for the
-// child to choose from at the start of a session (§3.2). Difficulty is never an
-// axis of the choice. Order is randomised; none is marked recommended.
-export type SkillChoice = { code: string; label: string };
+// Three eligible skills near the success target, for the child to choose from at
+// the start of a session (§3.2). Difficulty is never an axis. Each carries a
+// `sample` — a real example problem — so a child who can't yet read the label
+// still recognises the kind of maths. Order is randomised; none is recommended.
+export type SkillChoice = { code: string; label: string; sample: string };
 
 export function sessionChoices(playerId: string, schoolYear: number, stretch: boolean, now: number): SkillChoice[] {
   const states = buildStates(playerId, schoolYear);
@@ -91,14 +92,13 @@ export function sessionChoices(playerId: string, schoolYear: number, stretch: bo
     rand: Math.random,
     target: stretch ? STRETCH_TARGET : undefined,
   });
-  const top = scores
+  return scores
     .filter((s) => s.eligible)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
-    .map((s) => ({ code: s.code, label: skillLabel(s.code), sort: Math.random() }))
+    .map((s) => ({ code: s.code, label: skillLabel(s.code), sample: generateCanon(s.code, makeRng(randomSeed())).prompt, sort: Math.random() }))
     .sort((a, b) => a.sort - b.sort)
-    .map(({ code, label }) => ({ code, label }));
-  return top;
+    .map(({ code, label, sample }) => ({ code, label, sample }));
 }
 
 export function nextItem(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): NextItem {

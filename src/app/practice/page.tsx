@@ -9,7 +9,7 @@ import { useI18n } from '../_components/LocaleProvider';
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp = { status: 'retry' | 'correct' | 'revealed' | 'expired'; steps?: string[]; session?: Session; error?: string };
-type Choice = { code: string; label: string };
+type Choice = { code: string; label: string; sample: string };
 
 const QUIET_WORDS: Record<string, string[]> = {
   sv: ['Ja.', 'Rätt.', 'Bra.', 'Just det.', 'Precis.'],
@@ -135,8 +135,9 @@ function Practice() {
         <p className="muted" style={{ marginBottom: '2rem' }}>{t('practice.choosePrompt')}</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
-            <button key={c.code} className="next-btn" style={{ fontSize: '1.2rem', padding: '1rem 1.4rem' }} onClick={() => load(c.code)}>
-              {c.label}
+            <button key={c.code} className="choice-btn" onClick={() => load(c.code)}>
+              <span className="choice-sample">{c.sample}</span>
+              <span className="choice-label">{c.label}</span>
             </button>
           ))}
         </div>
@@ -165,7 +166,8 @@ function Practice() {
       {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
       <SessionBar completed={completed} target={target} />
 
-      {item.novel && phase === 'answer' && <div className="muted fade" style={{ marginBottom: '0.8rem' }}>{t('practice.somethingNew')}</div>}
+      {/* reserved space so the equation never shifts when this appears */}
+      <div className="novelty fade">{item.novel && phase === 'answer' ? t('practice.somethingNew') : ''}</div>
 
       <Problem
         prompt={item.prompt}
@@ -180,7 +182,7 @@ function Practice() {
 
       <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
 
-      {phase === 'revealed' && (
+      {phase === 'revealed' ? (
         <>
           <div className="solution">
             {steps.map((s, i) => (
@@ -189,14 +191,17 @@ function Practice() {
           </div>
           <button className="next-btn" onClick={afterReveal}>{t('practice.next')}</button>
         </>
-      )}
-
-      {phase === 'answer' && (
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '2rem' }}>
-          <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
-          <button className="softbtn" onClick={endEarly}>{t('practice.stop')}</button>
-        </div>
-      )}
+      ) : phase === 'answer' ? (
+        <>
+          <div className="answer-actions">
+            <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
+            <button className="submit-btn" onClick={submit} disabled={value.trim() === ''} aria-label={t('pin.submit')}>
+              ✓
+            </button>
+          </div>
+          <button className="quit-btn" onClick={endEarly}>{t('practice.stop')}</button>
+        </>
+      ) : null}
 
       <div className="level" aria-hidden>
         {Array.from({ length: 8 }).map((_, i) => (
@@ -221,8 +226,9 @@ function SessionBar({ completed, target }: { completed: number; target: number }
   );
 }
 
-// Renders the problem. For a "□" prompt (missing number) the answer input sits
-// inline where the box was — never a box glyph AND a separate input.
+// Every problem renders the same way — the equation on one line, one answer row
+// beneath it — so nothing jumps between problems. A "□" prompt keeps the box in
+// the equation as the blank; the child types the missing number in the row.
 function Problem({
   prompt,
   family,
@@ -242,48 +248,23 @@ function Problem({
   onChange: (v: string) => void;
   onEnter: () => void;
 }) {
-  const input = (
-    <input
-      ref={inputRef}
-      className="answer-input"
-      autoComplete="off"
-      spellCheck={false}
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      onKeyDown={(e) => e.key === 'Enter' && onEnter()}
-      aria-label="svar"
-    />
-  );
-  // A visible submit — Enter still works, but a tablet has no Enter key.
-  const submitBtn = show ? (
-    <button className="submit-btn" onClick={onEnter} disabled={disabled || value.trim() === ''} aria-label="svara">
-      ▸
-    </button>
-  ) : null;
-
-  if (prompt.includes('□')) {
-    const [before, after] = prompt.split('□');
-    return (
-      <div className="answer-row" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
-        <span className="prompt" style={{ margin: 0 }}>{before}</span>
-        {show ? input : <span className="prompt" style={{ margin: 0 }}>▁</span>}
-        <span className="prompt" style={{ margin: 0 }}>{after}</span>
-        {submitBtn}
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="prompt">{prompt}</div>
-      {show && (
-        <div className="answer-row">
-          {family === 'linear' && <span>x =</span>}
-          {input}
-          {submitBtn}
-        </div>
-      )}
+      <div className="answer-row" style={{ visibility: show ? 'visible' : 'hidden' }}>
+        {family === 'linear' && <span>x =</span>}
+        <input
+          ref={inputRef}
+          className="answer-input"
+          autoComplete="off"
+          spellCheck={false}
+          value={value}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && onEnter()}
+          aria-label="svar"
+        />
+      </div>
     </>
   );
 }

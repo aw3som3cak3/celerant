@@ -101,26 +101,40 @@ input {
   color: var(--ink-soft);
 }
 
-/* The submit affordance next to the answer — for tablets with no Enter key. */
+/* Reserve the novelty line's space always, so the equation never shifts when
+   "Något nytt." appears or disappears. */
+.novelty {
+  min-height: 1.5rem;
+  color: var(--ink-soft);
+  margin-bottom: 0.4rem;
+}
+
+/* Answer actions live together: "vet inte" and the submit button, side by side
+   and the same height. */
+.answer-actions {
+  display: flex;
+  gap: 0.7rem;
+  align-items: center;
+  margin-top: 2rem;
+}
 .submit-btn {
-  border: 2px solid var(--accent);
+  border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
-  border-radius: 10px;
-  width: 2.6rem;
-  height: 2.6rem;
-  font-size: 1.4rem;
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
+  font-size: 1.1rem;
   line-height: 1;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  gap: 0.4rem;
 }
 .submit-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: default;
 }
 
-/* "vet inte" / "sluta" should read as buttons, not stray text. */
+/* "vet inte" reads as a real (but quiet) button next to submit. */
 .softbtn {
   border: 1px solid var(--line);
   background: #fff;
@@ -132,6 +146,20 @@ input {
 .softbtn:hover {
   border-color: var(--accent);
   color: var(--ink);
+}
+
+/* "sluta" ends the whole session — a quiet quit, set apart and understated. */
+.quit-btn {
+  margin-top: 2.2rem;
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: 0.85rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.quit-btn:hover {
+  color: var(--ink-soft);
 }
 
 /* Who is practising — the child's own icon, small, top-left. Identity, not a
@@ -203,6 +231,33 @@ input {
 }
 .next-btn:hover {
   border-color: var(--accent);
+}
+
+/* Session-start choice: a concrete sample problem (readable to a non-reader who
+   knows the maths) above the word label. */
+.choice-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 140px;
+  padding: 1.3rem 1.4rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+}
+.choice-btn:hover {
+  border-color: var(--accent);
+}
+.choice-sample {
+  font-size: 1.9rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1;
+}
+.choice-label {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
 }
 
 /* The single permitted ornament: a faint eight-tick level indicator at the
@@ -536,6 +591,9 @@ table.plain-table th {
   border-radius: 8px;
   padding: 0.4rem 0.9rem;
   font-size: 0.95rem;
+  text-decoration: none; /* it's a button, even when it's an <a> */
+  display: inline-block;
+  line-height: 1.2;
 }
 .topbar-login:hover {
   border-color: var(--accent);
