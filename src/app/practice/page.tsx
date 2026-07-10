@@ -202,12 +202,6 @@ function Practice() {
           <button className="quit-btn" onClick={endEarly}>{t('practice.stop')}</button>
         </>
       ) : null}
-
-      <div className="level" aria-hidden>
-        {Array.from({ length: 8 }).map((_, i) => (
-          <span key={i} className={`tick ${i < item.level ? 'on' : ''}`} />
-        ))}
-      </div>
     </div>
   );
 }
@@ -248,9 +242,18 @@ function Problem({
   onChange: (v: string) => void;
   onEnter: () => void;
 }) {
+  // Render "□" as a clear, digit-sized blank ("?") rather than a tiny box.
+  const promptEl = prompt.includes('□')
+    ? prompt
+        .split('□')
+        .flatMap((part, i, arr) =>
+          i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part],
+        )
+    : prompt;
+
   return (
     <>
-      <div className="prompt">{prompt}</div>
+      <div className="prompt">{promptEl}</div>
       <div className="answer-row" style={{ visibility: show ? 'visible' : 'hidden' }}>
         {family === 'linear' && <span>x =</span>}
         <input
