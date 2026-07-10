@@ -131,7 +131,9 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
     pick = r.chosen ?? states.find((s) => s.requires.length === 0)!;
   }
 
-  const novel = (ability.get(pick.code)?.last_seen_at ?? null) === null;
+  // "Något nytt" marks a genuinely new unlock, not the session-1 flood where
+  // every skill is new. Only cue it once the player is past their first burst.
+  const novel = (ability.get(pick.code)?.last_seen_at ?? null) === null && repo.totalAttempts(playerId) >= 15;
   const seed = randomSeed();
   const item = generateCanon(pick.code, makeRng(seed));
   const itemId = randomUUID();

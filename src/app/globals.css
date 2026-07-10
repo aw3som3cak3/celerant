@@ -101,6 +101,79 @@ input {
   color: var(--ink-soft);
 }
 
+/* The submit affordance next to the answer — for tablets with no Enter key. */
+.submit-btn {
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 10px;
+  width: 2.6rem;
+  height: 2.6rem;
+  font-size: 1.4rem;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.submit-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* "vet inte" / "sluta" should read as buttons, not stray text. */
+.softbtn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.5rem 1.1rem;
+  font-size: 1rem;
+}
+.softbtn:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+}
+
+/* Who is practising — the child's own icon, small, top-left. Identity, not a
+   status gradient. */
+.whoami {
+  position: fixed;
+  top: 0.8rem;
+  left: 1rem;
+  font-size: 1.6rem;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+/* Session progress — the one permitted counter (motivation §3.1), as a quiet
+   grey bar with a count. Fills over the 20 items; at full, the "Klart" screen. */
+.sessionbar-wrap {
+  position: fixed;
+  top: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(240px, 60vw);
+  text-align: center;
+}
+.sessionbar {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+}
+.sessionbar > span {
+  display: block;
+  height: 100%;
+  background: var(--faint);
+  transition: width 300ms ease;
+}
+.sessionbar-label {
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Worked solution reveal, line by line. */
 .solution {
   margin-top: 1.6rem;

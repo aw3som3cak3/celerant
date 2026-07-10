@@ -14,7 +14,7 @@ const CACHE_KEY = 'celerant.family';
 export default function Home() {
   const [me, setMe] = useState<Me | null>(null);
   const [families, setFamilies] = useState<Families | null>(null);
-  const [mode, setMode] = useState<'auto' | 'create' | 'addplayer'>('auto');
+  const [mode, setMode] = useState<'landing' | 'login' | 'create' | 'addplayer'>('landing');
 
   useEffect(() => {
     getJSON<Me>('/api/me').then(setMe);
@@ -27,8 +27,60 @@ export default function Home() {
     if (mode === 'addplayer') return <CreatePlayer used={me.players!.map((p) => p.icon)} onDone={() => location.reload()} />;
     return <Players me={me} onAdd={() => setMode('addplayer')} />;
   }
-  if (mode === 'create' || families.empty) return <CreateFamily onDone={() => location.reload()} />;
-  return <Login pairs={families.pairs} onCreate={() => setMode('create')} />;
+
+  if (mode === 'create') return <CreateFamily onDone={() => location.reload()} onBack={() => setMode('landing')} />;
+  if (mode === 'login') return <Login pairs={families.pairs} onBack={() => setMode('landing')} />;
+  return (
+    <Landing
+      pairs={families.pairs}
+      empty={families.empty}
+      onLogin={() => setMode('login')}
+      onCreate={() => setMode('create')}
+    />
+  );
+}
+
+// --- landing: log in or register ------------------------------------------
+
+function Landing({
+  pairs,
+  empty,
+  onLogin,
+  onCreate,
+}: {
+  pairs: string[];
+  empty: boolean;
+  onLogin: () => void;
+  onCreate: () => void;
+}) {
+  // Surface the family last used on this device, if it still exists.
+  const cached = typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_KEY) : null;
+  const cachedOk = cached && pairs.includes(cached) ? cached : null;
+
+  return (
+    <div className="plain" style={{ textAlign: 'center' }}>
+      <h1>Celerant</h1>
+      {cachedOk && (
+        <>
+          <p className="muted">Fortsätt som</p>
+          <button className="namebtn" style={{ fontSize: '2rem', textAlign: 'center' }} onClick={onLogin}>
+            {familyIcons(cachedOk).map((i) => i.glyph).join(' ')}
+          </button>
+        </>
+      )}
+      <div style={{ marginTop: '2rem', display: 'flex', gap: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+        {!empty && (
+          <button className="primary" onClick={onLogin}>
+            Logga in
+          </button>
+        )}
+        <button className={empty ? 'primary' : 'namebtn'} style={empty ? undefined : { padding: '0.7rem 1.4rem' }} onClick={onCreate}>
+          Ny familj
+        </button>
+      </div>
+      {empty && <p className="muted" style={{ marginTop: '1rem' }}>Ingen familj än — skapa en för att börja.</p>}
+    </div>
+  );
 }
 
 // --- logged in: pick a player ----------------------------------------------
@@ -69,7 +121,7 @@ function Players({ me, onAdd }: { me: Me; onAdd: () => void }) {
 
 // --- family login ----------------------------------------------------------
 
-function Login({ pairs, onCreate }: { pairs: string[]; onCreate: () => void }) {
+function Login({ pairs, onBack }: { pairs: string[]; onBack: () => void }) {
   const [pair, setPair] = useState<string | null>(() => (typeof localStorage !== 'undefined' ? localStorage.getItem(CACHE_KEY) : null));
   const [err, setErr] = useState('');
 
@@ -107,7 +159,7 @@ function Login({ pairs, onCreate }: { pairs: string[]; onCreate: () => void }) {
         <div className="bigpair">{a.glyph} {b.glyph}</div>
         <PinPad label="Skriv PIN" onComplete={submit} />
         {err && <p className="muted">{err}</p>}
-        <button className="idk" onClick={() => setPair(null)}>tillbaka</button>
+        <button className="idk" onClick={() => setPair(null)}>annan familj</button>
       </div>
     );
   }
@@ -126,16 +178,14 @@ function Login({ pairs, onCreate }: { pairs: string[]; onCreate: () => void }) {
           );
         })}
       </div>
-      <button className="primary" onClick={onCreate}>
-        Ny familj
-      </button>
+      <button className="idk" onClick={onBack}>tillbaka</button>
     </div>
   );
 }
 
 // --- create family ---------------------------------------------------------
 
-function CreateFamily({ onDone }: { onDone: () => void }) {
+function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => void }) {
   const [a, setA] = useState<string | null>(null);
   const [b, setB] = useState<string | null>(null);
   const [pin, setPin] = useState<string | null>(null);
@@ -146,7 +196,10 @@ function CreateFamily({ onDone }: { onDone: () => void }) {
     return (
       <div className="plain">
         <h1>{!a ? 'Välj första ikonen' : 'Välj andra ikonen'}</h1>
-        <p className="muted">En familj är två ikoner — t.ex. räven och varmkorven.</p>
+        <p className="muted">
+          En familj är två ikoner — t.ex. räven och varmkorven.{' '}
+          <button className="idk" onClick={a ? () => setA(null) : onBack}>tillbaka</button>
+        </p>
         {a && <div className="bigpair">{BY_KEY.get(a)?.glyph}</div>}
         <IconGrid allowSearch exclude={a ? new Set([a]) : undefined} onPick={(k) => (a ? setB(k) : setA(k))} selected={a ? [a] : []} />
       </div>

@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { postJSON } from '@/lib/client';
+import { getJSON, postJSON } from '@/lib/client';
+import { BY_KEY } from '@/icons';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
 type Session = { completed: number; target: number; done: boolean };
@@ -24,8 +25,18 @@ function Practice() {
   const [steps, setSteps] = useState<string[]>([]);
   const [word, setWord] = useState('');
   const [busy, setBusy] = useState(false);
+  const [icon, setIcon] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef(true);
+
+  // Show whose session this is (their own icon) — identity, not a status badge.
+  useEffect(() => {
+    if (!playerId) return;
+    getJSON<{ players?: { id: string; icon: string }[] }>('/api/me').then((me) => {
+      const p = me.players?.find((x) => x.id === playerId);
+      if (p) setIcon(BY_KEY.get(p.icon)?.glyph ?? null);
+    });
+  }, [playerId]);
 
   const startSession = useCallback(async () => {
     const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; error?: string }>('/api/session/start', { playerId });
@@ -114,6 +125,7 @@ function Practice() {
   if (phase === 'choose') {
     return (
       <div className="stage">
+        {icon && <div className="whoami" title="du">{icon}</div>}
         <p className="muted" style={{ marginBottom: '2rem' }}>Vad vill du börja med?</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
@@ -122,7 +134,6 @@ function Practice() {
             </button>
           ))}
         </div>
-        <Counter completed={completed} target={target} />
       </div>
     );
   }
@@ -145,6 +156,9 @@ function Practice() {
 
   return (
     <div className="stage">
+      {icon && <div className="whoami" title="du">{icon}</div>}
+      <SessionBar completed={completed} target={target} />
+
       {item.novel && phase === 'answer' && <div className="muted fade" style={{ marginBottom: '0.8rem' }}>Något nytt.</div>}
 
       <Problem
@@ -172,13 +186,12 @@ function Practice() {
       )}
 
       {phase === 'answer' && (
-        <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'center' }}>
-          <button className="idk" onClick={idk}>vet inte</button>
-          <button className="idk" onClick={endEarly}>sluta</button>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '2rem' }}>
+          <button className="softbtn" onClick={idk}>vet inte</button>
+          <button className="softbtn" onClick={endEarly}>sluta</button>
         </div>
       )}
 
-      <Counter completed={completed} target={target} />
       <div className="level" aria-hidden>
         {Array.from({ length: 8 }).map((_, i) => (
           <span key={i} className={`tick ${i < item.level ? 'on' : ''}`} />
@@ -188,11 +201,16 @@ function Practice() {
   );
 }
 
-// The one counter permitted on the practice screen (§3.1): items remaining.
-function Counter({ completed, target }: { completed: number; target: number }) {
+// The one counter permitted on the practice screen (§3.1): a quiet grey bar that
+// fills over the session's items. When it fills, the "Klart" screen appears.
+function SessionBar({ completed, target }: { completed: number; target: number }) {
+  const pct = Math.min(100, Math.round((completed / target) * 100));
   return (
-    <div style={{ position: 'fixed', top: '1rem', color: 'var(--faint)', fontVariantNumeric: 'tabular-nums' }}>
-      {completed}/{target}
+    <div className="sessionbar-wrap" aria-label={`${completed} av ${target}`}>
+      <div className="sessionbar">
+        <span style={{ width: `${pct}%` }} />
+      </div>
+      <div className="sessionbar-label">{completed}/{target}</div>
     </div>
   );
 }
@@ -231,14 +249,21 @@ function Problem({
       aria-label="svar"
     />
   );
+  // A visible submit — Enter still works, but a tablet has no Enter key.
+  const submitBtn = show ? (
+    <button className="submit-btn" onClick={onEnter} disabled={disabled || value.trim() === ''} aria-label="svara">
+      ▸
+    </button>
+  ) : null;
 
   if (prompt.includes('□')) {
     const [before, after] = prompt.split('□');
     return (
-      <div className="prompt" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <span>{before}</span>
-        {show ? input : <span>▁</span>}
-        <span>{after}</span>
+      <div className="answer-row" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+        <span className="prompt" style={{ margin: 0 }}>{before}</span>
+        {show ? input : <span className="prompt" style={{ margin: 0 }}>▁</span>}
+        <span className="prompt" style={{ margin: 0 }}>{after}</span>
+        {submitBtn}
       </div>
     );
   }
@@ -250,6 +275,7 @@ function Problem({
         <div className="answer-row">
           {family === 'linear' && <span>x =</span>}
           {input}
+          {submitBtn}
         </div>
       )}
     </>

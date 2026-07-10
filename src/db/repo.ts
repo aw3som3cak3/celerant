@@ -319,6 +319,13 @@ export function recentOverallFirstTryAccuracy(playerId: string, n: number): numb
   return rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length;
 }
 
+export function totalAttempts(playerId: string): number {
+  const r = getDb()
+    .prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL')
+    .get(playerId) as { c: number };
+  return r.c;
+}
+
 export function attemptsLast7Days(playerId: string, now: number): number {
   const cutoff = now - 7 * 24 * 3600 * 1000;
   const r = getDb()
