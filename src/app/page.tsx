@@ -65,7 +65,14 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
   const [err, setErr] = useState('');
 
   const both = a && b;
-  const cached = readCached().filter((p) => pairs.includes(p));
+  // Device history first (localStorage, most-recent first), then any other
+  // families that live on this server (§5.1 — a home server may be opened from a
+  // fresh browser with no history). Deduped; history order wins. We do NOT hide a
+  // remembered pair just because the server list is momentarily empty — that is
+  // exactly the "log in with one of these" shortcut the user expects to see.
+  const history = readCached();
+  const seen = new Set(history);
+  const chips = [...history, ...pairs.filter((p) => !seen.has(p))];
 
   function pick(key: string) {
     setErr('');
@@ -112,11 +119,11 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
         <p className="muted" style={{ fontSize: '0.85rem' }}>{t('login.pressPlus')}</p>
       )}
 
-      {cached.length > 0 && !both && (
+      {chips.length > 0 && !both && (
         <>
           <div className="login-divider">{t('login.orCached')}</div>
           <div className="cached-row">
-            {cached.map((p) => (
+            {chips.map((p) => (
               <button key={p} className="family-chip" onClick={() => chooseCached(p)} title={t('nav.login')}>
                 {familyIcons(p).map((i) => i.glyph).join(' ')}
               </button>
