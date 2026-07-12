@@ -22,7 +22,7 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Test (vitest — 112 checks incl. verify, replay equality, icons)
+      - name: Test (vitest — verify, replay equality, firewall, map, evidence, icons)
         run: npm test
 
       - name: Build (typecheck + production build)

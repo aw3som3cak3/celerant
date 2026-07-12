@@ -28,6 +28,18 @@ correctly falls back to its seed, because you no longer hold valid evidence.
 `replay(playerId)` is the most important function in the codebase. Write it in
 phase 1. Test it in phase 1. Everything else leans on it.
 
+**The `ability` cache has a sanctioned incremental fast path — this is not a
+violation of "only replay() writes the cache," it is the intended design.** A
+full replay on every answer is O(n) in the child's history per item; instead the
+answer path folds one attempt into the cache incrementally (attempts touch only
+θ/rd/volatility/n_obs/last_seen, sprints only rate, both in `at` order, with the
+same idle-inflation as replay), and a full `replay()` is reserved for
+invalidation — void, reassign, årskurs change, a new tool-rate. The invariant
+that actually matters is that the two agree, and it is enforced by a
+**byte-for-byte equality test** (drop the cache, replay, compare every column).
+Treat the fast path as load-bearing: do not "simplify" it back into a replay on
+every write, or you re-introduce the O(n²) it exists to avoid.
+
 ---
 
 ## 2. Schema
