@@ -82,7 +82,12 @@ export function computeAbility(
 // Rebuild and persist the ability cache for one player. `override.schoolYear`
 // re-seeds from a new year (årskurs change) without discarding evidence (§6.1).
 export function replay(playerId: string, override?: { schoolYear?: number }): void {
-  const db = getDb();
+  replayOne(getDb(), playerId, override);
+}
+
+// Same, but against a supplied db handle — so the boot-time migration can run it
+// without going through getDb() (which would recurse during open()).
+function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { schoolYear?: number }): void {
   const player = db.prepare('SELECT school_year FROM player WHERE id = ?').get(playerId) as
     | { school_year: number }
     | undefined;
@@ -124,6 +129,47 @@ export function replay(playerId: string, override?: { schoolYear?: number }): vo
     for (const [code, r] of cache) {
       ins.run(playerId, code, r.theta, r.rd, r.volatility, r.n_obs, r.last_seen_at, r.rate, r.rate_state);
     }
+  });
+  tx();
+}
+
+// The model version the ability cache is built under. Bump when the θ/rd/vol
+// update changes, so a deploy heals every existing cache (instrumentation §3).
+const MODEL_VERSION = 2; // 1 = pre-Glicko θ-only k; 2 = one-sided Glicko-2 (rd, volatility)
+
+// Run once per boot after schema + column migrations, using the open db handle
+// (never getDb — that would recurse through open()). Idempotent via a meta flag:
+//   1. canonicalise any legacy family rows and backfill icon_display, so the DB
+//      UNIQUE genuinely lives on the canonical pair;
+//   2. replay EVERY player, so pre-existing ability rows stop running incremental
+//      updates on default rd/volatility and match a full replay exactly.
+// On a fresh/empty DB both loops are no-ops and only the flag is written. The
+// window where this heal is free closes the day the first real family signs up.
+export function runStartupMigration(db: ReturnType<typeof getDb>): void {
+  const cur = db.prepare("SELECT value FROM meta WHERE key = 'model_v'").get() as { value: string } | undefined;
+  if (cur && Number(cur.value) >= MODEL_VERSION) return;
+
+  const tx = db.transaction(() => {
+    const fams = db.prepare('SELECT id, icon_pair, icon_display FROM family').all() as {
+      id: string;
+      icon_pair: string;
+      icon_display: string;
+    }[];
+    for (const f of fams) {
+      const canon = f.icon_pair.split('+').sort().join('+');
+      const display = f.icon_display || f.icon_pair;
+      if (canon !== f.icon_pair || display !== f.icon_display) {
+        try {
+          db.prepare('UPDATE family SET icon_pair = ?, icon_display = ? WHERE id = ?').run(canon, display, f.id);
+        } catch {
+          // two legacy families that canonicalise to the same pair — the very
+          // dup this fix prevents going forward; leave both, don't crash boot.
+        }
+      }
+    }
+    const players = db.prepare('SELECT id FROM player').all() as { id: string }[];
+    for (const p of players) replayOne(db, p.id);
+    db.prepare("INSERT INTO meta (key, value) VALUES ('model_v', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(MODEL_VERSION));
   });
   tx();
 }

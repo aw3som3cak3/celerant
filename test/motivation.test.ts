@@ -68,13 +68,15 @@ describe('card shelf (§3.4)', () => {
 });
 
 describe('the motivational layer is strictly downstream (§5)', () => {
-  it('dropping card / session_run / family_goal changes no ability', () => {
+  it('dropping card / session_run / family_goal / goal_event / usage_event changes no ability', () => {
     const before = snapshot(playerId);
     const db = getDb();
     db.prepare('DELETE FROM card WHERE player_id = ?').run(playerId);
     db.prepare('DELETE FROM session_run WHERE player_id = ?').run(playerId);
     db.prepare('DELETE FROM family_goal WHERE family_id = ?').run(familyId);
-    replay(playerId); // replay never reads those tables
+    db.prepare('DELETE FROM goal_event WHERE family_id = ?').run(familyId);
+    db.prepare('DELETE FROM usage_event WHERE player_id = ?').run(playerId);
+    replay(playerId); // replay never reads any of those tables
     expect(snapshot(playerId)).toBe(before);
   });
 });

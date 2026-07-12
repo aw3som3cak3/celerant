@@ -16,11 +16,16 @@ CREATE TABLE IF NOT EXISTS meta (
   value TEXT NOT NULL
 );
 
--- A family is an unordered PAIR of icons (§4.1). icon_pair is "a+b", two known
--- keys sorted and joined. Two PINs: entry (children know it) and parent.
+-- A family is an unordered PAIR of icons (§4.1). icon_pair is the CANONICAL key
+-- ("a+b", the two keys sorted then joined), and the UNIQUE lives on it — so the
+-- database itself, not an app-layer convention, guarantees "a+b" and "b+a" are
+-- the same family and cannot both exist. icon_display keeps the ENTERED order,
+-- for showing the family as it was made. Two PINs: entry (children know it) and
+-- parent.
 CREATE TABLE IF NOT EXISTS family (
   id           TEXT PRIMARY KEY,
-  icon_pair    TEXT NOT NULL UNIQUE,
+  icon_pair    TEXT NOT NULL UNIQUE,        -- canonical (sorted): the uniqueness key
+  icon_display TEXT NOT NULL DEFAULT '',    -- entered order, for display only
   pin_hash     TEXT NOT NULL,
   parent_hash  TEXT NOT NULL,
   created_at   INTEGER NOT NULL,

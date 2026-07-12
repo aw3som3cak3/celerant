@@ -240,6 +240,9 @@ volume, or `GET /api/family/export` per family (§8.2).
 - **Some CRUD is API-only.** Void/reassign/replay/export and årskurs change have
   routes and are tested; soft-delete/restore of a family and the reassign *UI*
   are not fully surfaced in the parent screen.
+- **Entry-PIN rotation not built (backlog).** There is no endpoint to change a
+  family's entry PIN; rotating a leaked one currently needs DB access. When built,
+  the change must require the *parent* PIN. Nothing depends on it yet.
 
 ## Extending the skill graph
 

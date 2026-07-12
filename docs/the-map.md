@@ -157,8 +157,12 @@ them; that's the point, it's a lot of ground and they can scroll back through it
 - A child sees: their cards in graph position, a glowing frontier, one ring of
   silhouettes, then nothing. Assert no node beyond the near ring is present in
   the child's map payload — not hidden in CSS, *absent from the response*.
-- The frontier set equals the three-way choice set from `motivation.md` §3.2.
-  Same query, asserted equal.
+- The frontier is all unlockable-and-not-yet-reached skills, and the `motivation.md`
+  §3.2 chooser samples three FROM the frontier — a superset relation, not equality.
+  (Corrected: the original "frontier == choice set, asserted equal" was wrong. A
+  stable map layer cannot equal a randomised top-3 chooser without nodes flickering
+  between sessions, so the frontier stays the full stable set and the chooser draws
+  from it. The two share the same unlock query; that's what's asserted.)
 - Node positions are identical before and after a node is reached. Snapshot test.
 - Unlocking a node resolves exactly one silhouette to a card and reveals at most
   the silhouettes newly one-step-away. No other node changes state.

@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
 
   const { token, tokenHash } = newSessionToken();
   repo.createSession(tokenHash, family.id, false, now, now + SESSION_MAX_AGE_MS);
-  // Return the family's canonical (entered-order) pair so the client caches it
-  // for quick login in the order it was created.
-  const res = json({ ok: true, familyId: family.id, iconPair: family.icon_pair });
+  // Return the family's entered-order pair so the client caches it for quick
+  // login in the order it was created (identity is the canonical icon_pair).
+  const res = json({ ok: true, familyId: family.id, iconPair: family.icon_display || family.icon_pair });
   return setCookie(res, SESSION_COOKIE, token, SESSION_MAX_AGE_MS);
 }

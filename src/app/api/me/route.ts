@@ -14,7 +14,7 @@ export function GET(req: NextRequest) {
   const s = sessionFromRequest(req, now);
   if (!s) return json({ authenticated: false });
   const family = repo.familyById(s.familyId)!;
-  const [a, b] = familyIcons(family.icon_pair);
+  const [a, b] = familyIcons(family.icon_display || family.icon_pair); // entered order
   const goalRow = repo.getGoal(s.familyId);
   return json({
     authenticated: true,

@@ -81,13 +81,21 @@ CREATE TABLE session_run (            -- LEDGER. Append-only.
 );
 ```
 
-**Twenty items. Not ten minutes.**
+**Items, not ten minutes. Twenty by default, but per-player settable (4–30).**
 
 Cepeda's meta-analysis of distributed practice finds retention is governed by
 the *gap between* sessions, not their length — ten minutes daily beats seventy
 on Sunday, and the mechanism is the forgetting in between, not willpower. The
 inter-session gap is already in the system as `decay(s)`. Session length is not
 a pedagogical quantity, so do not make it one.
+
+Because it is not pedagogical, it is safe to let it vary per child, and there is
+a reason to: a six-year-old needs a session short enough that finishing it — and
+earning the day — is actually reachable, or the "today's done" mark (§3.x, the
+7-day record) becomes a promise the child can't keep. So `session_target` is a
+per-player setting (parent-set, default 20, clamped 4–30). Twenty remains the
+default and the norm; the knob exists for the youngest. (Added: the original text
+implied a fixed twenty; per-player length is the correction.)
 
 Minutes are also fakeable by sitting still. Items are not.
 

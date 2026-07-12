@@ -63,20 +63,27 @@ export function setMeta(key: string, value: string): void {
 
 export type FamilyRow = {
   id: string;
-  icon_pair: string;
+  icon_pair: string; // canonical (sorted)
+  icon_display: string; // entered order
   pin_hash: string;
   parent_hash: string;
   created_at: number;
   deleted_at: number | null;
 };
 
-// iconPair is stored in the ENTERED order (so the family shows as it was made);
-// uniqueness and lookup are order-independent via familyByIcons.
+// The canonical key for a pair: sorted, so "a+b" and "b+a" collapse to one. The
+// DB UNIQUE on icon_pair then makes duplicate families impossible at the storage
+// layer, not by an app-layer convention that one forgetful caller can bypass.
+function canonPair(iconPair: string): string {
+  return iconPair.split('+').sort().join('+');
+}
+
+// Stores the canonical pair as the unique key and the entered order for display.
 export function createFamily(iconPair: string, pinHash: string, parentHash: string, now: number): string {
   const id = randomUUID();
   getDb()
-    .prepare('INSERT INTO family (id, icon_pair, pin_hash, parent_hash, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, iconPair, pinHash, parentHash, now);
+    .prepare('INSERT INTO family (id, icon_pair, icon_display, pin_hash, parent_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(id, canonPair(iconPair), iconPair, pinHash, parentHash, now);
   return id;
 }
 
@@ -84,19 +91,20 @@ export function familyById(id: string): FamilyRow | undefined {
   return getDb().prepare('SELECT * FROM family WHERE id = ? AND deleted_at IS NULL').get(id) as FamilyRow | undefined;
 }
 
-// A family is an unordered pair, so match either order (older families were
-// stored sorted; newer ones keep the entered order for display).
+// A single canonical lookup — order-independent by construction.
 export function familyByIcons(a: string, b: string): FamilyRow | undefined {
   return getDb()
-    .prepare('SELECT * FROM family WHERE icon_pair IN (?, ?) AND deleted_at IS NULL')
-    .get(`${a}+${b}`, `${b}+${a}`) as FamilyRow | undefined;
+    .prepare('SELECT * FROM family WHERE icon_pair = ? AND deleted_at IS NULL')
+    .get(canonPair(`${a}+${b}`)) as FamilyRow | undefined;
 }
 
-// Icon pairs only — never player counts (ui-lifecycle §5.1).
+// Icon pairs only — never player counts (ui-lifecycle §5.1). Returns the ENTERED
+// order (what the family made), for the login chips.
 export function listFamilyIconPairs(): string[] {
-  return (getDb().prepare('SELECT icon_pair FROM family WHERE deleted_at IS NULL').all() as { icon_pair: string }[]).map(
-    (r) => r.icon_pair,
-  );
+  return (getDb().prepare('SELECT icon_display, icon_pair FROM family WHERE deleted_at IS NULL').all() as {
+    icon_display: string;
+    icon_pair: string;
+  }[]).map((r) => r.icon_display || r.icon_pair);
 }
 
 export function updateFamilyPin(id: string, pinHash: string): void {
@@ -106,7 +114,7 @@ export function updateFamilyParentPin(id: string, parentHash: string): void {
   getDb().prepare('UPDATE family SET parent_hash = ? WHERE id = ?').run(parentHash, id);
 }
 export function updateFamilyIcons(id: string, iconPair: string): void {
-  getDb().prepare('UPDATE family SET icon_pair = ? WHERE id = ?').run(iconPair, id);
+  getDb().prepare('UPDATE family SET icon_pair = ?, icon_display = ? WHERE id = ?').run(canonPair(iconPair), iconPair, id);
 }
 export function softDeleteFamily(id: string, now: number): void {
   getDb().prepare('UPDATE family SET deleted_at = ? WHERE id = ?').run(now, id);

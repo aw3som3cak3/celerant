@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { SCHEMA } from './schema';
 import { seedPrereg } from './prereg-seed';
+import { runStartupMigration } from './replay';
 
 // A single connection, reused across hot reloads in dev via a global.
 const globalForDb = globalThis as unknown as { __db?: Database.Database };
@@ -31,6 +32,11 @@ function open(): Database.Database {
     }
   }
 
+  // Tail of the migration: canonicalise legacy families and heal every ability
+  // cache under the current model. Uses this db handle directly (not getDb), so
+  // it can't recurse through open(). Idempotent — guarded by a meta flag.
+  runStartupMigration(db);
+
   return db;
 }
 
@@ -41,6 +47,9 @@ const MIGRATIONS = [
   // (any void / årskurs change / "bygg om cache"). A fresh DB gets them from CREATE.
   'ALTER TABLE ability ADD COLUMN rd REAL NOT NULL DEFAULT 1.0',
   'ALTER TABLE ability ADD COLUMN volatility REAL NOT NULL DEFAULT 0.06',
+  // Canonical-pair fix: entered order moves to icon_display; icon_pair becomes the
+  // canonical (sorted) unique key. The startup migration backfills legacy rows.
+  "ALTER TABLE family ADD COLUMN icon_display TEXT NOT NULL DEFAULT ''",
 ];
 
 export function getDb(): Database.Database {
