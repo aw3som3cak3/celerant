@@ -153,4 +153,35 @@ CREATE TABLE IF NOT EXISTS family_goal (
   created_at  INTEGER NOT NULL,
   reached_at  INTEGER
 );
+
+-- LEDGER (instrumentation.md §4.1). Append-only event stream for family goals, so
+-- the PATH a goal took is recoverable, not just its final state. goal_label and
+-- target are denormalised: goals get cleared and replaced, but the history under
+-- each must survive independently — never join this to a live family_goal row.
+-- NEVER records per-child contribution (motivation §4.1): 'progressed' is the
+-- family-wide count crossing a threshold, never who triggered it.
+CREATE TABLE IF NOT EXISTS goal_event (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  family_id   TEXT NOT NULL REFERENCES family(id),
+  goal_label  TEXT NOT NULL,
+  target      INTEGER NOT NULL,
+  kind        TEXT NOT NULL CHECK (kind IN ('created','progressed','reached','cleared','retargeted')),
+  value       INTEGER,
+  at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_goal_event_family ON goal_event(family_id, at);
+
+-- LEDGER (instrumentation.md §4.3). Append-only stream of motivational-layer
+-- events (not attempts/sprints/goals) to correlate against usage. Invisible to
+-- the child; changes no behaviour; in the export. NOT engagement instrumentation
+-- (§6): no dwell time, no funnels — only the discrete events the map and shelf
+-- raise questions about.
+CREATE TABLE IF NOT EXISTS usage_event (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id   TEXT NOT NULL REFERENCES player(id),
+  kind        TEXT NOT NULL,
+  detail      TEXT,
+  at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_usage_event_player ON usage_event(player_id, at);
 `;

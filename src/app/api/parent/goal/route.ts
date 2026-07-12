@@ -31,8 +31,9 @@ export async function POST(req: NextRequest) {
 }
 
 export function DELETE(req: NextRequest) {
-  const familyId = parentFamilyFromRequest(req, Date.now());
+  const now = Date.now();
+  const familyId = parentFamilyFromRequest(req, now);
   if (!familyId) return json({ error: 'forbidden' }, 403);
-  repo.clearGoal(familyId);
+  repo.clearGoal(familyId, now);
   return json({ ok: true });
 }

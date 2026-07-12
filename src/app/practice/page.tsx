@@ -47,8 +47,8 @@ function Practice() {
     });
   }, [playerId]);
 
-  const startSession = useCallback(async () => {
-    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; error?: string }>('/api/session/start', { playerId });
+  const startSession = useCallback(async (again = false) => {
+    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; error?: string }>('/api/session/start', { playerId, again });
     if (r.error) return void (location.href = '/');
     setSessionId(r.sessionId);
     setTarget(r.target);
@@ -182,7 +182,7 @@ function Practice() {
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
-          <button className="next-btn" onClick={startSession}>{t('common.again')}</button>
+          <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
           <a className="next-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
           <a className="next-btn" href="/">{t('common.home')}</a>
         </div>

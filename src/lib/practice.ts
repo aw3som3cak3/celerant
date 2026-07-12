@@ -7,6 +7,7 @@ import { aimFor } from './fluency';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
+import { extractFeatures, FEATURES_VERSION } from './features';
 
 const STRETCH_TARGET = 0.65; // "svårare" toggle (motivation §3.2)
 
@@ -177,7 +178,17 @@ export function answer(
   const triesRecorded = idk ? 0 : p.tries + 1;
   const finalCorrect = !idk && grade(given ?? '', p.answer) ? 1 : 0;
 
-  const itemJson = JSON.stringify({ prompt: p.prompt, seed: p.seed, scores: JSON.parse(p.scores_json), firstWrong: p.first_wrong });
+  // Feature-tag the item (instrumentation.md §2). Deterministic from the stored
+  // prompt/answer; written once, read only by a future offline analysis.
+  const features = extractFeatures(p.skill_code, p.prompt, p.answer);
+  const itemJson = JSON.stringify({
+    prompt: p.prompt,
+    seed: p.seed,
+    scores: JSON.parse(p.scores_json),
+    firstWrong: p.first_wrong,
+    features,
+    features_version: FEATURES_VERSION,
+  });
   const attemptId = repo.appendAttempt({
     playerId,
     skillCode: p.skill_code,
@@ -193,14 +204,19 @@ export function answer(
 
   // A card is the first problem of this kind the child ever solved (§3.4).
   // Silent — it goes to the shelf, no notification. Downstream of the model.
-  if (finalCorrect === 1) repo.insertCardIfFirst(playerId, p.skill_code, attemptId, now);
+  if (finalCorrect === 1 && repo.insertCardIfFirst(playerId, p.skill_code, attemptId, now)) {
+    repo.appendUsageEvent(playerId, 'card_earned', p.skill_code, now); // §4.3
+  }
 
   // The session counter advances on every resolved item, "vet inte" included.
   let session: SessionProgress | undefined;
   if (sessionId != null) {
     const run = repo.bumpSessionRun(sessionId, now);
     session = { completed: run.completed, target: run.target, done: run.ended_at != null };
-    if (session.done) checkFamilyGoal(playerId, now);
+    if (session.done) {
+      repo.appendUsageEvent(playerId, 'session_ended', 'completed', now); // §4.3
+      checkFamilyGoal(playerId, now);
+    }
   }
 
   if (finalCorrect === 1) return { status: 'correct', session };
@@ -214,9 +230,11 @@ function checkFamilyGoal(playerId: string, now: number): void {
   if (!player) return;
   const goal = repo.getGoal(player.family_id);
   if (!goal || goal.reached_at != null) return;
-  if (repo.completedSessionsForFamily(player.family_id, goal.created_at) >= goal.target) {
-    repo.markGoalReached(player.family_id, now);
-  }
+  // Log the family-wide count crossing (never which child — §4.1), then, if the
+  // target is met, mark reached (which logs the 'reached' event).
+  const count = repo.completedSessionsForFamily(player.family_id, goal.created_at);
+  repo.appendGoalEvent(player.family_id, goal.label, goal.target, 'progressed', count, now);
+  if (count >= goal.target) repo.markGoalReached(player.family_id, now);
 }
 
 // Test-only: read the stashed answer for a pending item (the client never can).

@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { SKILLS, BY_CODE, ancestors, type Rng, type Item } from '@/skills';
+import { extractFeatures } from '@/lib/features';
 
 const N = 500;
 
@@ -83,6 +84,31 @@ describe('graph invariants', () => {
         for (const r of s.requires)
           expect(BY_CODE.get(r)!.mode, `component ${s.code} requires compound ${r}`).not.toBe('compound');
   });
+});
+
+describe('feature tags evaluate to the answer (instrumentation.md §2.4)', () => {
+  for (const s of SKILLS) {
+    it(`${s.code}`, () => {
+      const rng = mkRng(0xfea70 ^ [...s.code].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 3));
+      for (let i = 0; i < 60; i++) {
+        const it = s.generate(rng);
+        const ansStr = it.answer.kind === 'int' ? String(it.answer.v) : `${it.answer.n}/${it.answer.d}`;
+        const ansNum = it.answer.kind === 'int' ? it.answer.v : it.answer.n / it.answer.d;
+        const f = extractFeatures(s.code, it.prompt, ansStr);
+
+        expect(f.operands.length, `${s.code}: no operands parsed from "${it.prompt}"`).toBeGreaterThan(0);
+        expect(f.answer_magnitude).toBeCloseTo(Math.abs(ansNum), 9);
+
+        // Direct two-operand arithmetic: the tagged operands, combined by the
+        // tagged operation, must reproduce the stored answer.
+        if (['add', 'sub', 'mul', 'div'].includes(f.operation) && f.operands.length === 2 && !it.prompt.includes('□')) {
+          const [a, b] = f.operands;
+          const got = f.operation === 'add' ? a + b : f.operation === 'sub' ? a - b : f.operation === 'mul' ? a * b : a / b;
+          expect(got, `${s.code}: ${a} ${f.operation} ${b} ≠ ${ansNum} ("${it.prompt}")`).toBeCloseTo(ansNum, 9);
+        }
+      }
+    });
+  }
 });
 
 describe('item properties (500 deterministic draws per skill)', () => {

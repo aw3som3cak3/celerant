@@ -18,6 +18,9 @@ export async function POST(req: NextRequest) {
   if (!player) return json({ error: 'unauthorized' }, 401);
 
   const run = repo.sessionRunById(parsed.data.sessionId);
-  if (run && run.player_id === player.id) repo.endSessionRunEarly(run.id, now);
+  if (run && run.player_id === player.id && run.ended_at == null) {
+    repo.endSessionRunEarly(run.id, now);
+    repo.appendUsageEvent(player.id, 'session_ended', 'early', now); // §4.3 — abandonment is a signal
+  }
   return json({ ok: true });
 }

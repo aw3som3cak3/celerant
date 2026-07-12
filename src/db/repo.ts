@@ -370,7 +370,14 @@ export function exportFamily(familyId: string): unknown {
   const attempts = ids.length ? db.prepare(`SELECT * FROM attempt WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids) : [];
   const sprints = ids.length ? db.prepare(`SELECT * FROM sprint WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids) : [];
   const toolRates = ids.length ? db.prepare(`SELECT * FROM tool_rate WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids) : [];
-  return { family: familyById(familyId), players, attempts, sprints, toolRates };
+  // The event ledgers (instrumentation.md §5): the analysis substrate must carry
+  // them, or the questions in §4 can never be asked off-box. The `ability` cache
+  // is deliberately NOT exported — it is derivable; recompute it offline.
+  const goalEvents = db.prepare('SELECT * FROM goal_event WHERE family_id = ? ORDER BY id').all(familyId);
+  const usageEvents = ids.length
+    ? db.prepare(`SELECT * FROM usage_event WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids)
+    : [];
+  return { family: familyById(familyId), players, attempts, sprints, toolRates, goalEvents, usageEvents };
 }
 
 // --- pending items (ephemeral scratch: the served answer key, §6.7) ---------
@@ -545,10 +552,12 @@ export function completedSessionsForFamily(familyId: string, sinceMs: number): n
 // --- cards (evidence, not verdicts) ----------------------------------------
 
 // First solved problem of a skill wins the card; later solves are ignored.
-export function insertCardIfFirst(playerId: string, skillCode: string, attemptId: number, now: number): void {
-  getDb()
+// Returns true iff a new card was earned (so the caller can log it, §4.3).
+export function insertCardIfFirst(playerId: string, skillCode: string, attemptId: number, now: number): boolean {
+  const info = getDb()
     .prepare('INSERT OR IGNORE INTO card (player_id, skill_code, attempt_id, earned_at) VALUES (?, ?, ?, ?)')
     .run(playerId, skillCode, attemptId, now);
+  return info.changes > 0;
 }
 
 export function cardsForPlayer(playerId: string): { skillCode: string; prompt: string; given: string | null; earnedAt: number }[] {
@@ -577,16 +586,46 @@ export function getGoal(familyId: string): GoalRow | undefined {
   return getDb().prepare('SELECT * FROM family_goal WHERE family_id = ?').get(familyId) as GoalRow | undefined;
 }
 export function setGoal(familyId: string, label: string, target: number, now: number): void {
+  const prev = getGoal(familyId);
   getDb()
     .prepare(
       `INSERT INTO family_goal (family_id, label, target, created_at) VALUES (?, ?, ?, ?)
        ON CONFLICT(family_id) DO UPDATE SET label = excluded.label, target = excluded.target, created_at = excluded.created_at, reached_at = NULL`,
     )
     .run(familyId, label, target, now);
+  // 'retargeted' if a goal was already here, else 'created' (§4.1 event stream).
+  appendGoalEvent(familyId, label, target, prev ? 'retargeted' : 'created', prev ? target : null, now);
 }
-export function clearGoal(familyId: string): void {
+export function clearGoal(familyId: string, now: number): void {
+  const prev = getGoal(familyId);
   getDb().prepare('DELETE FROM family_goal WHERE family_id = ?').run(familyId);
+  if (prev) appendGoalEvent(familyId, prev.label, prev.target, 'cleared', null, now);
 }
 export function markGoalReached(familyId: string, now: number): void {
-  getDb().prepare('UPDATE family_goal SET reached_at = ? WHERE family_id = ? AND reached_at IS NULL').run(now, familyId);
+  const info = getDb()
+    .prepare('UPDATE family_goal SET reached_at = ? WHERE family_id = ? AND reached_at IS NULL')
+    .run(now, familyId);
+  if (info.changes > 0) {
+    const g = getGoal(familyId)!;
+    appendGoalEvent(familyId, g.label, g.target, 'reached', null, now);
+  }
+}
+
+// --- event ledgers (instrumentation.md §4) ----------------------------------
+
+export function appendGoalEvent(
+  familyId: string,
+  goalLabel: string,
+  target: number,
+  kind: 'created' | 'progressed' | 'reached' | 'cleared' | 'retargeted',
+  value: number | null,
+  at: number,
+): void {
+  getDb()
+    .prepare('INSERT INTO goal_event (family_id, goal_label, target, kind, value, at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(familyId, goalLabel, target, kind, value, at);
+}
+
+export function appendUsageEvent(playerId: string, kind: string, detail: string | null, at: number): void {
+  getDb().prepare('INSERT INTO usage_event (player_id, kind, detail, at) VALUES (?, ?, ?, ?)').run(playerId, kind, detail, at);
 }

@@ -18,5 +18,6 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
   repo.setStretch(player.id, parsed.data.on);
+  repo.appendUsageEvent(player.id, 'difficulty_toggled', parsed.data.on ? 'on' : 'off', now); // §4.3
   return json({ ok: true });
 }

@@ -31,6 +31,9 @@ export async function POST(req: NextRequest) {
     if (run && run.player_id === player.id && run.ended_at == null) peakEnd = run.completed === run.target - 1;
   }
 
+  // The child's session-start choice (§3.2), logged for §4.3 usage analysis.
+  if (parsed.data.chosenCode) repo.appendUsageEvent(player.id, 'skill_chosen', parsed.data.chosenCode, now);
+
   return json(
     nextItem(player.id, player.school_year, now, {
       stretch: player.stretch === 1,
