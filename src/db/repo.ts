@@ -373,6 +373,56 @@ export function exportFamily(familyId: string): unknown {
   return { family: familyById(familyId), players, attempts, sprints, toolRates };
 }
 
+// --- pending items (ephemeral scratch: the served answer key, §6.7) ---------
+
+export type PendingItemRow = {
+  item_id: string;
+  player_id: string;
+  skill_code: string;
+  prompt: string;
+  answer: string;
+  steps_json: string;
+  seed: number;
+  scores_json: string;
+  served_at: number;
+  tries: number;
+  first_wrong: string | null;
+};
+
+export function savePendingItem(p: {
+  itemId: string;
+  playerId: string;
+  skillCode: string;
+  prompt: string;
+  answer: string;
+  stepsJson: string;
+  seed: number;
+  scoresJson: string;
+  servedAt: number;
+}): void {
+  getDb()
+    .prepare(
+      `INSERT OR REPLACE INTO pending_item
+       (item_id, player_id, skill_code, prompt, answer, steps_json, seed, scores_json, served_at, tries, first_wrong)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
+    )
+    .run(p.itemId, p.playerId, p.skillCode, p.prompt, p.answer, p.stepsJson, p.seed, p.scoresJson, p.servedAt);
+}
+export function getPendingItem(itemId: string): PendingItemRow | undefined {
+  return getDb().prepare('SELECT * FROM pending_item WHERE item_id = ?').get(itemId) as PendingItemRow | undefined;
+}
+// A first miss keeps the item alive for one retry (nothing recorded yet).
+export function markPendingRetry(itemId: string, firstWrong: string): void {
+  getDb().prepare('UPDATE pending_item SET tries = 1, first_wrong = ? WHERE item_id = ?').run(firstWrong, itemId);
+}
+export function deletePendingItem(itemId: string): void {
+  getDb().prepare('DELETE FROM pending_item WHERE item_id = ?').run(itemId);
+}
+// Reap items that were served but never resolved (tab closed, etc.).
+export function cleanupPendingItems(olderThan: number): void {
+  getDb().prepare('DELETE FROM pending_item WHERE served_at < ?').run(olderThan);
+}
+
 // --- session ---------------------------------------------------------------
 
 export function createSession(tokenHash: string, familyId: string, parent: boolean, now: number, expiresAt: number): void {

@@ -103,6 +103,26 @@ CREATE TABLE IF NOT EXISTS session (
   expires_at INTEGER NOT NULL
 );
 
+-- Ephemeral scratch, NOT a ledger: the served item's answer key, held
+-- server-side so the client never sees it (§6.7). PERSISTED rather than in
+-- memory so a machine suspend/restart can't orphan an in-flight answer (which
+-- would drop the answer and stall the session counter). Dropping every row here
+-- loses only in-flight items, which the client simply re-fetches. replay() never
+-- reads it. No FK: an item may outlive a brief player edit, and it self-expires.
+CREATE TABLE IF NOT EXISTS pending_item (
+  item_id     TEXT PRIMARY KEY,
+  player_id   TEXT NOT NULL,
+  skill_code  TEXT NOT NULL,
+  prompt      TEXT NOT NULL,
+  answer      TEXT NOT NULL,
+  steps_json  TEXT NOT NULL,
+  seed        INTEGER NOT NULL,
+  scores_json TEXT NOT NULL,
+  served_at   INTEGER NOT NULL,
+  tries       INTEGER NOT NULL DEFAULT 0,
+  first_wrong TEXT
+);
+
 -- ── The motivational layer (docs/motivation.md) ────────────────────────────
 -- STRICTLY DOWNSTREAM OF THE MODEL. replay() never reads these tables; dropping
 -- every row here changes no θ, no rate, no unlock. No points/xp/coin/streak.

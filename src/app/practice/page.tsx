@@ -106,16 +106,27 @@ function Practice() {
   async function submit() {
     if (!item || busy || value.trim() === '') return;
     setBusy(true);
-    const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, given: value.trim() });
-    setBusy(false);
-    handle(r);
+    try {
+      const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, given: value.trim() });
+      handle(r);
+    } catch {
+      // A network blip must not silently drop the answer or wedge the session:
+      // keep the typed value and let them tap ✓ again. finally clears `busy`.
+    } finally {
+      setBusy(false);
+    }
   }
   async function idk() {
     if (!item || busy) return;
     setBusy(true);
-    const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, idk: true });
-    setBusy(false);
-    handle(r);
+    try {
+      const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, idk: true });
+      handle(r);
+    } catch {
+      /* keep state; user can retry */
+    } finally {
+      setBusy(false);
+    }
   }
   function afterReveal() {
     if (completed >= target) setPhase('done');
@@ -136,7 +147,7 @@ function Practice() {
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
             <button key={c.code} className="choice-btn" onClick={() => load(c.code)}>
-              <span className="choice-sample">{c.sample}</span>
+              <span className="choice-sample">{renderPrompt(c.sample)}</span>
               <span className="choice-label">{c.label}</span>
             </button>
           ))}
@@ -227,6 +238,21 @@ function SessionBar({ completed, target }: { completed: number; target: number }
   );
 }
 
+// Render "□" as a clear, digit-sized blank ("?") rather than a tiny box. Shared
+// by the problem prompt and the session-start choice samples so both read alike.
+function renderPrompt(prompt: string): React.ReactNode {
+  if (!prompt.includes('□')) return prompt;
+  return prompt
+    .split('□')
+    .flatMap((part, i, arr) => (i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part]));
+}
+
+// Families whose answers can be negative or a fraction need the full keyboard
+// (for "-" and "/"); the rest get a digit-only numeric keypad on mobile.
+function inputModeFor(family: string): 'numeric' | 'text' {
+  return family === 'fractions' || family === 'negatives' || family === 'linear' ? 'text' : 'numeric';
+}
+
 // Every problem renders the same way — the equation on one line, one answer row
 // beneath it — so nothing jumps between problems. A "□" prompt keeps the box in
 // the equation as the blank; the child types the missing number in the row.
@@ -249,28 +275,22 @@ function Problem({
   onChange: (v: string) => void;
   onEnter: () => void;
 }) {
-  // Render "□" as a clear, digit-sized blank ("?") rather than a tiny box.
-  const promptEl = prompt.includes('□')
-    ? prompt
-        .split('□')
-        .flatMap((part, i, arr) =>
-          i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part],
-        )
-    : prompt;
-
   return (
     <>
-      <div className="prompt">{promptEl}</div>
+      <div className="prompt">{renderPrompt(prompt)}</div>
       <div className="answer-row" style={{ visibility: show ? 'visible' : 'hidden' }}>
         {family === 'linear' && <span>x =</span>}
         <input
           ref={inputRef}
           className="answer-input"
+          type="text"
+          inputMode={inputModeFor(family)}
           autoComplete="off"
           spellCheck={false}
           value={value}
           disabled={disabled}
-          onChange={(e) => onChange(e.target.value)}
+          // Only digits, and "-"/"/" for negatives and fractions — never letters.
+          onChange={(e) => onChange(e.target.value.replace(/[^0-9/-]/g, ''))}
           onKeyDown={(e) => e.key === 'Enter' && onEnter()}
           aria-label="svar"
         />

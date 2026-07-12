@@ -44,23 +44,12 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
   });
 }
 
-// In-memory pending items: item generation writes nothing to any ledger (§6.7).
-// The answer is stashed server-side keyed by an opaque itemId; the client never
-// sees it. A process restart drops these — the client just fetches a fresh item.
-type Pending = {
-  playerId: string;
-  skillCode: string;
-  prompt: string;
-  answer: string;
-  steps: string[];
-  seed: number;
-  scores: unknown;
-  servedAt: number;
-  tries: number;
-  firstWrong: string | null;
-};
-const g = globalThis as unknown as { __pending?: Map<string, Pending> };
-const pending = (g.__pending ??= new Map());
+// Pending items: item generation writes nothing to any ledger (§6.7). The answer
+// is stashed server-side keyed by an opaque itemId; the client never sees it.
+// Persisted in SQLite (not in memory) so a machine suspend/restart can't orphan
+// an in-flight answer — otherwise the answer is silently dropped and the session
+// counter stalls. Items self-expire; the client just fetches a fresh one.
+const PENDING_TTL_MS = 6 * 3600 * 1000;
 
 export type NextItem = {
   itemId: string;
@@ -138,18 +127,18 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
   const item = generateCanon(pick.code, makeRng(seed));
   const itemId = randomUUID();
 
-  pending.set(itemId, {
+  repo.savePendingItem({
+    itemId,
     playerId,
     skillCode: pick.code,
     prompt: item.prompt,
     answer: item.answer,
-    steps: item.steps,
+    stepsJson: JSON.stringify(item.steps),
     seed,
-    scores: { scores, introduced },
+    scoresJson: JSON.stringify({ scores, introduced }),
     servedAt: now,
-    tries: 0,
-    firstWrong: null,
   });
+  repo.cleanupPendingItems(now - PENDING_TTL_MS);
 
   const unlockedCount = states.filter((s) => unlocked.get(s.code)).length;
   const level = Math.max(1, Math.min(8, Math.round((unlockedCount / states.length) * 8)));
@@ -174,38 +163,37 @@ export function answer(
   now: number,
   sessionId?: number,
 ): AnswerResult {
-  const p = pending.get(itemId);
-  if (!p || p.playerId !== playerId) return { status: 'expired' };
+  const p = repo.getPendingItem(itemId);
+  if (!p || p.player_id !== playerId) return { status: 'expired' };
 
   if (!idk) {
     const isCorrect = grade(given ?? '', p.answer);
     if (!isCorrect && p.tries === 0) {
-      p.tries = 1;
-      p.firstWrong = given ?? '';
-      return { status: 'retry' }; // a retry is not a resolved item; nothing recorded
+      repo.markPendingRetry(itemId, given ?? ''); // one retry; nothing recorded yet
+      return { status: 'retry' };
     }
   }
 
   const triesRecorded = idk ? 0 : p.tries + 1;
   const finalCorrect = !idk && grade(given ?? '', p.answer) ? 1 : 0;
 
-  const itemJson = JSON.stringify({ prompt: p.prompt, seed: p.seed, scores: p.scores, firstWrong: p.firstWrong });
+  const itemJson = JSON.stringify({ prompt: p.prompt, seed: p.seed, scores: JSON.parse(p.scores_json), firstWrong: p.first_wrong });
   const attemptId = repo.appendAttempt({
     playerId,
-    skillCode: p.skillCode,
+    skillCode: p.skill_code,
     itemJson,
     given: idk ? null : given,
     correct: finalCorrect,
     tries: triesRecorded,
     dontKnow: idk,
-    latencyMs: now - p.servedAt,
+    latencyMs: now - p.served_at,
     at: now,
   });
-  pending.delete(itemId);
+  repo.deletePendingItem(itemId);
 
   // A card is the first problem of this kind the child ever solved (§3.4).
   // Silent — it goes to the shelf, no notification. Downstream of the model.
-  if (finalCorrect === 1) repo.insertCardIfFirst(playerId, p.skillCode, attemptId, now);
+  if (finalCorrect === 1) repo.insertCardIfFirst(playerId, p.skill_code, attemptId, now);
 
   // The session counter advances on every resolved item, "vet inte" included.
   let session: SessionProgress | undefined;
@@ -216,7 +204,7 @@ export function answer(
   }
 
   if (finalCorrect === 1) return { status: 'correct', session };
-  return { status: 'revealed', steps: p.steps, session };
+  return { status: 'revealed', steps: JSON.parse(p.steps_json) as string[], session };
 }
 
 // When a session completes, a family goal may be reached — cooperative, in
@@ -233,5 +221,5 @@ function checkFamilyGoal(playerId: string, now: number): void {
 
 // Test-only: read the stashed answer for a pending item (the client never can).
 export function __peekPendingAnswer(itemId: string): string | undefined {
-  return pending.get(itemId)?.answer;
+  return repo.getPendingItem(itemId)?.answer;
 }
