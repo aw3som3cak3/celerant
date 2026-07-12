@@ -5,6 +5,7 @@ import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 import { SKILLS, ancestors } from '@/skills';
 import { aimFor } from '@/lib/fluency';
+import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
 
 // Incremental cache update for one resolved attempt — the fast path. Attempts
 // are appended in non-decreasing `at`, and attempts touch only θ/n_obs/last_seen
@@ -404,7 +405,19 @@ export function exportFamily(familyId: string): unknown {
   // transfer claim. Still no ability cache: derivable, recompute offline.
   const probes = ids.length ? db.prepare(`SELECT * FROM probe WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids) : [];
   const prereg = preregRows();
-  const applicationSignalByPlayer = players.map((p) => ({ playerId: p.id, signal: applicationSignal(p.id) }));
+  const now = Date.now();
+  // Quasi-experimental analyses (quasi-experimental.md): offline reports computed
+  // from the ledger, per player. Dose-response is always carried beside its
+  // time-only comparison; displacement is the ethics safeguard, not an engagement
+  // metric. None of this is stored or read by the model.
+  const analysis = players.map((p) => ({
+    playerId: p.id,
+    applicationSignal: applicationSignal(p.id),
+    doseResponse: doseResponse(p.id),
+    staggeredBaseline: staggeredBaseline(p.id),
+    crossover: crossover(p.id),
+    displacement: displacement(p.id, now),
+  }));
   return {
     family: familyById(familyId),
     players,
@@ -415,7 +428,7 @@ export function exportFamily(familyId: string): unknown {
     usageEvents,
     probes,
     prereg,
-    applicationSignal: applicationSignalByPlayer,
+    analysis,
   };
 }
 

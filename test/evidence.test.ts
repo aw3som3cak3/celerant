@@ -80,13 +80,14 @@ describe('the probe is a clean ruler — no model path reads it (§2.1, §6)', (
 });
 
 describe('pre-registration (§3, §6)', () => {
-  it('the six theses seed once and idempotently, with a null outcome', () => {
+  it('the theses seed idempotently, with a null outcome', () => {
     const db = getDb();
     db.prepare('DELETE FROM prereg').run();
     seedPrereg(db, NOW);
-    expect(repo.preregRows().map((r) => r.thesis_id).sort()).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6']);
+    expect(repo.preregRows().map((r) => r.thesis_id).sort()).toEqual(['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9']);
+    const n = repo.preregRows().length;
     seedPrereg(db, NOW + 999); // idempotent — no duplicate rows, no re-stamp
-    expect(repo.preregRows().length).toBe(6);
+    expect(repo.preregRows().length).toBe(n);
     expect(repo.preregRows().every((r) => r.outcome === null)).toBe(true);
   });
 

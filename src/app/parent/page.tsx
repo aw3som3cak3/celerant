@@ -10,12 +10,14 @@ import { useI18n } from '../_components/LocaleProvider';
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
 type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
 type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: number; nBefore: number; nAfter: number };
+type Usage = { weekly: { weekStart: number; sessions: number }[]; lateEveningSessions: number; enTillRate: number; sessionsLast7: number; alarm: boolean };
 type Overview = {
   player: { id: string; icon: string; schoolYear: number; sessionTarget: number };
   attemptsLast7Days: number;
   sessionsThisWeek: number;
   diagnostics: Diagnostic[];
   transfer: Transfer[];
+  usage: Usage;
   skills: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
@@ -135,6 +137,8 @@ export default function Parent() {
             </div>
           )}
 
+          <UsagePanel usage={data.usage} />
+
           <ParentMapPanel key={data.player.id} playerId={data.player.id} />
 
           <div style={{ overflowX: 'auto' }}>
@@ -172,6 +176,34 @@ export default function Parent() {
 // The full skill graph, unfogged (the-map.md §6): the instrument where a fired
 // diagnostic can be read in context — a collapsed node with its prerequisite
 // edges right there. Loaded on demand; resets when another child is selected.
+// The displacement safeguard (quasi-experimental §5). The inverse of an
+// engagement dashboard: every number here is one you want low and flat. A quiet
+// weekly line — if it climbs, that's a prompt for a human judgement at the table,
+// never a target to grow. The one automated output is a calm ceiling alarm.
+function UsagePanel({ usage }: { usage: Usage }) {
+  const { t } = useI18n();
+  const max = Math.max(1, ...usage.weekly.map((w) => w.sessions));
+  return (
+    <div style={{ margin: '0.8rem 0' }}>
+      <p className="muted" style={{ fontSize: '0.85rem' }}>{t('parent.usage')}</p>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 34 }} aria-label={t('parent.usage')}>
+        {usage.weekly.map((w) => (
+          <span
+            key={w.weekStart}
+            title={`${w.sessions}`}
+            style={{ width: 10, height: `${Math.round((w.sessions / max) * 100)}%`, minHeight: 2, background: 'var(--line)', display: 'inline-block' }}
+          />
+        ))}
+      </div>
+      {usage.alarm && (
+        <p style={{ color: 'var(--accent)', fontSize: '0.85rem', marginTop: '0.4rem' }}>
+          ⚠ {t('parent.usageAlarm', { n: usage.sessionsLast7 })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ParentMapPanel({ playerId }: { playerId: string }) {
   const { t } = useI18n();
   const [map, setMap] = useState<MapData | null>(null);

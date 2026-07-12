@@ -45,14 +45,36 @@ export const THESES: { thesis_id: string; statement: string; measure: string; th
     measure: 'handoff.md §7’s first detector across all children — frequency of post-unlock accuracy collapse per edge.',
     threshold: 'Collapse is rare; edges that show it are mis-specified and get flagged.',
   },
+  // Quasi-experimental (quasi-experimental.md §6) — the three internal controls,
+  // each with an explicit failure condition, so passing means something.
+  {
+    thesis_id: 'T7',
+    statement: 'Staggered baseline: a child’s practice-window probe slope exceeds their baseline-window slope (the same child aging and being schooled, but not yet practising).',
+    measure: 'Per child, pooled: practice-window probe slope minus baseline-window slope, baseline defined post-hoc from ledger practice volume, ≥2 baseline points.',
+    threshold: 'CONFIRMED: positive contrast pooled. FAILS: contrast ≤ 0, or probe rises as fast in baseline as in practice (maturation explains it).',
+  },
+  {
+    thesis_id: 'T8',
+    statement: 'Untrained-skill crossover: a trained family’s probe subscore rises more than an untrained family’s subscore, measured on the same child in the same window.',
+    measure: 'Within-child difference (trained minus untrained subscore change), clean-control families only (component leakage flagged and excluded).',
+    threshold: 'CONFIRMED: positive within-child difference. FAILS: untrained families rise as fast as trained (general test-familiarity, not learning).',
+  },
+  {
+    thesis_id: 'T9',
+    statement: 'Dose-response: probe gain increases with practice dose, and dose predicts gain better than elapsed calendar time.',
+    measure: 'Response (probe-score change per interval) fitted against dose (first-attempt items), beside a calendar-time-only model.',
+    threshold: 'CONFIRMED: positive dose slope, outperforming the time-only model. FAILS: gain flat across doses, or explained by elapsed time alone.',
+  },
 ];
 
-// Idempotent: inserts the theses only if the table is empty, so it registers
-// exactly once (at the first boot after deploy) and never re-stamps.
+// Idempotent per thesis (INSERT OR IGNORE on the unique thesis_id): registers any
+// MISSING thesis at `now` and never re-stamps an existing one — so adding T7–T9
+// later stamps them with their real, later registration time, while T1–T6 keep
+// their original. A thesis registered after its supporting data is inadmissible
+// (§6, enforced in resolveThesis), which is exactly why the timestamp must be the
+// honest first-seen moment.
 export function seedPrereg(db: Database.Database, now: number): void {
-  const n = (db.prepare('SELECT COUNT(*) c FROM prereg').get() as { c: number }).c;
-  if (n > 0) return;
-  const ins = db.prepare('INSERT INTO prereg (thesis_id, statement, measure, threshold, registered_at) VALUES (?, ?, ?, ?, ?)');
+  const ins = db.prepare('INSERT OR IGNORE INTO prereg (thesis_id, statement, measure, threshold, registered_at) VALUES (?, ?, ?, ?, ?)');
   const tx = db.transaction(() => {
     for (const t of THESES) ins.run(t.thesis_id, t.statement, t.measure, t.threshold, now);
   });

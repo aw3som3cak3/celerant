@@ -4,6 +4,7 @@ import { parentFamilyFromRequest } from '@/lib/auth';
 import { SKILLS } from '@/skills';
 import { aimFor } from '@/lib/fluency';
 import { skillLabel } from '@/lib/labels';
+import { displacement } from '@/lib/analysis';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -74,6 +75,9 @@ export function GET(req: NextRequest) {
     // containing a component, before vs after that component crossed its fluency
     // aim. A drop is transfer — the cheapest real evidence, from the ledger.
     transfer: repo.applicationSignal(playerId),
+    // The displacement safeguard (quasi-experimental §5): usage to keep LOW and
+    // FLAT, with a calm ceiling alarm — never an engagement metric, no target.
+    usage: displacement(playerId, now),
     diagnostics, // usually empty — an empty parent view is the normal one
     skills: rows,
   });
