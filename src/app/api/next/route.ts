@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import { nextItem } from '@/lib/practice';
+import { rampLen, rampTargetP } from '@/lib/onboarding';
 import * as repo from '@/db/repo';
 import { json } from '@/lib/api';
 
@@ -26,9 +27,16 @@ export async function POST(req: NextRequest) {
   if (!player) return json({ error: 'unauthorized' }, 401);
 
   let peakEnd = false;
+  let warmupTarget: number | undefined;
   if (parsed.data.sessionId != null) {
     const run = repo.sessionRunById(parsed.data.sessionId);
-    if (run && run.player_id === player.id && run.ended_at == null) peakEnd = run.completed === run.target - 1;
+    if (run && run.player_id === player.id && run.ended_at == null) {
+      peakEnd = run.completed === run.target - 1;
+      // Warm-up ramp (onboarding-ramp §2): while inside the ramp, serve near a
+      // climbing predicted-success target instead of the flat 0.80.
+      const ramp = rampLen(repo.completedSessionCount(player.id), run.target);
+      if (run.completed < ramp) warmupTarget = rampTargetP(run.completed, ramp);
+    }
   }
 
   // The child's session-start choice (§3.2), logged for §4.3 usage analysis.
@@ -39,6 +47,7 @@ export async function POST(req: NextRequest) {
       stretch: player.stretch === 1,
       chosenCode: parsed.data.chosenCode,
       peakEnd,
+      warmupTarget,
     }),
   );
 }

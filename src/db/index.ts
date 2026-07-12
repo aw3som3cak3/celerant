@@ -50,6 +50,10 @@ const MIGRATIONS = [
   // Canonical-pair fix: entered order moves to icon_display; icon_pair becomes the
   // canonical (sorted) unique key. The startup migration backfills legacy rows.
   "ALTER TABLE family ADD COLUMN icon_display TEXT NOT NULL DEFAULT ''",
+  // Warm-up ramp (onboarding-ramp §4): mark warm-up attempts so replay reproduces
+  // the reduced-weight update and the clean analyses can exclude them.
+  'ALTER TABLE attempt ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE pending_item ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0',
 ];
 
 export function getDb(): Database.Database {

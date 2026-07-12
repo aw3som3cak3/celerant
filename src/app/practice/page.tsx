@@ -28,6 +28,7 @@ function Practice() {
   const [target, setTarget] = useState(20);
   const [completed, setCompleted] = useState(0);
   const [choices, setChoices] = useState<Choice[]>([]);
+  const [ramp, setRamp] = useState(0); // warm-up items this session (onboarding-ramp)
   const [item, setItem] = useState<Item | null>(null);
   const [value, setValue] = useState('');
   const [retry, setRetry] = useState(false);
@@ -53,8 +54,10 @@ function Practice() {
   }, [playerId]);
 
   const startSession = useCallback(async (again = false) => {
-    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; error?: string }>('/api/session/start', { playerId, again });
+    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again });
     if (r.error) return void (location.href = '/');
+    autoStarted.current = false; // allow the ramp/start auto-load to fire for this session
+    setRamp(r.rampLen ?? 0);
     setSessionId(r.sessionId);
     setTarget(r.target);
     setCompleted(0);
@@ -104,14 +107,15 @@ function Practice() {
     if (phase === 'answer') inputRef.current?.focus();
   }, [phase, item]);
 
-  // Arrived from a frontier node on the map: skip the chooser and go straight to
-  // the skill the child picked there (the map and the chooser are one object).
+  // Skip the chooser and go straight into problems when either the child arrived
+  // from a frontier node on the map (start=<skill>) or this session opens with a
+  // warm-up ramp (onboarding-ramp §5 — the ramp is invisible, no mode, no choice).
   useEffect(() => {
-    if (phase === 'choose' && sessionId != null && startCode && !autoStarted.current) {
+    if (phase === 'choose' && sessionId != null && !autoStarted.current && (startCode || ramp > 0)) {
       autoStarted.current = true;
-      load(startCode);
+      load(startCode ?? undefined);
     }
-  }, [phase, sessionId, startCode, load]);
+  }, [phase, sessionId, startCode, ramp, load]);
 
   function handle(r: AnswerResp) {
     if (r.status === 'expired' || r.error) return void load();
@@ -199,7 +203,7 @@ function Practice() {
   if (phase === 'loading') return <div className="stage" />;
 
   if (phase === 'choose') {
-    if (startCode) return <div className="stage" />; // auto-starting; don't flash the chooser
+    if (startCode || ramp > 0) return <div className="stage" />; // auto-starting (map link or warm-up); don't flash the chooser
     return (
       <div className="stage">
         {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}

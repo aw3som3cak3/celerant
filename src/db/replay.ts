@@ -33,7 +33,7 @@ type Row = {
 export function computeAbility(
   schoolYear: number,
   toolRate: number | null,
-  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; at: number }[],
+  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; at: number }[],
   sprints: { skill_code: string; correct: number; errors: number; duration_s: number; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
@@ -58,7 +58,10 @@ export function computeAbility(
     if (decision.apply) {
       // Idle since this skill was last seen — grows RD (spacing affecting belief).
       const idle = c.last_seen_at == null ? 0 : (a.at - c.last_seen_at) / RATING_PERIOD_MS;
-      const u = update({ theta: c.theta, rd: c.rd, vol: c.volatility, childObs: c.n_obs }, decision.correct, decision.halveKChild, idle);
+      // Warm-up success is halved, a warm-up miss is full — same rule as the fast
+      // path, driven by the stored flag, so replay reproduces θ (onboarding §4).
+      const halve = decision.halveKChild || (a.warmup === 1 && decision.correct === 1);
+      const u = update({ theta: c.theta, rd: c.rd, vol: c.volatility, childObs: c.n_obs }, decision.correct, halve, idle);
       c.theta = u.theta;
       c.rd = u.rd;
       c.volatility = u.vol;
@@ -101,7 +104,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
 
   const attempts = db
     .prepare(
-      'SELECT skill_code, given, correct, tries, dont_know, at FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
+      'SELECT skill_code, given, correct, tries, dont_know, warmup, at FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
     )
     .all(playerId) as {
     skill_code: string;
@@ -109,6 +112,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
     correct: number;
     tries: number;
     dont_know: number;
+    warmup: number;
     at: number;
   }[];
 
