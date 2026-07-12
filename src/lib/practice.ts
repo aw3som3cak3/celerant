@@ -41,6 +41,7 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       requires: s.requires,
       rate,
       aim,
+      volatility: ab?.volatility,
     };
   });
 }

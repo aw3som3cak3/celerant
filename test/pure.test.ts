@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { grade } from '@/lib/grade';
-import { predict, update, updateDecision, type EloState } from '@/model/elo';
+import { predict, update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS, type EloState } from '@/model/elo';
 import { selectItem, type SelState } from '@/lib/selector';
 import { makeRng } from '@/lib/rng';
 import { seedTheta, type Skill } from '@/skills';
@@ -172,6 +172,8 @@ describe('frontier introduction', () => {
 function simulate(seed: number, trueThetas: number[], steps: number, calibrated = false) {
   const rng = makeRng(seed);
   const theta = trueThetas.map((t) => (calibrated ? t : 0));
+  const rd = trueThetas.map(() => SEED_RD);
+  const vol = trueThetas.map(() => SEED_VOL);
   const nObs = trueThetas.map(() => 0);
   const lastSeen: (number | null)[] = trueThetas.map(() => null);
   let now = 1_000_000_000_000;
@@ -200,7 +202,11 @@ function simulate(seed: number, trueThetas: number[], steps: number, calibrated 
 
     const correct = rng.next() < sigmoid(trueThetas[i]) ? 1 : 0;
     if (!calibrated) {
-      theta[i] = update({ theta: theta[i], childObs: nObs[i] }, correct).theta;
+      const idle = lastSeen[i] == null ? 0 : (now - (lastSeen[i] as number)) / RATING_PERIOD_MS;
+      const u = update({ theta: theta[i], rd: rd[i], vol: vol[i], childObs: nObs[i] }, correct, false, idle);
+      theta[i] = u.theta;
+      rd[i] = u.rd;
+      vol[i] = u.vol;
     }
     nObs[i]++;
     lastSeen[i] = now;

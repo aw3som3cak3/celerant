@@ -28,7 +28,7 @@ function wrongOf(a: string): string {
 
 function snapshotAbility(pid: string): string {
   const rows = getDb()
-    .prepare('SELECT skill_code, theta, n_obs, last_seen_at, rate, rate_state FROM ability WHERE player_id = ? ORDER BY skill_code')
+    .prepare('SELECT skill_code, theta, rd, volatility, n_obs, last_seen_at, rate, rate_state FROM ability WHERE player_id = ? ORDER BY skill_code')
     .all(pid);
   return JSON.stringify(rows);
 }

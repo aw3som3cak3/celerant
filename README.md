@@ -112,6 +112,19 @@ volume, or `GET /api/family/export` per family (§8.2).
   Re-seed, replay. Generator bug? Void the range, replay — and θ correctly
   falls back to its seed.
 
+- **Per-skill sharpness — RD and idle decay (Glicko-2, one-sided).** θ carries a
+  rating deviation (`rd`) and `volatility` (`src/model/elo.ts`). Only the child's
+  numbers move, against the skill's *fixed* tier difficulty (opponent rating 0,
+  so g = 1 and E = σ(θ) = `predict(θ)` — no bias, aligned with the 0.80 target).
+  RD replaces the old `k = 1/(1+0.05n)`: it **shrinks with practice and grows on
+  idle**, so a skill unpractised for weeks becomes uncertain again and its next
+  answer counts more. Δθ ∝ rd'² is itself the slip floor — a careless miss on a
+  mastered skill barely moves θ. Volatility complements the sprint rate in the
+  fluency gate (an erratic skill isn't "fluent" even at target accuracy). Problem
+  types are **not** rated (that was β). **τ = 0.5, the idle coefficient, and the
+  volatility gate are GUESSES** (instrumentation.md §3): re-run the phase-2
+  simulation (`test/pure.test.ts`) whenever any of them changes.
+
 - **Identity is icons, never names.** A family is an unordered **pair** of icons
   (186 icons → 17,205 families); a player is a single icon within their family.
   The child logs in on a grid — there is no text field on a child's screen

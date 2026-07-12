@@ -87,6 +87,8 @@ CREATE TABLE IF NOT EXISTS ability (
   player_id    TEXT NOT NULL REFERENCES player(id),
   skill_code   TEXT NOT NULL,
   theta        REAL NOT NULL,
+  rd           REAL NOT NULL DEFAULT 1.0,   -- rating deviation (Glicko-2), one-sided
+  volatility   REAL NOT NULL DEFAULT 0.06,  -- Glicko-2 sigma
   n_obs        INTEGER NOT NULL,
   last_seen_at INTEGER,
   rate         REAL,

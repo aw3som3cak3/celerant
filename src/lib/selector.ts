@@ -40,7 +40,16 @@ export type SelState = {
   requires: string[];
   rate: RateEvidence; // child's fluency evidence for this skill
   aim: number | null; // fluency aim for this skill, or null
+  volatility?: number; // Glicko-2 σ — erratic answering, the accuracy side of fluency
 };
+
+// A skill whose θ swings between mastery and misses is not yet fluent, distinct
+// from "low ability": two children at the same accuracy, one steady and one
+// erratic, differ, and only the steady one is ready to advance. This complements
+// the sprint rate from the accuracy side (instrumentation.md §3). A GUESS; see
+// README. Seeded volatility (0.06) is well under it, so it only ever blocks a
+// genuinely unstable skill.
+const VOL_GATE = 0.15;
 
 export type SkillScore = {
   code: string;
@@ -61,13 +70,14 @@ function componentFluent(s: SelState): boolean {
   // Epsilon compare: a provisional rate seeded at the aim, or a measured rate
   // that lands exactly on it, must not have the gate flip on IEEE-754 ordering.
   const EPS = 1e-9;
+  const steady = (s.volatility ?? 0) <= VOL_GATE; // not erratic on this skill
   switch (s.rate.source) {
     case 'measured':
       // Latest sprint. A single sprint below aim drops the skill.
-      return s.aim != null && s.rate.value >= s.aim - EPS;
+      return s.aim != null && s.rate.value >= s.aim - EPS && steady;
     case 'provisional':
       // Seeded at (or below) the aim from the child's school year.
-      return s.aim != null && s.rate.value >= s.aim - EPS;
+      return s.aim != null && s.rate.value >= s.aim - EPS && steady;
     case 'unknown':
       throw new Error(
         `fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`,

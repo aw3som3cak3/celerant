@@ -2,7 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { getDb } from './index';
 import { replay } from './replay';
-import { update, updateDecision } from '@/model/elo';
+import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 
 // Incremental cache update for one resolved attempt — the fast path. Attempts
 // are appended in non-decreasing `at`, and attempts touch only θ/n_obs/last_seen
@@ -21,18 +21,28 @@ function applyAttemptToCache(
 ): void {
   const db = getDb();
   const ab = db
-    .prepare('SELECT theta, n_obs FROM ability WHERE player_id = ? AND skill_code = ?')
-    .get(playerId, skillCode) as { theta: number; n_obs: number } | undefined;
+    .prepare('SELECT theta, rd, volatility, n_obs, last_seen_at FROM ability WHERE player_id = ? AND skill_code = ?')
+    .get(playerId, skillCode) as
+    | { theta: number; rd: number; volatility: number; n_obs: number; last_seen_at: number | null }
+    | undefined;
   if (!ab) return; // a skill not in the graph: no cache row to update
   const decision = updateDecision(dontKnow || given === null, tries, correct);
   let theta = ab.theta;
+  let rd = ab.rd;
+  let vol = ab.volatility;
   let nObs = ab.n_obs;
   if (decision.apply) {
-    theta = update({ theta, childObs: nObs }, decision.correct, decision.halveKChild).theta;
+    // Same idle-inflation as replay, from the stored last_seen — so this fast
+    // path stays byte-for-byte identical to a full replay (ui-lifecycle §7).
+    const idle = ab.last_seen_at == null ? 0 : (at - ab.last_seen_at) / RATING_PERIOD_MS;
+    const u = update({ theta, rd, vol, childObs: nObs }, decision.correct, decision.halveKChild, idle);
+    theta = u.theta;
+    rd = u.rd;
+    vol = u.vol;
     nObs += 1;
   }
-  db.prepare('UPDATE ability SET theta = ?, n_obs = ?, last_seen_at = ? WHERE player_id = ? AND skill_code = ?')
-    .run(theta, nObs, at, playerId, skillCode);
+  db.prepare('UPDATE ability SET theta = ?, rd = ?, volatility = ?, n_obs = ?, last_seen_at = ? WHERE player_id = ? AND skill_code = ?')
+    .run(theta, rd, vol, nObs, at, playerId, skillCode);
 }
 
 // --- meta ------------------------------------------------------------------
@@ -195,6 +205,8 @@ export function restorePlayer(id: string): void {
 export type AbilityRow = {
   skill_code: string;
   theta: number;
+  rd: number;
+  volatility: number;
   n_obs: number;
   last_seen_at: number | null;
   rate: number | null;
@@ -203,7 +215,7 @@ export type AbilityRow = {
 
 export function abilities(playerId: string): Map<string, AbilityRow> {
   const rows = getDb()
-    .prepare('SELECT skill_code, theta, n_obs, last_seen_at, rate, rate_state FROM ability WHERE player_id = ?')
+    .prepare('SELECT skill_code, theta, rd, volatility, n_obs, last_seen_at, rate, rate_state FROM ability WHERE player_id = ?')
     .all(playerId) as AbilityRow[];
   return new Map(rows.map((r) => [r.skill_code, r]));
 }

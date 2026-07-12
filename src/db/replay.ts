@@ -1,7 +1,7 @@
 import 'server-only';
 import { getDb } from './index';
 import { SKILLS, seedTheta } from '@/skills';
-import { update, updateDecision } from '@/model/elo';
+import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
 import { aimFor } from '@/lib/fluency';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
@@ -20,6 +20,8 @@ const PROVISIONAL_BELOW = 0.6;
 
 type Row = {
   theta: number;
+  rd: number;
+  volatility: number;
   n_obs: number;
   last_seen_at: number | null;
   rate: number | null;
@@ -40,6 +42,8 @@ export function computeAbility(
     const component = s.mode === 'component';
     cache.set(s.code, {
       theta: seedTheta(schoolYear, s),
+      rd: SEED_RD,
+      volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
       rate: component ? aimFor(toolRate, schoolYear) * (schoolYear >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
@@ -52,7 +56,12 @@ export function computeAbility(
     if (!c) continue; // a skill deleted from the graph: its evidence is skipped
     const decision = updateDecision(a.dont_know === 1 || a.given === null, a.tries, a.correct);
     if (decision.apply) {
-      c.theta = update({ theta: c.theta, childObs: c.n_obs }, decision.correct, decision.halveKChild).theta;
+      // Idle since this skill was last seen — grows RD (spacing affecting belief).
+      const idle = c.last_seen_at == null ? 0 : (a.at - c.last_seen_at) / RATING_PERIOD_MS;
+      const u = update({ theta: c.theta, rd: c.rd, vol: c.volatility, childObs: c.n_obs }, decision.correct, decision.halveKChild, idle);
+      c.theta = u.theta;
+      c.rd = u.rd;
+      c.volatility = u.vol;
       c.n_obs += 1;
     }
     c.last_seen_at = a.at;
@@ -109,11 +118,11 @@ export function replay(playerId: string, override?: { schoolYear?: number }): vo
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM ability WHERE player_id = ?').run(playerId);
     const ins = db.prepare(
-      `INSERT INTO ability (player_id, skill_code, theta, n_obs, last_seen_at, rate, rate_state)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ability (player_id, skill_code, theta, rd, volatility, n_obs, last_seen_at, rate, rate_state)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const [code, r] of cache) {
-      ins.run(playerId, code, r.theta, r.n_obs, r.last_seen_at, r.rate, r.rate_state);
+      ins.run(playerId, code, r.theta, r.rd, r.volatility, r.n_obs, r.last_seen_at, r.rate, r.rate_state);
     }
   });
   tx();

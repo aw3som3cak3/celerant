@@ -35,6 +35,11 @@ function open(): Database.Database {
 
 const MIGRATIONS = [
   'ALTER TABLE player ADD COLUMN session_target INTEGER NOT NULL DEFAULT 20',
+  // instrumentation.md §3. Existing ability rows keep their θ and take default
+  // rd/volatility; the cache self-heals to true Glicko values on the next replay
+  // (any void / årskurs change / "bygg om cache"). A fresh DB gets them from CREATE.
+  'ALTER TABLE ability ADD COLUMN rd REAL NOT NULL DEFAULT 1.0',
+  'ALTER TABLE ability ADD COLUMN volatility REAL NOT NULL DEFAULT 0.06',
 ];
 
 export function getDb(): Database.Database {
