@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { PinPad } from '../_components/PinPad';
+import { SkillMap, type MapData } from '../_components/SkillMap';
 import { useI18n } from '../_components/LocaleProvider';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
@@ -117,6 +118,8 @@ export default function Parent() {
             <a className="idk" href="/api/family/export" target="_blank" rel="noreferrer">{t('parent.export')}</a>
           </div>
 
+          <ParentMapPanel key={data.player.id} playerId={data.player.id} />
+
           <div style={{ overflowX: 'auto' }}>
             <table className="plain-table">
               <thead>
@@ -145,6 +148,26 @@ export default function Parent() {
       <p style={{ marginTop: '2rem' }}>
         <a className="idk" href="/">{t('common.back')}</a>
       </p>
+    </div>
+  );
+}
+
+// The full skill graph, unfogged (the-map.md §6): the instrument where a fired
+// diagnostic can be read in context — a collapsed node with its prerequisite
+// edges right there. Loaded on demand; resets when another child is selected.
+function ParentMapPanel({ playerId }: { playerId: string }) {
+  const { t } = useI18n();
+  const [map, setMap] = useState<MapData | null>(null);
+  const [open, setOpen] = useState(false);
+  async function toggle() {
+    if (open) return setOpen(false);
+    if (!map) setMap(await getJSON<MapData>(`/api/parent/map?playerId=${playerId}`));
+    setOpen(true);
+  }
+  return (
+    <div style={{ margin: '0.5rem 0' }}>
+      <button className="idk" onClick={toggle}>{open ? t('parent.mapHide') : t('parent.map')}</button>
+      {open && map && <SkillMap data={map} variant="parent" />}
     </div>
   );
 }

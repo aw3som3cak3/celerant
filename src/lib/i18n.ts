@@ -115,6 +115,10 @@ const sv: Dict = {
   'shelf.harderOn': 'svårare: på',
   'shelf.practise': 'träna',
   'shelf.week': 'senaste 7 dagarna',
+  'map.title': 'Din karta',
+  'map.hint': 'Tryck på en glödande ruta för att börja där.',
+  'parent.map': 'visa karta',
+  'parent.mapHide': 'dölj karta',
 
   'warmup.title': 'Skrivhastighet',
   'warmup.intro': 'Skriv av siffrorna så snabbt du bekvämt kan i en minut. Det finns inget rätt eller fel här.',
@@ -234,6 +238,10 @@ const en: Dict = {
   'shelf.harderOn': 'harder: on',
   'shelf.practise': 'practise',
   'shelf.week': 'last 7 days',
+  'map.title': 'Your map',
+  'map.hint': 'Tap a glowing tile to start there.',
+  'parent.map': 'show map',
+  'parent.mapHide': 'hide map',
 
   'warmup.title': 'Writing speed',
   'warmup.intro': "Copy the digits as fast as you comfortably can for a minute. There's no right or wrong here.",

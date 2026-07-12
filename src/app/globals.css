@@ -559,6 +559,111 @@ table.plain-table th {
   font-size: 1.1rem;
 }
 
+/* ── the map (the-map.md): the shelf laid out as the skill graph ──────────── */
+.map-scroll {
+  position: relative;
+  overflow: auto;
+  max-height: 64vh;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: radial-gradient(circle at 1px 1px, rgba(0, 0, 0, 0.035) 1px, transparent 0) 0 0 / 26px 26px;
+  margin: 1rem 0 1.4rem;
+  -webkit-overflow-scrolling: touch;
+}
+.map-canvas {
+  position: relative;
+}
+.map-edges {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.map-edges line {
+  stroke: var(--line);
+  stroke-width: 2;
+}
+.mapnode {
+  position: absolute;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 8px;
+  border-radius: 12px;
+  text-align: center;
+  overflow: hidden;
+  font: inherit;
+  animation: mapreveal 200ms ease-out; /* the reveal: silhouette resolves to a card (§4) */
+}
+@keyframes mapreveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.mapnode-label {
+  font-size: 0.66rem;
+  color: var(--ink-soft);
+  line-height: 1.05;
+}
+.mapnode-prompt {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+.mapnode-given {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  color: var(--accent);
+}
+.mapnode.reached {
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+}
+.mapnode.frontier {
+  background: transparent;
+  border: 2px dashed var(--accent);
+  cursor: pointer;
+  box-shadow: 0 0 10px -2px var(--accent);
+  animation: mapglow 2.4s ease-in-out infinite alternate;
+}
+.mapnode.frontier:hover {
+  box-shadow: 0 0 18px 0 var(--accent);
+}
+.mapnode.frontier .mapnode-label {
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+@keyframes mapglow {
+  from {
+    box-shadow: 0 0 6px -3px var(--accent);
+  }
+  to {
+    box-shadow: 0 0 16px -1px var(--accent);
+  }
+}
+/* a silhouette — something is there; you cannot see what (§2) */
+.mapnode.near {
+  background: var(--faint);
+  opacity: 0.55;
+  border-radius: 16px;
+}
+/* parent-only muted node for the not-yet-reached rest of the graph (§6) */
+.mapnode.locked {
+  background: transparent;
+  border: 1.5px dashed var(--line);
+}
+.mapnode.locked .mapnode-label {
+  color: var(--ink-soft);
+  opacity: 0.75;
+}
+
 /* family goal, shown to the family near the heading — one number, no per-child */
 .goal-chip {
   max-width: 260px;

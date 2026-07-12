@@ -19,7 +19,9 @@ const QUIET_WORDS: Record<string, string[]> = {
 function Practice() {
   const { t, locale } = useI18n();
   const QUIET = QUIET_WORDS[locale] ?? QUIET_WORDS.sv;
-  const playerId = useSearchParams().get('p') ?? '';
+  const sp = useSearchParams();
+  const playerId = sp.get('p') ?? '';
+  const startCode = sp.get('start'); // arrive here from a frontier node on the map
   const [phase, setPhase] = useState<'loading' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [target, setTarget] = useState(20);
@@ -34,6 +36,7 @@ function Practice() {
   const [icon, setIcon] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef(true);
+  const autoStarted = useRef(false);
 
   // Show whose session this is (their own icon) — identity, not a status badge.
   useEffect(() => {
@@ -79,6 +82,15 @@ function Practice() {
   useEffect(() => {
     if (phase === 'answer') inputRef.current?.focus();
   }, [phase, item]);
+
+  // Arrived from a frontier node on the map: skip the chooser and go straight to
+  // the skill the child picked there (the map and the chooser are one object).
+  useEffect(() => {
+    if (phase === 'choose' && sessionId != null && startCode && !autoStarted.current) {
+      autoStarted.current = true;
+      load(startCode);
+    }
+  }, [phase, sessionId, startCode, load]);
 
   function handle(r: AnswerResp) {
     if (r.status === 'expired' || r.error) return void load();
@@ -140,6 +152,7 @@ function Practice() {
   if (phase === 'loading') return <div className="stage" />;
 
   if (phase === 'choose') {
+    if (startCode) return <div className="stage" />; // auto-starting; don't flash the chooser
     return (
       <div className="stage">
         {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
