@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { SCHEMA } from './schema';
+import { seedPrereg } from './prereg-seed';
 
 // A single connection, reused across hot reloads in dev via a global.
 const globalForDb = globalThis as unknown as { __db?: Database.Database };
@@ -45,6 +46,9 @@ const MIGRATIONS = [
 export function getDb(): Database.Database {
   if (!globalForDb.__db) {
     globalForDb.__db = open();
+    // Register the theses once, now — before any probe data (evidence §3). Runs
+    // after __db is assigned, so it does not recurse through open().
+    seedPrereg(globalForDb.__db, Date.now());
   }
   return globalForDb.__db;
 }

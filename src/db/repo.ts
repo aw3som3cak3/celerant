@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from './index';
 import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
+import { SKILLS, ancestors } from '@/skills';
+import { aimFor } from '@/lib/fluency';
 
 // Incremental cache update for one resolved attempt — the fast path. Attempts
 // are appended in non-decreasing `at`, and attempts touch only θ/n_obs/last_seen
@@ -389,7 +391,24 @@ export function exportFamily(familyId: string): unknown {
   const usageEvents = ids.length
     ? db.prepare(`SELECT * FROM usage_event WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids)
     : [];
-  return { family: familyById(familyId), players, attempts, sprints, toolRates, goalEvents, usageEvents };
+  // Evidence layer (evidence-and-theses.md §5): the probe rows, the pre-registered
+  // theses, and the derived application signal — the analysis substrate for the
+  // transfer claim. Still no ability cache: derivable, recompute offline.
+  const probes = ids.length ? db.prepare(`SELECT * FROM probe WHERE player_id IN (${inClause}) ORDER BY id`).all(...ids) : [];
+  const prereg = preregRows();
+  const applicationSignalByPlayer = players.map((p) => ({ playerId: p.id, signal: applicationSignal(p.id) }));
+  return {
+    family: familyById(familyId),
+    players,
+    attempts,
+    sprints,
+    toolRates,
+    goalEvents,
+    usageEvents,
+    probes,
+    prereg,
+    applicationSignal: applicationSignalByPlayer,
+  };
 }
 
 // --- pending items (ephemeral scratch: the served answer key, §6.7) ---------
@@ -640,4 +659,155 @@ export function appendGoalEvent(
 
 export function appendUsageEvent(playerId: string, kind: string, detail: string | null, at: number): void {
   getDb().prepare('INSERT INTO usage_event (player_id, kind, detail, at) VALUES (?, ?, ?, ?)').run(playerId, kind, detail, at);
+}
+
+// --- the probe (evidence-and-theses.md §2) — a clean ruler, never read by the
+// --- model. These are the ONLY functions that touch the `probe` table.
+
+export function appendProbe(p: {
+  playerId: string;
+  probeSet: string;
+  itemRef: string;
+  featuresJson: string;
+  given: string | null;
+  correct: number;
+  latencyMs: number;
+  at: number;
+  isBaseline: boolean;
+  probeVersion: number;
+}): void {
+  getDb()
+    .prepare(
+      `INSERT INTO probe (player_id, probe_set, item_ref, features_json, given, correct, latency_ms, administered_at, is_baseline, probe_version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(p.playerId, p.probeSet, p.itemRef, p.featuresJson, p.given, p.correct, p.latencyMs, p.at, p.isBaseline ? 1 : 0, p.probeVersion);
+}
+export function hasBaselineProbe(playerId: string): boolean {
+  return !!getDb().prepare('SELECT 1 FROM probe WHERE player_id = ? AND is_baseline = 1 LIMIT 1').get(playerId);
+}
+export function lastProbeAt(playerId: string, probeSet?: string): number | null {
+  const row = probeSet
+    ? (getDb().prepare('SELECT MAX(administered_at) m FROM probe WHERE player_id = ? AND probe_set = ?').get(playerId, probeSet) as { m: number | null })
+    : (getDb().prepare('SELECT MAX(administered_at) m FROM probe WHERE player_id = ?').get(playerId) as { m: number | null });
+  return row.m;
+}
+export function probesForPlayer(playerId: string): unknown[] {
+  return getDb().prepare('SELECT * FROM probe WHERE player_id = ? ORDER BY id').all(playerId);
+}
+const PROBE_DAY = 24 * 3600 * 1000;
+// Monthly cadence (§2.3): >4 weeks since the last arith probe.
+export function monthlyProbeDue(playerId: string, now: number): boolean {
+  const last = lastProbeAt(playerId, 'arith_v1');
+  return last != null && now - last >= 28 * PROBE_DAY;
+}
+// Event-triggered (§2.3): a component has crossed its fluency aim, and no
+// transfer probe has run in the last two weeks — the pre/post window.
+export function transferProbeDue(playerId: string, now: number): boolean {
+  const last = lastProbeAt(playerId, 'transfer_v1');
+  if (last != null && now - last < 14 * PROBE_DAY) return false;
+  const player = playerById(playerId);
+  if (!player) return false;
+  const aim = aimFor(latestToolRate(playerId), player.school_year);
+  for (const ab of abilities(playerId).values()) {
+    if (ab.rate_state === 'measured' && ab.rate != null && ab.rate >= aim) return true;
+  }
+  return false;
+}
+
+// --- pre-registration (evidence-and-theses.md §3) ---------------------------
+
+export type PreregRow = {
+  thesis_id: string;
+  statement: string;
+  measure: string;
+  threshold: string;
+  registered_at: number;
+  outcome: string | null;
+  resolved_at: number | null;
+};
+export function preregRows(): PreregRow[] {
+  return getDb().prepare('SELECT * FROM prereg ORDER BY thesis_id').all() as PreregRow[];
+}
+// §6: a thesis resolved by data older than its registration is inadmissible —
+// refuse to mark it 'confirmed' if any probe evidence predates registration.
+export function resolveThesis(
+  thesisId: string,
+  outcome: 'confirmed' | 'refuted' | 'inconclusive',
+  now: number,
+): { ok: boolean; reason?: string } {
+  const row = getDb().prepare('SELECT registered_at FROM prereg WHERE thesis_id = ?').get(thesisId) as { registered_at: number } | undefined;
+  if (!row) return { ok: false, reason: 'unknown_thesis' };
+  if (outcome === 'confirmed') {
+    const first = getDb().prepare('SELECT MIN(administered_at) m FROM probe').get() as { m: number | null };
+    if (first.m != null && first.m < row.registered_at) return { ok: false, reason: 'evidence_predates_registration' };
+  }
+  getDb().prepare('UPDATE prereg SET outcome = ?, resolved_at = ? WHERE thesis_id = ?').run(outcome, now, thesisId);
+  return { ok: true };
+}
+
+// --- the application signal (evidence-and-theses.md §2.4, T1) ----------------
+// Free evidence from the existing ledger: when a component's rate crosses its
+// aim, median latency on COMPOUND attempts containing that component before vs
+// after. A drop is transfer — the Morningside thesis, per child. Reads only the
+// model's own ledgers (attempt, sprint); writes nothing.
+function median(xs: number[]): number {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
+export type SignalRow = {
+  component: string;
+  aimCrossedAt: number;
+  beforeMedianMs: number;
+  afterMedianMs: number;
+  nBefore: number;
+  nAfter: number;
+};
+export function applicationSignal(playerId: string): SignalRow[] {
+  const player = playerById(playerId);
+  if (!player) return [];
+  const aim = aimFor(latestToolRate(playerId), player.school_year);
+  const db = getDb();
+  const sprints = db
+    .prepare('SELECT skill_code, correct, duration_s, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id')
+    .all(playerId) as { skill_code: string; correct: number; duration_s: number; at: number }[];
+  const attempts = db
+    .prepare('SELECT skill_code, latency_ms, at, dont_know FROM attempt WHERE player_id = ? AND voided_at IS NULL')
+    .all(playerId) as { skill_code: string; latency_ms: number; at: number; dont_know: number }[];
+
+  const out: SignalRow[] = [];
+  for (const c of SKILLS) {
+    if (c.mode !== 'component') continue;
+    // earliest sprint on this component that met the aim
+    let crossed: number | null = null;
+    for (const sp of sprints) {
+      if (sp.skill_code !== c.code) continue;
+      if ((sp.correct * 60) / sp.duration_s >= aim) {
+        crossed = sp.at;
+        break;
+      }
+    }
+    if (crossed == null) continue;
+    // compounds that (transitively) require this component
+    const compounds = new Set(SKILLS.filter((s) => s.mode === 'compound' && ancestors(s.code).has(c.code)).map((s) => s.code));
+    if (!compounds.size) continue;
+    const before: number[] = [];
+    const after: number[] = [];
+    for (const a of attempts) {
+      if (!compounds.has(a.skill_code) || a.dont_know === 1) continue;
+      (a.at < crossed ? before : after).push(a.latency_ms);
+    }
+    if (before.length < 3 || after.length < 3) continue; // not enough to say anything
+    out.push({
+      component: c.code,
+      aimCrossedAt: crossed,
+      beforeMedianMs: median(before),
+      afterMedianMs: median(after),
+      nBefore: before.length,
+      nAfter: after.length,
+    });
+  }
+  return out;
 }

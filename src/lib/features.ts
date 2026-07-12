@@ -110,8 +110,14 @@ function countBorrows(a: number, b: number): { borrows: number; acrossZero: bool
   return { borrows: cnt, acrossZero };
 }
 
+// From a skill code: derive the operation from its family, then compute.
 export function extractFeatures(code: string, prompt: string, answerStr: string): ItemFeatures {
-  const operation = operationFor(code);
+  return computeFeatures(operationFor(code), prompt, answerStr);
+}
+
+// From an explicit operation — used by the probe (evidence-and-theses.md §2),
+// whose fixed items are not skills and so have no family to read.
+export function computeFeatures(operation: Operation, prompt: string, answerStr: string): ItemFeatures {
   const operands = operandsOf(prompt);
   const answer = num(answerStr);
 

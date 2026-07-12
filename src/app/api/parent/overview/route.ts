@@ -70,6 +70,10 @@ export function GET(req: NextRequest) {
     // A plain number for the parent to notice, not to optimise (§3.6). No child
     // ever sees a count of sessions — enthusiasm shows for them as done maths.
     sessionsThisWeek: repo.sessionsThisWeek(playerId, now),
+    // The transfer signal (evidence-and-theses §2.4): median latency on compounds
+    // containing a component, before vs after that component crossed its fluency
+    // aim. A drop is transfer — the cheapest real evidence, from the ledger.
+    transfer: repo.applicationSignal(playerId),
     diagnostics, // usually empty — an empty parent view is the normal one
     skills: rows,
   });

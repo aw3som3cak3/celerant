@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
+import { ProbeRun } from '../_components/ProbeRun';
 import { useI18n } from '../_components/LocaleProvider';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
@@ -37,6 +38,10 @@ function Practice() {
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef(true);
   const autoStarted = useRef(false);
+  // A probe (evidence-and-theses.md §2) may precede the session: baseline is
+  // forced (before the first practice item, ever), monthly/transfer are offered.
+  const [probeState, setProbeState] = useState<'checking' | 'offer' | 'running' | 'done'>('checking');
+  const [probeData, setProbeData] = useState<{ set: string; items: { ref: string; prompt: string }[]; isBaseline: boolean } | null>(null);
 
   // Show whose session this is (their own icon) — identity, not a status badge.
   useEffect(() => {
@@ -58,9 +63,25 @@ function Practice() {
     setPhase('choose');
   }, [playerId]);
 
+  // Before the first practice item, check for a due probe. Baseline runs
+  // (forced); monthly/transfer are offered; otherwise go straight to a session.
   useEffect(() => {
     if (!playerId) return void (location.href = '/');
-    startSession();
+    type Due = { due: string | null; set?: string; isBaseline?: boolean; items?: { ref: string; prompt: string }[] };
+    getJSON<Due>(`/api/probe?playerId=${playerId}`)
+      .then((r) => {
+        if (r.due && r.set && r.items && r.items.length) {
+          setProbeData({ set: r.set, items: r.items, isBaseline: !!r.isBaseline });
+          setProbeState(r.isBaseline ? 'running' : 'offer');
+        } else {
+          setProbeState('done');
+          startSession();
+        }
+      })
+      .catch(() => {
+        setProbeState('done');
+        startSession();
+      });
   }, [playerId, startSession]);
 
   const load = useCallback(
@@ -147,6 +168,32 @@ function Practice() {
   async function endEarly() {
     await postJSON('/api/session/end', { playerId, sessionId });
     location.href = '/';
+  }
+
+  // ── probe gating (before any session) ──────────────────────────────────────
+  if (probeState === 'checking') return <div className="stage" />;
+  if (probeState === 'offer' && probeData) {
+    return (
+      <div className="stage">
+        {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
+        <p className="muted" style={{ marginBottom: '1.6rem' }}>{t('probe.offer')}</p>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <button className="next-btn" onClick={() => setProbeState('running')}>{t('probe.start')}</button>
+          <button className="quit-btn" onClick={() => { setProbeState('done'); startSession(); }}>{t('probe.skip')}</button>
+        </div>
+      </div>
+    );
+  }
+  if (probeState === 'running' && probeData) {
+    return (
+      <ProbeRun
+        playerId={playerId}
+        probeSet={probeData.set}
+        items={probeData.items}
+        isBaseline={probeData.isBaseline}
+        onDone={() => { setProbeState('done'); startSession(); }}
+      />
+    );
   }
 
   if (phase === 'loading') return <div className="stage" />;

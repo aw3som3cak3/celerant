@@ -9,11 +9,13 @@ import { useI18n } from '../_components/LocaleProvider';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
 type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
+type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: number; nBefore: number; nAfter: number };
 type Overview = {
   player: { id: string; icon: string; schoolYear: number; sessionTarget: number };
   attemptsLast7Days: number;
   sessionsThisWeek: number;
   diagnostics: Diagnostic[];
+  transfer: Transfer[];
   skills: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
@@ -117,6 +119,21 @@ export default function Parent() {
             {' · '}
             <a className="idk" href="/api/family/export" target="_blank" rel="noreferrer">{t('parent.export')}</a>
           </div>
+
+          {data.transfer.length > 0 && (
+            <div style={{ margin: '0.8rem 0' }}>
+              <p className="muted" style={{ fontSize: '0.85rem' }}>{t('parent.transfer')}</p>
+              {data.transfer.map((tr) => {
+                const drop = tr.beforeMedianMs - tr.afterMedianMs;
+                return (
+                  <p key={tr.component} style={{ margin: '0.15rem 0', color: drop > 0 ? 'var(--accent)' : undefined }}>
+                    {tr.component.replace(/_/g, ' ')}: {(tr.beforeMedianMs / 1000).toFixed(1)}s → {(tr.afterMedianMs / 1000).toFixed(1)}s
+                    {drop > 0 ? ` ↓${(drop / 1000).toFixed(1)}s` : ''} <span className="muted" style={{ fontSize: '0.75rem' }}>({tr.nBefore}/{tr.nAfter})</span>
+                  </p>
+                );
+              })}
+            </div>
+          )}
 
           <ParentMapPanel key={data.player.id} playerId={data.player.id} />
 

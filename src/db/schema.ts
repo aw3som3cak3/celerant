@@ -186,4 +186,39 @@ CREATE TABLE IF NOT EXISTS usage_event (
   at          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_usage_event_player ON usage_event(player_id, at);
+
+-- LEDGER (evidence-and-theses.md §2). A clean ruler: a fixed instrument that
+-- NEVER counts toward θ, never appears in practice, never enters any adaptive
+-- decision. THE HARD RULE: nothing in replay(), the selector, the θ update, or
+-- the unlock gate ever reads this table. Write-only from the system's side,
+-- read-only from the analyst's. If any model path can see it, the evidence is
+-- void. Append-only.
+CREATE TABLE IF NOT EXISTS probe (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id       TEXT NOT NULL REFERENCES player(id),
+  probe_set       TEXT NOT NULL,       -- 'arith_v1' | 'transfer_v1'
+  item_ref        TEXT NOT NULL,       -- stable id of the fixed item within the set
+  features_json   TEXT NOT NULL,       -- same feature schema as instrumentation §2
+  given           TEXT,
+  correct         INTEGER NOT NULL,
+  latency_ms      INTEGER NOT NULL,
+  administered_at INTEGER NOT NULL,
+  is_baseline     INTEGER NOT NULL DEFAULT 0,  -- §6: baseline rows are marked
+  probe_version   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_probe_player ON probe(player_id, administered_at);
+
+-- Pre-registration (evidence-and-theses.md §3). Append-only, written BEFORE data
+-- collection: a thesis whose registered_at predates its supporting data is
+-- credible; one written after is a story. outcome is filled in only LATER.
+CREATE TABLE IF NOT EXISTS prereg (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  thesis_id     TEXT NOT NULL UNIQUE,
+  statement     TEXT NOT NULL,
+  measure       TEXT NOT NULL,
+  threshold     TEXT NOT NULL,
+  registered_at INTEGER NOT NULL,
+  outcome       TEXT,                  -- 'confirmed' | 'refuted' | 'inconclusive'
+  resolved_at   INTEGER
+);
 `;
