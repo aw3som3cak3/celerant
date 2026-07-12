@@ -20,6 +20,7 @@ function applyAttemptToCache(
   tries: number,
   correct: number,
   dontKnow: boolean,
+  warmup: number,
   at: number,
 ): void {
   const db = getDb();
@@ -38,7 +39,11 @@ function applyAttemptToCache(
     // Same idle-inflation as replay, from the stored last_seen — so this fast
     // path stays byte-for-byte identical to a full replay (ui-lifecycle §7).
     const idle = ab.last_seen_at == null ? 0 : (at - ab.last_seen_at) / RATING_PERIOD_MS;
-    const u = update({ theta, rd, vol, childObs: nObs }, decision.correct, decision.halveKChild, idle);
+    // Warm-up: a correct answer on an easy opener is uninformative (she was meant
+    // to get it), so halve it; a warm-up MISS is surprising and updates fully
+    // (onboarding-ramp §4).
+    const halve = decision.halveKChild || (warmup === 1 && decision.correct === 1);
+    const u = update({ theta, rd, vol, childObs: nObs }, decision.correct, halve, idle);
     theta = u.theta;
     rd = u.rd;
     vol = u.vol;
@@ -241,6 +246,7 @@ export type AppendAttempt = {
   correct: number;
   tries: number;
   dontKnow: boolean;
+  warmup?: boolean;
   latencyMs: number;
   at: number;
 };
@@ -248,13 +254,14 @@ export type AppendAttempt = {
 // Append to the ledger, then rebuild the cache. Item generation itself writes
 // nothing (§6.7); this is the only write on the answer path.
 export function appendAttempt(a: AppendAttempt): number {
+  const warmup = a.warmup ? 1 : 0;
   const info = getDb()
     .prepare(
-      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, latency_ms, at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, a.latencyMs, a.at);
-  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, a.at); // fast path, not full replay
+    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at);
+  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at); // fast path, not full replay
   return Number(info.lastInsertRowid);
 }
 
@@ -445,6 +452,7 @@ export type PendingItemRow = {
   scores_json: string;
   served_at: number;
   tries: number;
+  warmup: number;
   first_wrong: string | null;
 };
 
@@ -458,14 +466,25 @@ export function savePendingItem(p: {
   seed: number;
   scoresJson: string;
   servedAt: number;
+  warmup?: boolean;
 }): void {
   getDb()
     .prepare(
       `INSERT OR REPLACE INTO pending_item
-       (item_id, player_id, skill_code, prompt, answer, steps_json, seed, scores_json, served_at, tries, first_wrong)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL)`,
+       (item_id, player_id, skill_code, prompt, answer, steps_json, seed, scores_json, served_at, tries, warmup, first_wrong)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, NULL)`,
     )
-    .run(p.itemId, p.playerId, p.skillCode, p.prompt, p.answer, p.stepsJson, p.seed, p.scoresJson, p.servedAt);
+    .run(p.itemId, p.playerId, p.skillCode, p.prompt, p.answer, p.stepsJson, p.seed, p.scoresJson, p.servedAt, p.warmup ? 1 : 0);
+}
+
+// Completed sessions so far (for the warm-up ramp fade, onboarding-ramp §3):
+// finished sessions only, read from session_run — not a flag, so it survives replay.
+export function completedSessionCount(playerId: string): number {
+  return (
+    getDb()
+      .prepare('SELECT COUNT(*) c FROM session_run WHERE player_id = ? AND ended_at IS NOT NULL AND completed >= target')
+      .get(playerId) as { c: number }
+  ).c;
 }
 export function getPendingItem(itemId: string): PendingItemRow | undefined {
   return getDb().prepare('SELECT * FROM pending_item WHERE item_id = ?').get(itemId) as PendingItemRow | undefined;
@@ -795,7 +814,7 @@ export function applicationSignal(playerId: string): SignalRow[] {
     .prepare('SELECT skill_code, correct, duration_s, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id')
     .all(playerId) as { skill_code: string; correct: number; duration_s: number; at: number }[];
   const attempts = db
-    .prepare('SELECT skill_code, latency_ms, at, dont_know FROM attempt WHERE player_id = ? AND voided_at IS NULL')
+    .prepare('SELECT skill_code, latency_ms, at, dont_know FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0')
     .all(playerId) as { skill_code: string; latency_ms: number; at: number; dont_know: number }[];
 
   const out: SignalRow[] = [];

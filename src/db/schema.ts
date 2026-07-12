@@ -56,6 +56,7 @@ CREATE TABLE IF NOT EXISTS attempt (
   correct      INTEGER NOT NULL,
   tries        INTEGER NOT NULL,
   dont_know    INTEGER NOT NULL DEFAULT 0,
+  warmup       INTEGER NOT NULL DEFAULT 0,  -- onboarding-ramp §4: warm-up item; θ updates weakly on success
   latency_ms   INTEGER NOT NULL,
   at           INTEGER NOT NULL,
   voided_at    INTEGER,
@@ -127,6 +128,7 @@ CREATE TABLE IF NOT EXISTS pending_item (
   scores_json TEXT NOT NULL,
   served_at   INTEGER NOT NULL,
   tries       INTEGER NOT NULL DEFAULT 0,
+  warmup      INTEGER NOT NULL DEFAULT 0,
   first_wrong TEXT
 );
 

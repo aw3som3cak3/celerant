@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import { sessionChoices } from '@/lib/practice';
+import { rampLen } from '@/lib/onboarding';
 import * as repo from '@/db/repo';
 import { json } from '@/lib/api';
 
@@ -26,5 +27,8 @@ export async function POST(req: NextRequest) {
   repo.appendUsageEvent(player.id, 'session_started', null, now);
   if (parsed.data.again) repo.appendUsageEvent(player.id, 'en_till', null, now);
   const choices = sessionChoices(player.id, player.school_year, player.stretch === 1, now);
-  return json({ sessionId, target, choices, stretch: player.stretch === 1 });
+  // Warm-up ramp length for this session (onboarding-ramp §3): the client skips
+  // the chooser and goes straight into the gentle opener while it is > 0.
+  const ramp = rampLen(repo.completedSessionCount(player.id), target);
+  return json({ sessionId, target, choices, stretch: player.stretch === 1, rampLen: ramp });
 }

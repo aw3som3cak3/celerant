@@ -66,6 +66,7 @@ export type NextOpts = {
   stretch?: boolean; // shift the success target 0.80 -> 0.65
   chosenCode?: string; // the child's session-start choice (§3.2) — first item only
   peakEnd?: boolean; // last item of a session: highest-p eligible (§3.3)
+  warmupTarget?: number; // onboarding ramp (§2): serve near this predicted success, marks warmup
 };
 
 // Three eligible skills near the success target, for the child to choose from at
@@ -98,13 +99,18 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
   const ability = repo.abilities(playerId);
   const recentCodes = repo.recentAttemptSkillCodes(playerId, 8);
   const previousCode = recentCodes[0] ?? null;
-  const target = opts.stretch ? STRETCH_TARGET : undefined;
+  // Warm-up (onboarding-ramp §2): serve near a high predicted success, climbing to
+  // the edge. It overrides the target, suppresses the chooser and the introduce
+  // slot, and still interleaves (recency term varies the skill). The θ reduction
+  // is applied later, on the attempt — the ramp only moves what she sees.
+  const warmup = opts.warmupTarget != null;
+  const target = warmup ? opts.warmupTarget : opts.stretch ? STRETCH_TARGET : undefined;
 
   // The child's session-start choice serves as the first item, if still eligible.
   let pick: SelState | undefined;
   let scores: unknown;
   let introduced = false;
-  if (opts.chosenCode && unlocked.get(opts.chosenCode)) {
+  if (!warmup && opts.chosenCode && unlocked.get(opts.chosenCode)) {
     pick = states.find((s) => s.code === opts.chosenCode);
   }
   if (!pick) {
@@ -113,9 +119,9 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
       previousCode,
       recentCodes,
       rand: Math.random,
-      introduce: { recentAccuracy: repo.recentOverallFirstTryAccuracy(playerId, 10) },
+      introduce: warmup ? undefined : { recentAccuracy: repo.recentOverallFirstTryAccuracy(playerId, 10) },
       target,
-      peakEnd: opts.peakEnd,
+      peakEnd: warmup ? false : opts.peakEnd,
     });
     scores = r.scores;
     introduced = r.introduced;
@@ -139,6 +145,7 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
     seed,
     scoresJson: JSON.stringify({ scores, introduced }),
     servedAt: now,
+    warmup,
   });
   repo.cleanupPendingItems(now - PENDING_TTL_MS);
 
@@ -182,6 +189,7 @@ export function answer(
   // Feature-tag the item (instrumentation.md §2). Deterministic from the stored
   // prompt/answer; written once, read only by a future offline analysis.
   const features = extractFeatures(p.skill_code, p.prompt, p.answer);
+  const warmup = p.warmup === 1;
   const itemJson = JSON.stringify({
     prompt: p.prompt,
     seed: p.seed,
@@ -189,6 +197,7 @@ export function answer(
     firstWrong: p.first_wrong,
     features,
     features_version: FEATURES_VERSION,
+    warmup, // onboarding-ramp §4 — also excludes it from probe/quasi analyses
   });
   const attemptId = repo.appendAttempt({
     playerId,
@@ -198,6 +207,7 @@ export function answer(
     correct: finalCorrect,
     tries: triesRecorded,
     dontKnow: idk,
+    warmup,
     latencyMs: now - p.served_at,
     at: now,
   });

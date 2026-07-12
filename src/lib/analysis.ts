@@ -69,9 +69,10 @@ function probeRows(playerId: string, probeSet?: string): ProbeRow[] {
   ) as ProbeRow[];
 }
 
-// first-attempt (tries = 1) practice items in [from, to)
+// first-attempt (tries = 1) practice items in [from, to). Warm-up items excluded
+// (onboarding-ramp §4) — they aren't honest dose.
 function doseBetween(playerId: string, from: number, to: number): number {
-  return (getDb().prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL AND tries = 1 AND at >= ? AND at < ?').get(playerId, from, to) as { c: number }).c;
+  return (getDb().prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 AND tries = 1 AND at >= ? AND at < ?').get(playerId, from, to) as { c: number }).c;
 }
 
 // Least-squares slope of y over x (0 if <2 points or no x-variance).
@@ -181,7 +182,7 @@ export function crossover(playerId: string): CrossoverRow[] {
   const last = admins[admins.length - 1];
 
   // practice volume per family across the window
-  const rows = getDb().prepare('SELECT skill_code, COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL AND tries = 1 AND at >= ? AND at < ? GROUP BY skill_code').all(playerId, first.at, last.at) as { skill_code: string; c: number }[];
+  const rows = getDb().prepare('SELECT skill_code, COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 AND tries = 1 AND at >= ? AND at < ? GROUP BY skill_code').all(playerId, first.at, last.at) as { skill_code: string; c: number }[];
   const familyVolume = new Map<string, number>();
   const trainedComponents = new Set<string>();
   for (const r of rows) {
