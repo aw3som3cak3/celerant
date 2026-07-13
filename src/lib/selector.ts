@@ -152,11 +152,6 @@ export type SelectOptions = {
   // Peak-end (motivation §3.3): item 20 of 20 serves the highest-p eligible
   // skill, ignoring interleaving, so a session never ends in failure.
   peakEnd?: boolean;
-  // Reach-up (fix-reach-up.md §3): serve the next rung ABOVE the band for a
-  // demonstrably coasting child — the upward mirror of the two-miss retreat.
-  // Ignored (falls through to normal in-band selection) if there is no above-band
-  // skill, i.e. the child is already at his ceiling.
-  reachUp?: boolean;
 };
 
 export type SelectResult = { chosen: SelState | null; scores: SkillScore[]; introduced: boolean };
@@ -195,23 +190,6 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
   }
 
   if (pool.length === 0) return { chosen: null, scores, introduced: false };
-
-  // REACH-UP (fix-reach-up.md §3). A demonstrably coasting child is served the
-  // closest skill just ABOVE the band — the next rung, never a leap. "Above the
-  // band" in difficulty means p BELOW the lower edge (target − P_BAND), so the
-  // next rung is the HIGHEST-p (least hard) of those too-hard skills: he climbs by
-  // one rung at a time. This fires only when the caller has already established
-  // coasting (reachUpProbability, gated on accuracy + steadiness + trivial share),
-  // so it can never reach a fragile kid. If nothing sits above the band he is at
-  // his ceiling — fall through to normal in-band ranking. See fix-reach-up.md.
-  if (opts.reachUp) {
-    const aboveBand = eligible.filter((s) => s.p < target - P_BAND);
-    if (aboveBand.length > 0) {
-      let rung = aboveBand[0];
-      for (const sc of aboveBand) if (sc.p > rung.p) rung = sc;
-      return { chosen: byCode.get(rung.code)!, scores, introduced: false };
-    }
-  }
 
   // Peak-end: the last item is the highest-p skill IN THE BAND (a real problem she
   // can almost surely do), so a session never ends in failure.

@@ -68,7 +68,6 @@ export type NextOpts = {
   peakEnd?: boolean; // last item of a session: highest-p eligible (§3.3)
   warmupTarget?: number; // onboarding ramp (§2): serve near this predicted success, marks warmup
   baseTarget?: number; // start-from-below (§4): the honest target for this player (0.90 new -> 0.80)
-  reachUp?: boolean; // reach-up (fix-reach-up.md §3): serve the next rung above the band for a coasting child
 };
 
 // Three eligible skills near the success target, for the child to choose from at
@@ -128,9 +127,6 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
       rand: Math.random,
       target,
       peakEnd: warmup ? false : opts.peakEnd,
-      // Reach-up never fires during warm-up or on the peak-end item — the opening
-      // must stay easy and the session must end on a sure win.
-      reachUp: warmup || opts.peakEnd ? false : opts.reachUp,
     });
     scores = r.scores;
     introduced = r.introduced;

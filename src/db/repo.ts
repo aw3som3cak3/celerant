@@ -360,44 +360,6 @@ export function recentOverallFirstTryAccuracy(playerId: string, n: number): numb
   return rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length;
 }
 
-// Share of the last `n` real (non-warm-up) items the child was served at p ≥ 0.85
-// — the "trivial proportion" (fix-reach-up.md §3). Direct evidence of being served
-// below one's edge: read from the logged score vector, the p the selector actually
-// predicted at serve time, so it measures what was shown, not a recomputed guess.
-// Drives reach-up firmness. 0 with no history (a new player is not "coasting").
-export function recentTrivialProportion(playerId: string, n: number): number {
-  const rows = getDb()
-    .prepare(
-      "SELECT skill_code, item_json FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 ORDER BY id DESC LIMIT ?",
-    )
-    .all(playerId, n) as { skill_code: string; item_json: string }[];
-  let trivial = 0;
-  let total = 0;
-  for (const r of rows) {
-    try {
-      const j = JSON.parse(r.item_json) as { scores?: { scores?: { code: string; p: number }[] } };
-      const sc = j.scores?.scores?.find((s) => s.code === r.skill_code);
-      if (sc && typeof sc.p === 'number') {
-        total++;
-        if (sc.p >= 0.85) trivial++;
-      }
-    } catch {
-      // ignore an unparsable row
-    }
-  }
-  return total === 0 ? 0 : trivial / total;
-}
-
-// Was the most recent real (non-warm-up) item a miss? Reach-up goes patient right
-// after a miss — firm while the child is winning, quiet the moment he isn't, so a
-// too-hard probe never cascades (fix-reach-up.md §3).
-export function lastAttemptMissed(playerId: string): boolean {
-  const r = getDb()
-    .prepare('SELECT correct FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 ORDER BY id DESC LIMIT 1')
-    .get(playerId) as { correct: number } | undefined;
-  return r != null && r.correct === 0;
-}
-
 export function totalAttempts(playerId: string): number {
   const r = getDb()
     .prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL')

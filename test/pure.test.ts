@@ -4,7 +4,6 @@ import { predict, update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS, t
 import { selectItem, type SelState } from '@/lib/selector';
 import { makeRng } from '@/lib/rng';
 import { seedTheta, type Skill } from '@/skills';
-import { reachUpProbability } from '@/lib/onboarding';
 
 const sigmoid = (t: number) => 1 / (1 + Math.exp(-t));
 const fakeSkill = (year: number): Skill => ({ code: 'x', family: 'f', year, mode: 'component', requires: [], generate: () => ({ prompt: '', answer: { kind: 'int', v: 0 }, steps: [] }) });
@@ -192,57 +191,6 @@ describe('the p-band gate (handoff §6 / fix — never serve an expected miss)',
   });
 });
 
-describe('reach-up (fix-reach-up.md §3 — the upward mirror of the retreat)', () => {
-  const opts = (over: object = {}) => ({ now: 1e12, previousCode: null, recentCodes: [] as string[], rand: () => 0.5, target: 0.8, ...over });
-
-  it('a reach-up probe serves the CLOSEST above-band skill — the next rung, never a leap', () => {
-    // band for target 0.80 is [0.60,1.00]. Two too-hard rungs sit below it: a
-    // near one (p≈0.45) and a far one (p≈0.12). Reach-up must pick the near rung.
-    const states = [
-      mkState({ code: 'inband', theta: 1.4 }), // p≈0.80, in band
-      mkState({ code: 'nextRung', theta: -0.2 }), // p≈0.45, just above band
-      mkState({ code: 'farRung', theta: -2.0 }), // p≈0.12, a leap
-    ];
-    expect(selectItem(states, opts({ reachUp: true })).chosen?.code).toBe('nextRung');
-  });
-
-  it('without the reach-up flag the same too-hard skill is never served (the gate holds)', () => {
-    const states = [mkState({ code: 'inband', theta: 1.4 }), mkState({ code: 'nextRung', theta: -0.2, lastSeenAt: null })];
-    const rng = makeRng(7);
-    let n = 0;
-    for (let i = 0; i < 500; i++) if (selectItem(states, opts({ rand: () => rng.next() })).chosen?.code === 'nextRung') n++;
-    expect(n).toBe(0); // reach-up is opt-in per item; the default is still gated
-  });
-
-  it('at his ceiling (nothing above band) reach-up falls through to normal in-band selection', () => {
-    const states = [mkState({ code: 'a', theta: 1.4, lastSeenAt: 1e12 }), mkState({ code: 'b', theta: 1.6, lastSeenAt: null })];
-    const chosen = selectItem(states, opts({ reachUp: true })).chosen;
-    expect(['a', 'b']).toContain(chosen?.code); // an in-band skill, never null, never a too-hard leap
-  });
-});
-
-describe('reach-up firmness scales with under-challenge (reachUpProbability)', () => {
-  const V = 0.06; // steady
-  it('fires 0 for a struggling kid at any trivial share', () => {
-    expect(reachUpProbability(0.5, V, 0.9, false)).toBe(0); // low accuracy
-    expect(reachUpProbability(0.95, 0.2, 0.9, false)).toBe(0); // erratic (high volatility)
-    expect(reachUpProbability(0.95, V, 0.3, false)).toBe(0); // not under-challenged
-  });
-
-  it('goes quiet right after a miss — patient, no cascade', () => {
-    expect(reachUpProbability(0.95, V, 0.62, true)).toBe(0);
-    expect(reachUpProbability(0.95, V, 0.62, false)).toBeGreaterThan(0);
-  });
-
-  it('scales: a 60%-trivial kid is probed firmer than a 45%-trivial kid', () => {
-    expect(reachUpProbability(0.95, V, 0.6, false)).toBeGreaterThan(reachUpProbability(0.95, V, 0.45, false));
-  });
-
-  it('is capped so it never becomes a wall', () => {
-    expect(reachUpProbability(1.0, V, 1.0, false)).toBeLessThanOrEqual(0.8);
-  });
-});
-
 // Pure selection + θ-update loop over a set of skills whose true difficulty is
 // carried by the child's true θ per skill (no β). Two phase-2 properties: no
 // consecutive repeats, and ~80% realized success once calibrated.
@@ -310,88 +258,6 @@ function simulate(seed: number, trueThetas: number[], steps: number, calibrated 
   }
   return { picks, successRate: correctAfter / countAfter, convergenceErr: bestErr };
 }
-
-// A session-length loop that mirrors the /api/next reach-up wiring: each item it
-// computes recent accuracy + trivial share from the child's OWN recent history and
-// fires reach-up per reachUpProbability. Returns the served-item p distribution so
-// we can assert the trivial glut shrinks (coasting) and the band is never breached
-// (struggling). `seedThetas` is where the child starts; `trueThetas` his real
-// ability — reach-up climbs the gap.
-function simulateReachUp(seed: number, seedThetas: number[], trueThetas: number[], steps: number, enableReachUp: boolean) {
-  const rng = makeRng(seed);
-  const theta = seedThetas.slice();
-  const rd = seedThetas.map(() => SEED_RD);
-  const vol = seedThetas.map(() => SEED_VOL);
-  const nObs = seedThetas.map(() => 0);
-  const lastSeen: (number | null)[] = seedThetas.map(() => null);
-  let now = 1_000_000_000_000;
-  let previousCode: string | null = null;
-  const recent: string[] = [];
-  const outcomes: number[] = []; // newest last
-  const servedP: number[] = []; // newest last
-  const target = 0.8;
-  let belowBand = 0;
-
-  for (let t = 0; t < steps; t++) {
-    const recentAcc = outcomes.length ? outcomes.slice(-12).reduce((a, b) => a + b, 0) / Math.min(outcomes.length, 12) : 1;
-    const trivialProp = servedP.length ? servedP.slice(-12).filter((p) => p >= 0.85).length / Math.min(servedP.length, 12) : 0;
-    const recentMiss = outcomes.length > 0 && outcomes[outcomes.length - 1] === 0;
-    const prob = enableReachUp ? reachUpProbability(recentAcc, 0.06, trivialProp, recentMiss) : 0;
-    const reachUp = rng.next() < prob;
-
-    const states: SelState[] = seedThetas.map((_, i) => ({
-      code: `s${i}`, family: 'sim', year: 1, mode: 'component', skillId: i,
-      theta: theta[i], lastSeenAt: lastSeen[i], requires: [], rate: { source: 'provisional', value: 1e9 }, aim: null,
-    }));
-    const { chosen } = selectItem(states, { now, previousCode, recentCodes: recent, rand: () => rng.next(), reachUp });
-    const i = Number(chosen!.code.slice(1));
-    const p = predict(theta[i]);
-    servedP.push(p);
-    if (p < target - 0.2) belowBand++;
-
-    const correct = rng.next() < sigmoid(trueThetas[i]) ? 1 : 0;
-    outcomes.push(correct);
-    const idle = lastSeen[i] == null ? 0 : (now - (lastSeen[i] as number)) / RATING_PERIOD_MS;
-    const u = update({ theta: theta[i], rd: rd[i], vol: vol[i], childObs: nObs[i] }, correct, false, idle);
-    theta[i] = u.theta; rd[i] = u.rd; vol[i] = u.vol; nObs[i]++;
-    lastSeen[i] = now; now += 90_000;
-    previousCode = chosen!.code;
-    recent.unshift(chosen!.code);
-    if (recent.length > 8) recent.pop();
-  }
-
-  const half = servedP.slice(Math.floor(steps / 2));
-  const trivialShare = half.filter((p) => p >= 0.85).length / half.length;
-  const edgeShare = half.filter((p) => p >= 0.7 && p < 0.85).length / half.length;
-  return { trivialShare, edgeShare, belowBand };
-}
-
-describe('reach-up acceptance (fix-reach-up.md §5)', () => {
-  // 6 genuinely-mastered skills (trivial) + 6 at the child's real edge but seeded
-  // below the band, so without an upward mechanism they can never be served.
-  const seedThetas = [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, -0.2, -0.2, -0.2, -0.2, -0.2, -0.2];
-  const trueThetas = [2.5, 2.5, 2.5, 2.5, 2.5, 2.5, 1.4, 1.4, 1.4, 1.4, 1.4, 1.4];
-
-  it('a coasting kid is pulled to his edge: trivial share drops, edge share rises', () => {
-    const off = simulateReachUp(11, seedThetas, trueThetas, 120, false);
-    const on = simulateReachUp(11, seedThetas, trueThetas, 120, true);
-    expect(off.trivialShare).toBeGreaterThan(0.9); // stuck grinding trivial wins
-    expect(on.trivialShare).toBeLessThan(off.trivialShare - 0.25); // substantially less trivial
-    expect(on.edgeShare).toBeGreaterThan(off.edgeShare); // more time at his real edge
-  });
-
-  it('reach-up changes NOTHING for a struggling kid — it never fires for him', () => {
-    // low true ability everywhere: recentAcc stays low -> reachUpProbability is 0
-    // at every scaling, so switching reach-up on is indistinguishable from off.
-    // (Below-band serves that do occur are the gate's own empty-band fallback when
-    // his θ has collapsed below the band on everything — not a reach-up breach.)
-    const lowTrue = seedThetas.map(() => -1.5);
-    const seedLow = seedThetas.map(() => 1.2); // seeded in-band; he just keeps missing
-    const off = simulateReachUp(21, seedLow, lowTrue, 120, false);
-    const on = simulateReachUp(21, seedLow, lowTrue, 120, true);
-    expect(on.belowBand).toBe(off.belowBand); // reach-up is inert for the non-coasting
-  });
-});
 
 describe('phase-2 simulation (handoff §8.1)', () => {
   const thetas: number[] = [];

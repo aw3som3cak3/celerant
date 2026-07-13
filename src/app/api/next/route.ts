@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import { nextItem } from '@/lib/practice';
-import { rampLen, rampTargetP, playerTarget, reachUpProbability, RAMP_FLOOR_P } from '@/lib/onboarding';
+import { rampLen, rampTargetP, playerTarget, RAMP_FLOOR_P } from '@/lib/onboarding';
 import * as repo from '@/db/repo';
 import { json } from '@/lib/api';
 
@@ -29,20 +29,7 @@ export async function POST(req: NextRequest) {
   // The honest success target for this player: 0.90 for a new/fragile child,
   // easing to 0.80 as his wins steady (start-from-below §4).
   const completed = repo.completedSessionCount(player.id);
-  const maxVol = repo.maxVolatility(player.id);
-  const baseTarget = playerTarget(completed, maxVol);
-
-  // Reach-up (fix-reach-up.md §3): is this child demonstrably coasting, and if so
-  // how firmly should we probe upward? The probability scales with the trivial
-  // share, so an under-challenged kid climbs quickly; it is 0 for anyone not
-  // coasting, so a struggling child is never touched by it. `coasting` also
-  // suppresses the past-ramp retreat below — a coasting kid's occasional reach-up
-  // miss must not drag his floor down (no cascade).
-  const recentAcc = repo.recentOverallFirstTryAccuracy(player.id, 12);
-  const trivialProp = repo.recentTrivialProportion(player.id, 12);
-  const reachUpProb = reachUpProbability(recentAcc, maxVol, trivialProp, repo.lastAttemptMissed(player.id));
-  const coasting = reachUpProb > 0;
-  const reachUp = Math.random() < reachUpProb;
+  const baseTarget = playerTarget(completed, repo.maxVolatility(player.id));
 
   let peakEnd = false;
   let warmupTarget: number | undefined;
@@ -56,8 +43,8 @@ export async function POST(req: NextRequest) {
       const ramp = rampLen(completed, run.target);
       if (run.completed < ramp) {
         warmupTarget = repo.lastTwoMissed(player.id) ? RAMP_FLOOR_P : rampTargetP(run.completed, ramp, baseTarget);
-      } else if (repo.lastTwoMissed(player.id) && !coasting) {
-        warmupTarget = RAMP_FLOOR_P; // retreat can fire past the ramp too, in a fragile first session — but not for a coasting kid whose misses are reach-up probes
+      } else if (repo.lastTwoMissed(player.id)) {
+        warmupTarget = RAMP_FLOOR_P; // retreat can fire past the ramp too, in a fragile first session
       }
     }
   }
@@ -72,7 +59,6 @@ export async function POST(req: NextRequest) {
       peakEnd,
       warmupTarget,
       baseTarget,
-      reachUp,
     }),
   );
 }
