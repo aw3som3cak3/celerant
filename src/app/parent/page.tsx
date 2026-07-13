@@ -120,6 +120,20 @@ export default function Parent() {
             </button>
             {' · '}
             <a className="idk" href="/api/family/export" target="_blank" rel="noreferrer">{t('parent.export')}</a>
+            {' · '}
+            <button
+              className="idk"
+              style={{ color: 'var(--accent)' }}
+              onClick={async () => {
+                if (!confirm(t('parent.removeConfirm'))) return;
+                await postJSON('/api/player/archive', { playerId: data.player.id });
+                setSel(null);
+                setData(null);
+                loadAll();
+              }}
+            >
+              {t('parent.removeChild')}
+            </button>
           </div>
 
           {data.transfer.length > 0 && (
