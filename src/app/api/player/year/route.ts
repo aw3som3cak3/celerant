@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import * as repo from '@/db/repo';
 import { parentFamilyFromRequest } from '@/lib/auth';
-import { enteringGradeHint } from '@/lib/onboarding';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -10,9 +9,11 @@ export const dynamic = 'force-dynamic';
 
 const Body = z.object({ playerId: z.string(), schoolYear: z.number().int().min(0).max(9) });
 
-// Change årskurs. NOT a naive re-seed: re-seed from the new year, then replay
-// the whole ledger over it, so evidence is preserved (§6.1). Also the coarse
-// "mitt barn ligger fel" correction now that placement is off the first path.
+// Change årskurs. Stores the CHOSEN grade verbatim (the source of truth,
+// fix-grade-source-of-truth §1/§4) — NO offset here. updatePlayerYear re-seeds
+// from the new chosen grade via seedGradeFor (the single minus-one) and replays
+// the whole ledger over it, so evidence is preserved (§6.1). The parent view then
+// shows exactly the grade they picked.
 export async function POST(req: NextRequest) {
   const familyId = parentFamilyFromRequest(req, Date.now());
   if (!familyId) return json({ error: 'forbidden' }, 403);
@@ -20,8 +21,6 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return json({ error: 'bad_request' }, 400);
   if (!repo.playerBelongsToFamily(parsed.data.playerId, familyId)) return json({ error: 'not_found' }, 404);
 
-  // Date-correct the parent-named grade (start-from-below §3): before the late-
-  // August turnover, "grade 3" means the child is entering it — seed from year 2.
-  repo.updatePlayerYear(parsed.data.playerId, enteringGradeHint(parsed.data.schoolYear, Date.now()));
+  repo.updatePlayerYear(parsed.data.playerId, parsed.data.schoolYear);
   return json({ ok: true });
 }

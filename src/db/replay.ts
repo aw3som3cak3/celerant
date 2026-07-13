@@ -3,6 +3,7 @@ import { getDb } from './index';
 import { SKILLS, seedTheta } from '@/skills';
 import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
 import { aimFor } from '@/lib/fluency';
+import { seedGradeFor } from '@/lib/onboarding';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
 // §1). `ability` is a cache; this rebuilds it for one player by seeding θ and
@@ -28,25 +29,30 @@ type Row = {
   rate_state: 'unknown' | 'provisional' | 'measured';
 };
 
-// Pure core, exposed for testing: given the school year, tool rate, and ordered
-// ledgers, produce the ability cache. No DB.
+// Pure core, exposed for testing: given the CHOSEN grade, tool rate, and ordered
+// ledgers, produce the ability cache. No DB. `chosenYear` is the grade the child
+// is in (what the parent picked); the start-from-below minus-one is applied HERE,
+// once, via seedGradeFor — the single source of the grade→seed offset
+// (fix-grade-source-of-truth §1). Every seeding decision below uses that one
+// derived seed grade, so θ-seed and the fluency provisional never disagree.
 export function computeAbility(
-  schoolYear: number,
+  chosenYear: number,
   toolRate: number | null,
   attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; at: number }[],
   sprints: { skill_code: string; correct: number; errors: number; duration_s: number; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
+  const seedGrade = seedGradeFor(chosenYear);
 
   for (const s of SKILLS) {
     const component = s.mode === 'component';
     cache.set(s.code, {
-      theta: seedTheta(schoolYear, s),
+      theta: seedTheta(seedGrade, s),
       rd: SEED_RD,
       volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
-      rate: component ? aimFor(toolRate, schoolYear) * (schoolYear >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
+      rate: component ? aimFor(toolRate, seedGrade) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
       rate_state: component ? 'provisional' : 'unknown',
     });
   }
@@ -143,7 +149,11 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
 //   2 = one-sided Glicko-2 (rd, volatility)  [instrumentation §3]
 //   3 = start-from-below easy-floor seed      [replay-all so existing kids created
 //        on the old grade seed pick up the easy floor]
-const MODEL_VERSION = 3;
+//   4 = single-source grade seed (seedGradeFor): school_year now stores the CHOSEN
+//        grade and the minus-one lives only in the seed function [replay-all so
+//        every existing cache is rebuilt under the new offset, not the old baked-in
+//        one; also corrects the real family's grades to the chosen values]
+const MODEL_VERSION = 4;
 
 // Run once per boot after schema + column migrations, using the open db handle
 // (never getDb — that would recurse through open()). Idempotent via a meta flag:
@@ -175,6 +185,21 @@ export function runStartupMigration(db: ReturnType<typeof getDb>): void {
         }
       }
     }
+    // One-time grade correction (model_v 4): under the old model school_year held
+    // a date-offset SEED grade; from v4 it holds the CHOSEN grade (the grade the
+    // child is in). Set the real family's known-correct chosen grades BEFORE the
+    // replay-all re-seeds everyone via seedGradeFor. Scoped to the one real family
+    // by its icon pair; a no-op on the test/fresh DBs. pig is in åk1, mouse åk2,
+    // sailboat åk4 (all behind/entering the next grade after summer — start-from-
+    // below seeds each one year lower).
+    const realFam = db.prepare("SELECT id FROM family WHERE icon_display = 'turtle+ice_cream'").get() as { id: string } | undefined;
+    if (realFam) {
+      const setYear = db.prepare('UPDATE player SET school_year = ? WHERE family_id = ? AND icon = ?');
+      for (const [icon, grade] of [['pig', 1], ['mouse', 2], ['sailboat', 4]] as [string, number][]) {
+        setYear.run(grade, realFam.id, icon);
+      }
+    }
+
     const players = db.prepare('SELECT id FROM player').all() as { id: string }[];
     for (const p of players) replayOne(db, p.id);
     db.prepare("INSERT INTO meta (key, value) VALUES ('model_v', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(String(MODEL_VERSION));

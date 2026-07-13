@@ -4,6 +4,7 @@ import * as repo from '@/db/repo';
 import { SKILLS, generateCanon } from '@/skills';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimFor } from './fluency';
+import { seedGradeFor } from './onboarding';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
@@ -24,7 +25,11 @@ function rateEvidence(rateState: string, rate: number | null): RateEvidence {
 export function buildStates(playerId: string, schoolYear: number): SelState[] {
   const ability = repo.abilities(playerId);
   const toolRate = repo.latestToolRate(playerId);
-  const aim = aimFor(toolRate, schoolYear);
+  // Aim uses the SEED grade (seedGradeFor), the same grade the cache's provisional
+  // rates were seeded under (replay.ts). If the live aim used the raw chosen grade
+  // while the cache used the seed grade, the fluency gate would flip on the
+  // mismatch (fix-grade-source-of-truth §1 — one grade, applied one way).
+  const aim = aimFor(toolRate, seedGradeFor(schoolYear));
 
   return SKILLS.map((s) => {
     const ab = ability.get(s.code);

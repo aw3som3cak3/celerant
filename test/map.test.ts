@@ -16,7 +16,9 @@ import { computeUnlocked } from '@/lib/selector';
 import { SKILLS } from '@/skills';
 
 const NOW = Date.UTC(2026, 6, 10);
-const SY = 3;
+// Chosen åk4 → seeds from year 3 (seedGradeFor's single minus-one) — the seed
+// level (and thus reached/frontier rings) this map suite was written against.
+const SY = 4;
 let familyId: string;
 let pid: string;
 
