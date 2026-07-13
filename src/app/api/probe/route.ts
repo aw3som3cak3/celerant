@@ -1,30 +1,27 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
-import { requirePlayer } from '@/lib/auth';
 import * as repo from '@/db/repo';
-import { probeItemsForClient, gradeProbe, PROBE_VERSION } from '@/lib/probes';
+import { parentFamilyFromRequest } from '@/lib/auth';
+import { probeItemsForClient, gradeProbe, PROBE_VERSION, PROBE_SETS } from '@/lib/probes';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// Which probe, if any, is due for this player (evidence-and-theses.md §2.3).
-// Baseline is forced and runs before the first practice item; monthly and
-// transfer are offered and skippable. The child is never told it's a probe — the
-// items look like practice; only the routing and the destination table differ.
+// The probe is a MEASUREMENT, and a child cannot meaningfully consent to one — so
+// it is off the child's path entirely (fix-remove-probe.md §2). The mechanism is
+// kept, but reachable ONLY behind the parent PIN: an adult who understands what it
+// is may run a check knowingly. There is no child-facing UI for it (dormant).
+
+// A parent fetches the items of a fixed set to administer a check deliberately.
 export function GET(req: NextRequest) {
-  const now = Date.now();
+  const familyId = parentFamilyFromRequest(req, Date.now());
+  if (!familyId) return json({ error: 'forbidden' }, 403);
   const playerId = req.nextUrl.searchParams.get('playerId') ?? '';
-  const player = requirePlayer(req, playerId, now);
-  if (!player) return json({ error: 'unauthorized' }, 401);
-
-  const respond = (set: string, forced: boolean, isBaseline: boolean) =>
-    json({ due: isBaseline ? 'baseline' : forced ? set : set, set, forced, isBaseline, version: PROBE_VERSION, items: probeItemsForClient(set) });
-
-  if (!repo.hasBaselineProbe(playerId)) return respond('arith_v1', true, true);
-  if (repo.transferProbeDue(playerId, now)) return respond('transfer_v1', false, false);
-  if (repo.monthlyProbeDue(playerId, now)) return respond('arith_v1', false, false);
-  return json({ due: null });
+  if (!repo.playerBelongsToFamily(playerId, familyId)) return json({ error: 'not_found' }, 404);
+  const set = req.nextUrl.searchParams.get('set') ?? 'arith_v1';
+  if (!PROBE_SETS[set]) return json({ error: 'bad_set' }, 400);
+  return json({ set, version: PROBE_VERSION, items: probeItemsForClient(set) });
 }
 
 const Body = z.object({
@@ -36,22 +33,22 @@ const Body = z.object({
   isBaseline: z.boolean().optional(),
 });
 
-// Record one probe response. The item's answer never leaves the server (as with
-// practice); we grade against the fixed set and write to `probe` — a table the
-// model never reads. Quiet feedback only: the correctness, never the answer, so
-// a fixed item is not taught and stays comparable across administrations.
+// Record one probe response — parent-gated. The item's answer never leaves the
+// server; we grade against the fixed set and write to `probe`, which the model
+// never reads.
 export async function POST(req: NextRequest) {
   const now = Date.now();
+  const familyId = parentFamilyFromRequest(req, now);
+  if (!familyId) return json({ error: 'forbidden' }, 403);
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return json({ error: 'bad_request' }, 400);
-  const player = requirePlayer(req, parsed.data.playerId, now);
-  if (!player) return json({ error: 'unauthorized' }, 401);
+  if (!repo.playerBelongsToFamily(parsed.data.playerId, familyId)) return json({ error: 'not_found' }, 404);
 
   const graded = gradeProbe(parsed.data.probeSet, parsed.data.ref, parsed.data.given ?? null);
   if (!graded) return json({ error: 'unknown_item' }, 400);
 
   repo.appendProbe({
-    playerId: player.id,
+    playerId: parsed.data.playerId,
     probeSet: parsed.data.probeSet,
     itemRef: parsed.data.ref,
     featuresJson: JSON.stringify(graded.features),

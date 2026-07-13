@@ -3,6 +3,13 @@
 Extends and, where they conflict, **overrides** `onboarding-ramp.md`,
 `ui-lifecycle.md` §4.3 (create-player / grade), and `handoff.md` §2 (seed).
 
+> **Update (`fix-remove-probe.md`):** this document assumed the child's first
+> experience was a start-from-below practice session, but a forced baseline probe
+> (`evidence-and-theses.md` §2.3) was sitting in front of it and cost a behind
+> child his whole first session. That probe is now off the child's path entirely
+> (parent-initiated only). "Win first" is now literally the first thing a new
+> child meets — nothing measurement-shaped precedes it.
+
 This document exists because of one observed session. A kid who is behind in
 maths and knows it, who gets that failure several times a week in class, walked
 up to celerant *curious and wanting to genuinely try* — and the tool started him
