@@ -37,7 +37,7 @@ export function GET(req: NextRequest) {
   const ability = repo.abilities(playerId);
   const aim = aimFor(repo.latestToolRate(playerId), player.school_year);
 
-  const rows: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[] = [];
+  const rows: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean }[] = [];
   // Codes, not sentences — the client translates them (parent.diagCollapse /
   // parent.diagTrivial), so the diagnostic honours the chosen locale.
   const diagnostics: { code: 'collapse' | 'trivial'; skill: string }[] = [];
@@ -53,6 +53,10 @@ export function GET(req: NextRequest) {
       rate: ab.rate,
       rateState: ab.rate_state,
       aim: meta.mode === 'component' ? aim : null,
+      // Seeded ≠ earned (bug-hunt-fluency.md §3/§4): a skill never served carries
+      // only a cold-start seed. The client greys these so a parent reads an
+      // untouched year-8 θ of -2.00 as "not practised", not "failed algebra".
+      touched: ab.last_seen_at != null,
     });
 
     const { acc, count } = repo.recentFirstTryAccuracy(playerId, ab.skill_code, 20);

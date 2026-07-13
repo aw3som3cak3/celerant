@@ -4,9 +4,28 @@ import { predict, update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS, t
 import { selectItem, type SelState } from '@/lib/selector';
 import { makeRng } from '@/lib/rng';
 import { seedTheta, type Skill } from '@/skills';
+import { fluencyDisplay } from '@/lib/parent-fluency';
 
 const sigmoid = (t: number) => 1 / (1 + Math.exp(-t));
 const fakeSkill = (year: number): Skill => ({ code: 'x', family: 'f', year, mode: 'component', requires: [], generate: () => ({ prompt: '', answer: { kind: 'int', v: 0 }, steps: [] }) });
+
+describe('parent flyt column: seeded ≠ earned (bug-hunt-fluency.md §5)', () => {
+  const aim = 17;
+  it('an untouched skill (provisional/seeded rate) reports NO fluency number', () => {
+    // the bug: a year-8 skill at seed shows "10/17 (preliminärt)". It must not.
+    expect(fluencyDisplay({ mode: 'component', rate: 10, rateState: 'provisional', aim })).toEqual({ kind: 'notPractised' });
+    expect(fluencyDisplay({ mode: 'component', rate: 17, rateState: 'provisional', aim })).toEqual({ kind: 'notPractised' });
+  });
+  it('a skill with zero sprints and an unknown rate reports no fluency', () => {
+    expect(fluencyDisplay({ mode: 'component', rate: null, rateState: 'unknown', aim })).toEqual({ kind: 'notPractised' });
+  });
+  it('only a MEASURED sprint rate shows a fraction', () => {
+    expect(fluencyDisplay({ mode: 'component', rate: 14, rateState: 'measured', aim })).toEqual({ kind: 'measured', rate: 14, aim });
+  });
+  it('a compound never shows a fluency number', () => {
+    expect(fluencyDisplay({ mode: 'compound', rate: 12, rateState: 'measured', aim })).toEqual({ kind: 'na' });
+  });
+});
 
 describe('grader', () => {
   it('grades integers', () => {

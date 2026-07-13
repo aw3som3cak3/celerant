@@ -62,12 +62,20 @@ function Shelf() {
       <SkillMap data={map} variant="child" playerId={p} />
       <p className="muted" style={{ fontSize: '0.8rem', marginTop: '-0.6rem' }}>{t('map.hint')}</p>
 
+      {/* Practice is the PRIMARY action on the child's own screen (add-map-icon-
+          title §1). The map above is a place to glance at on the way to doing —
+          "I did this / here's where I am / there's a next thing just there" — never
+          a destination that competes with practice. The silhouette is the pull;
+          the only way to turn one into a real card is to practise into it. */}
       <p style={{ marginTop: '1.4rem' }}>
+        <a className="primary" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>
+      </p>
+      <p className="muted" style={{ marginTop: '0.6rem' }}>
         <button className="idk" onClick={toggleStretch}>
           {stretch ? t('shelf.harderOn') : t('shelf.harder')}
         </button>{' '}
         · <button className="idk" onClick={() => setPickIcon(true)}>{t('shelf.changeIcon')}</button>{' '}
-        · <a className="idk" href={`/practice?p=${p}`}>{t('shelf.practise')}</a> · <a className="idk" href="/">{t('common.home')}</a>
+        · <a className="idk" href="/">{t('common.home')}</a>
       </p>
 
       {pickIcon && (
