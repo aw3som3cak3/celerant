@@ -197,8 +197,10 @@ function Players({ me }: { me: Me }) {
         <div className="children-grid">
           {me.players!.map((p) => (
             <button key={p.id} className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
+              {/* No grade on the child-facing tile (fix-grade-source-of-truth §2):
+                  a grade is a status label, and the icon-identity design exists to
+                  avoid status labels. Grade lives in the parent view only. */}
               {BY_KEY.get(p.icon)?.glyph ?? '?'}
-              <span className="child-year">{p.schoolYear === 0 ? 'F' : p.schoolYear}</span>
             </button>
           ))}
           <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>

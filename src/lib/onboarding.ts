@@ -54,19 +54,22 @@ export function playerTarget(completedSessions: number, maxVolatility: number): 
   return steady ? eased : Math.max(eased, 0.88); // still swinging -> hold near 0.90
 }
 
-// Date-correct a parent-named grade into the grade to seed from (§3). From ~1 June
-// to mid-August the Swedish school year has not turned over, so a named grade is
-// the one the child is ENTERING: seed from grade-minus-one. `nowMs` is the instant.
-export function enteringGradeHint(namedGrade: number, nowMs: number): number {
-  // formatToParts, not format — the numeric month/day order is locale-specific
-  // (sv-SE renders "15/7", not "07-15"), so pull the parts by name instead.
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Stockholm', month: 'numeric', day: 'numeric' }).formatToParts(nowMs);
-  const m = Number(parts.find((p) => p.type === 'month')?.value ?? 0);
-  const d = Number(parts.find((p) => p.type === 'day')?.value ?? 0);
-  const beforeTurnover = m === 6 || m === 7 || (m === 8 && d < 20); // June 1 – Aug 19
-  return beforeTurnover ? Math.max(0, namedGrade - 1) : namedGrade;
+// The ONE place the chosen grade becomes a seed grade (fix-grade-source-of-truth
+// §1). `player.school_year` always stores the CHOSEN grade — the grade the child
+// is in, exactly what the parent picked — and every other surface (create, grade-
+// change, parent display) speaks in chosen grade. The minus-one offset lives here
+// and ONLY here, so it can never compound into a double-offset.
+//
+// start-from-below errs low on purpose: seed one year below the child's grade, so
+// last year's content sits at the comfortable target and this year's is a gentle
+// stretch. This single minus-one also subsumes the old summer "entering grade N =
+// finished N-1" correction (grade 4 in July → seed 3), so there is no separate
+// date-correction to stack with — and, deliberately, NO dependence on the current
+// date, so a replay reproduces the same seed in any season (determinism).
+export function seedGradeFor(chosenGrade: number): number {
+  return Math.max(0, chosenGrade - 1);
 }
 
-// The default grade when a parent gives none (§3): start from the low floor and
-// let the climb do all the work.
+// The default grade when a parent gives none: the grade child is in defaults to 1,
+// seeded from the low floor (seedGradeFor(1) = 0) — let the climb do the work.
 export const NO_GRADE_DEFAULT = 1;

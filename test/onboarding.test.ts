@@ -59,12 +59,14 @@ describe("a new player's opener is easy, not her edge (§2, §6)", () => {
   });
 
   it('the ramp climbs while varying skill — no skill repeats consecutively', () => {
-    const p = repo.createPlayer(familyId, 'ramp', 4, NOW);
+    // chosen åk5 seeds from year 4 (seedGradeFor's single minus-one) — the seed
+    // level this ramp-variety check was written against.
+    const p = repo.createPlayer(familyId, 'ramp', 5, NOW);
     const len = 6;
     let now = NOW;
     const codes: string[] = [];
     for (let i = 0; i < len; i++) {
-      const it = nextItem(p, 4, now, { warmupTarget: rampTargetP(i, len) });
+      const it = nextItem(p, 5, now, { warmupTarget: rampTargetP(i, len) });
       codes.push((getDb().prepare('SELECT skill_code FROM pending_item WHERE item_id = ?').get(it.itemId) as { skill_code: string }).skill_code);
       answer(p, it.itemId, __peekPendingAnswer(it.itemId)!, false, now);
       now += 60_000;

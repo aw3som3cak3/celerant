@@ -10,7 +10,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 import { getDb } from '@/db';
 import * as repo from '@/db/repo';
 import { nextItem, answer, __peekPendingAnswer } from '@/lib/practice';
-import { playerTarget, enteringGradeHint, rampTargetP, STEADY_TARGET, NEW_PLAYER_TARGET, SETTLE_SESSIONS, RAMP_FLOOR_P } from '@/lib/onboarding';
+import { playerTarget, seedGradeFor, rampTargetP, STEADY_TARGET, NEW_PLAYER_TARGET, SETTLE_SESSIONS, RAMP_FLOOR_P } from '@/lib/onboarding';
 import { predict } from '@/model/elo';
 
 const NOW = Date.UTC(2026, 8, 15); // September — after the school-year turnover
@@ -39,13 +39,21 @@ describe('the new-player target eases 0.90 → 0.80 only as he steadies (§4, §
   });
 });
 
-describe('grade is a weak, date-corrected hint (§3, §6)', () => {
-  it('a grade named in the summer seeds from grade-minus-one; in autumn as-is', () => {
-    const july = Date.UTC(2026, 6, 15);
-    const sept = Date.UTC(2026, 8, 15);
-    expect(enteringGradeHint(3, july)).toBe(2);
-    expect(enteringGradeHint(3, sept)).toBe(3);
-    expect(enteringGradeHint(0, july)).toBe(0); // clamped at förskoleklass
+describe('the grade→seed offset lives in ONE function (fix-grade-source-of-truth §1)', () => {
+  it('seedGradeFor is the single minus-one: chosen grade seeds one below, clamped', () => {
+    expect(seedGradeFor(4)).toBe(3); // chosen åk4 -> seed from 3
+    expect(seedGradeFor(2)).toBe(1);
+    expect(seedGradeFor(1)).toBe(0);
+    expect(seedGradeFor(0)).toBe(0); // clamped at förskoleklass, never negative
+  });
+  it('is deterministic — no date dependence, so a replay reseeds the same in any season', () => {
+    // start-from-below subsumes the old summer "entering grade" correction into
+    // this single constant offset; there is no second, date-based offset to stack.
+    const kidSummer = repo.createPlayer(familyId, 'sun', 4, Date.UTC(2026, 6, 15));
+    const kidWinter = repo.createPlayer(familyId, 'snow', 4, Date.UTC(2026, 0, 15));
+    const theta = (pid: string, code: string) => (getDb().prepare('SELECT theta FROM ability WHERE player_id = ? AND skill_code = ?').get(pid, code) as { theta: number }).theta;
+    const some = (getDb().prepare('SELECT skill_code FROM ability WHERE player_id = ? LIMIT 1').get(kidSummer) as { skill_code: string }).skill_code;
+    expect(theta(kidSummer, some)).toBe(theta(kidWinter, some)); // same chosen grade -> identical seed, regardless of month
   });
 });
 
@@ -59,11 +67,12 @@ describe("a new player wins first, regardless of grade (§2, §7)", () => {
   });
 
   it('two consecutive misses trigger a retreat to easy ground (§5, §7)', () => {
-    // a "behind" child: grade-4 hint, but he misses at the climbed level
-    const p = repo.createPlayer(familyId, 'behind', 4, NOW);
+    // a "behind" child: chosen åk5 (seeds from year 4), but he misses at the
+    // climbed level
+    const p = repo.createPlayer(familyId, 'behind', 5, NOW);
     let now = NOW;
     for (let i = 0; i < 2; i++) {
-      const it = nextItem(p, 4, now, { warmupTarget: rampTargetP(i + 3, 6, 0.9) }); // climbed, harder
+      const it = nextItem(p, 5, now, { warmupTarget: rampTargetP(i + 3, 6, 0.9) }); // climbed, harder
       const wrong = __peekPendingAnswer(it.itemId) === '1' ? '2' : '1';
       answer(p, it.itemId, wrong, false, now);
       answer(p, it.itemId, wrong, false, now + 500); // wrong twice = a miss
@@ -71,7 +80,7 @@ describe("a new player wins first, regardless of grade (§2, §7)", () => {
     }
     expect(repo.lastTwoMissed(p)).toBe(true);
     // the route responds by serving the easy floor again — assert that item is easy
-    const retreat = nextItem(p, 4, now, { warmupTarget: RAMP_FLOOR_P });
+    const retreat = nextItem(p, 5, now, { warmupTarget: RAMP_FLOOR_P });
     expect(pOfServed(retreat.itemId, p), 'retreat opener is easy').toBeGreaterThanOrEqual(0.9);
   });
 });
