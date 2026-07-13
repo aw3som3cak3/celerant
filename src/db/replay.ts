@@ -137,9 +137,13 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
   tx();
 }
 
-// The model version the ability cache is built under. Bump when the θ/rd/vol
-// update changes, so a deploy heals every existing cache (instrumentation §3).
-const MODEL_VERSION = 2; // 1 = pre-Glicko θ-only k; 2 = one-sided Glicko-2 (rd, volatility)
+// The model version the ability cache is built under. Bump when the seed or the
+// θ/rd/vol update changes, so a deploy heals every existing cache.
+//   1 = pre-Glicko θ-only k
+//   2 = one-sided Glicko-2 (rd, volatility)  [instrumentation §3]
+//   3 = start-from-below easy-floor seed      [replay-all so existing kids created
+//        on the old grade seed pick up the easy floor]
+const MODEL_VERSION = 3;
 
 // Run once per boot after schema + column migrations, using the open db handle
 // (never getDb — that would recurse through open()). Idempotent via a meta flag:

@@ -85,26 +85,34 @@ Items are fixed strings with known answers, stored in code (`probes.ts`),
 validated by the same substitution check `verify.ts` uses. Version them; a
 changed item is a new version and breaks comparability with the old.
 
-### 2.3 Administration
+### 2.3 Administration — SUPERSEDED by `fix-remove-probe.md`
 
-- **Baseline at player creation.** Before the child's *first* practice item, run
-  a short probe. This is the pre-measurement, and without it every later probe
-  has nothing to compare against. It replaces the placement sprint that §4.5 of
-  `ui-lifecycle.md` correctly removed from the flow — but note the difference: a
-  probe *measures and records*, it does not gate or adapt. The child sees a few
-  problems, gets the same quiet feedback as always, and the results go to the
-  `probe` table and nowhere else.
-- **Monthly cadence thereafter.** Once every ~4 weeks, one probe administration,
-  offered (not forced) at the start of a session. Skippable; a skipped probe is
-  a missing row, not a zero.
-- **Event-triggered transfer probe.** When a component crosses its fluency aim
-  (`fluency-addendum.md`), administer `transfer_v1` within the next few sessions.
-  This is the pre/post pair that tests the Morningside claim directly.
+**The automatic child-facing probe below was removed after two days of real use.**
+A forced baseline before first practice cost a behind child (`mouse`) his entire
+first session — the probe is a measurement calibrated to find a child's edge, so
+for a child who is behind it is *guaranteed* to make him fail first, which is the
+exact thing `start-from-below.md` exists to prevent. And a child cannot
+meaningfully consent to a measurement he can't understand. So the probe is now:
 
-Keep it short. A probe that feels like a test induces the anxiety the whole
-system avoids. Frame it to the child no differently from practice — same screen,
-same tone. The child should not know it's a probe. (This is fine ethically: it's
-the same problems they'd see anyway, just fixed and unscored.)
+- **Off the child's path entirely** — no baseline, no monthly, no offer, no
+  child-facing "want to try some?". A new child goes icon-pick → winnable practice,
+  with nothing measurement-shaped in the way.
+- **Parent-initiated only** — the mechanism (`probe` table, `probes.ts`, scoring)
+  is kept and reachable only behind the parent PIN, so an adult who understands
+  what it is can run a check knowingly. No child ever stumbles into it.
+
+The evidence layer loses its automatic baseline: **some children will have no
+baseline at all**, and any baseline is opt-in by a parent, not automatic. That is
+an accepted loss — an uncontaminated first session the child actually completes is
+worth more than a baseline that costs you the child. The quasi-experimental
+designs (`quasi-experimental.md`) already tolerate missing baselines: dose-response
+and crossover don't need one; only the staggered-baseline design (T7) does, and it
+simply excludes children without one.
+
+*Original text, retained for the rationale, no longer implemented:* baseline at
+creation before the first practice item; monthly offered cadence; event-triggered
+transfer probe when a component crosses its aim; framed to the child as
+indistinguishable from practice.
 
 ### 2.4 The application signal — free, build now
 
