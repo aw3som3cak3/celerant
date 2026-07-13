@@ -734,10 +734,19 @@ table.plain-table th {
   z-index: 10;
 }
 .topbar .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   font-weight: 600;
   color: var(--ink);
   text-decoration: none;
   font-size: 1.05rem;
+}
+.brand-logo {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: block;
 }
 .topbar-right {
   display: flex;

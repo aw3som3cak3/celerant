@@ -18,6 +18,8 @@ export function TopBar({ onLogin, authed }: { onLogin?: () => void; authed?: boo
   return (
     <div className="topbar">
       <a className="brand" href="/">
+        {/* The "C" logo next to the wordmark. Decorative — the text is the label. */}
+        <img className="brand-logo" src="/logo.png" alt="" width={26} height={26} />
         {t('app.name')}
       </a>
       <div className="topbar-right">

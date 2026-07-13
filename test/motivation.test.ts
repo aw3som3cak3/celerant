@@ -95,4 +95,33 @@ describe('family goal (§4.1) — sessions, family-wide, no per-child', () => {
     // no repo function exposes a per-player breakdown of goal contribution
     expect(Object.keys(repo).some((k) => /contribution/i.test(k))).toBe(false);
   });
+
+  it('a reached goal STAYS until the parent marks it Done, then clears', () => {
+    const t0 = NOW + 2_000_000;
+    repo.setGoal(familyId, 'bio', 1, t0);
+    const sid = repo.createSessionRun(playerId, 2, t0 + 1_000);
+    repo.bumpSessionRun(sid, t0 + 1_001);
+    repo.bumpSessionRun(sid, t0 + 1_002); // one completed family session
+    repo.markGoalReached(familyId, t0 + 2_000);
+    // reached, but still present on the collective screen (getGoal returns it)
+    expect(repo.getGoal(familyId)!.reached_at).not.toBeNull();
+    expect(repo.getGoal(familyId)).toBeDefined();
+    // "Done" (the DELETE route → clearGoal) is the only thing that removes it
+    repo.clearGoal(familyId, t0 + 3_000);
+    expect(repo.getGoal(familyId)).toBeUndefined();
+  });
+
+  it('a NEW goal starts its count at 0, ignoring earlier completed sessions', () => {
+    // lots of completed sessions already exist from the tests above.
+    const before = repo.completedSessionsForFamily(familyId, NOW);
+    expect(before).toBeGreaterThan(0);
+    const fresh = NOW + 9_000_000; // set the new goal AFTER all of them
+    repo.setGoal(familyId, 'glass', 5, fresh);
+    expect(repo.completedSessionsForFamily(familyId, repo.getGoal(familyId)!.created_at)).toBe(0);
+    // and re-setting (retarget) also resets the floor to 0
+    const fresher = fresh + 1_000_000;
+    repo.setGoal(familyId, 'glass', 8, fresher);
+    expect(repo.getGoal(familyId)!.created_at).toBe(fresher);
+    expect(repo.completedSessionsForFamily(familyId, repo.getGoal(familyId)!.created_at)).toBe(0);
+  });
 });
