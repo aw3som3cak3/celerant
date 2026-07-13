@@ -167,13 +167,36 @@ unlocked(child, s) =
 
 ---
 
-## 6. Selection, unchanged
+## 6. Selection — a gate, then a rank
 
-Target **p ≈ 0.80**, not 0.5. Penalise recency (interleaving), bonus overdue
-(spacing), small random tiebreak. With β gone, `p = 1/(1 + exp(−θ))`.
+Target **p ≈ 0.80**, not 0.5. With β gone, `p = 1/(1 + exp(−θ))`.
+
+**The p-target is a WALL, not a term** (corrected after a real regression: an
+over-placed child was served p≈0.58 items because the 0.35·decay spacing bonus
+outweighed the small p-penalty of a near-band skill — spacing climbed over the
+target). Selection is two stages:
+
+1. **Gate.** `eligible_now = eligible skills WHERE |p − target| ≤ P_BAND`
+   (≈0.20). Nothing outside the band is a candidate — no matter how overdue or
+   how newly unlocked. A too-hard skill *waits* until the child's θ rises to meet
+   it (or its θ is re-seeded down). For a new/fragile player the target is the
+   ~0.90 start-from-below value, which tightens the lower edge to ~0.70 so the
+   floor and the gate agree.
+2. **Rank within the band.** Penalise recency (interleaving), bonus overdue
+   (spacing), small random tiebreak. These operate ONLY inside the band and can
+   never drag an above-band skill onto the screen.
+
+If the band is empty, serve the item closest to target **from the safe (easier)
+side** — err too-easy, never too-hard. Failing down is safe; failing up is the
+bug. (This replaced the "frontier introduction" slot, which deliberately served
+below-band skills and was the same disease.)
+
+The one line: **a child never sees a problem the system already expects them to
+miss.**
 
 Log the full score vector into `attempt.item_json`. When the selector
-misbehaves — it will — you need to see why it chose what it chose.
+misbehaves — it will — you need to see why it chose what it chose. (That log is
+exactly what diagnosed this regression.)
 
 ---
 

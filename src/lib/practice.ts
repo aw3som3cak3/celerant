@@ -2,7 +2,7 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import * as repo from '@/db/repo';
 import { SKILLS, generateCanon } from '@/skills';
-import { selectItem, computeUnlocked, type SelState, type RateEvidence } from './selector';
+import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimFor } from './fluency';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
@@ -78,6 +78,7 @@ export type SkillChoice = { code: string; label: string; sample: string };
 
 export function sessionChoices(playerId: string, schoolYear: number, stretch: boolean, now: number): SkillChoice[] {
   const states = buildStates(playerId, schoolYear);
+  const target = stretch ? STRETCH_TARGET : TARGET_SUCCESS;
   const { scores } = selectItem(states, {
     now,
     previousCode: null,
@@ -85,8 +86,10 @@ export function sessionChoices(playerId: string, schoolYear: number, stretch: bo
     rand: Math.random,
     target: stretch ? STRETCH_TARGET : undefined,
   });
+  // Only offer skills inside the band — never present the child a choice the
+  // system expects them to miss (the p-band gate, applied to the chooser too).
   return scores
-    .filter((s) => s.eligible)
+    .filter((s) => s.eligible && Math.abs(s.p - target) <= P_BAND)
     .sort((a, b) => b.score - a.score)
     .slice(0, 3)
     .map((s) => ({ code: s.code, label: skillLabel(s.code), sample: generateCanon(s.code, makeRng(randomSeed())).prompt, sort: Math.random() }))
@@ -122,7 +125,6 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
       previousCode,
       recentCodes,
       rand: Math.random,
-      introduce: warmup ? undefined : { recentAccuracy: repo.recentOverallFirstTryAccuracy(playerId, 10) },
       target,
       peakEnd: warmup ? false : opts.peakEnd,
     });

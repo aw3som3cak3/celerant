@@ -6,20 +6,18 @@ import { predict } from '@/model/elo';
 // prerequisite fluency, not merely accuracy.
 
 const DAY_MS = 24 * 3600 * 1000;
-const TARGET_SUCCESS = 0.8;
+export const TARGET_SUCCESS = 0.8;
 
-// Frontier introduction (see selectItem). A strict argmax on |p − 0.80| never
-// serves a freshly-unlocked skill seeded far below the target — its distance
-// penalty (up to ~0.6) dwarfs the 0.35 spacing term, so it is structurally
-// invisible however long the child practices. That would strand a placed child
-// at their frontier tier forever. So a small, bounded fraction of items is a
-// reserved "introduction" slot that serves the neglected frontier directly,
-// taken ONLY when the child is coasting. This does not touch the 0.80 target or
-// the aim; a miss on an introduced item lands on the worked-solution reveal,
-// which is where instruction for a genuinely new skill belongs (brief §2).
-const INTRO_PROB = 0.15; // share of items given to introduction, when coasting
-const INTRO_ACC_GATE = 0.8; // only introduce when recent success is at least this
-const INTRO_P_CEILING = 0.6; // "neglected" = eligible but below this success prob
+// The p-band: how far below/above the success target an item may sit and still be
+// served. The gate that makes the target a wall rather than a term (handoff §6,
+// fix). ~0.20 → for the 0.80 target the served band is p ∈ [0.60, 1.00]; for a
+// new/fragile player on the ~0.90 start-from-below target it tightens to
+// [0.70, 1.00], so the floor and the gate agree. A skill outside the band is
+// never served — spacing and interleaving rank only within it. The frontier
+// introduction slot that used to breach this (serving p < 0.6 neglected skills)
+// is removed: an in-band neglected skill now surfaces on its own decay bonus, and
+// an out-of-band one waits until the child's θ brings it into the band.
+export const P_BAND = 0.2;
 
 // Fluency evidence for a component, three-valued (addendum §7). `unknown` is
 // distinct from a low measured/provisional value: it means nothing has been
@@ -149,10 +147,7 @@ export type SelectOptions = {
   previousCode: string | null; // the immediately previous skill, never repeated
   recentCodes: string[]; // newest first, for interleaving
   rand: () => number;
-  // Opt-in frontier introduction. Omitted -> pure §6 selection (used by the
-  // acceptance simulation, which must see the unmodified 0.80 behaviour).
-  introduce?: { recentAccuracy: number };
-  // The child's "svårare" toggle shifts the success target (motivation §3.2).
+  // The child's "svårare" toggle / start-from-below shift the success target.
   target?: number;
   // Peak-end (motivation §3.3): item 20 of 20 serves the highest-p eligible
   // skill, ignoring interleaving, so a session never ends in failure.
@@ -176,36 +171,39 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
     return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score };
   });
 
-  let best: SkillScore | null = null;
-  for (const sc of scores) {
-    if (!sc.eligible) continue;
-    if (!best || sc.score > best.score) best = sc;
+  // THE p-BAND GATE (handoff §6). The success target is a WALL, not a term: only
+  // skills the child can actually do — |p − target| ≤ P_BAND — are candidates;
+  // spacing (decay) and interleaving (recency) rank WITHIN that band and can never
+  // drag an above-band (too-hard) skill onto the screen, no matter how overdue or
+  // newly unlocked. A skill that's too hard waits until the child's θ rises to
+  // meet it (or its θ is re-seeded down). Nothing outside the band is ever served.
+  const eligible = scores.filter((s) => s.eligible);
+  let pool = eligible.filter((s) => Math.abs(s.p - target) <= P_BAND);
+
+  // Empty band: never serve the least-bad too-hard item. Fall back to the item
+  // closest to target from the SAFE side — err too-easy, never too-hard (failing
+  // down is safe, failing up is the bug). Too-hard is penalised 3× so it only wins
+  // when there is genuinely nothing easier.
+  if (pool.length === 0 && eligible.length > 0) {
+    const cost = (s: SkillScore) => (s.p >= target ? s.p - target : (target - s.p) * 3);
+    pool = [eligible.reduce((best, s) => (cost(s) < cost(best) ? s : best))];
   }
 
-  // Peak-end: the last item of a session is the highest-p eligible skill (not a
-  // manufactured gimme). Overrides interleaving and introduction.
+  if (pool.length === 0) return { chosen: null, scores, introduced: false };
+
+  // Peak-end: the last item is the highest-p skill IN THE BAND (a real problem she
+  // can almost surely do), so a session never ends in failure.
   if (opts.peakEnd) {
-    let peak: SkillScore | null = null;
-    for (const sc of scores) {
-      if (!sc.eligible) continue;
-      if (!peak || sc.p > peak.p) peak = sc;
-    }
-    if (peak) return { chosen: byCode.get(peak.code)!, scores, introduced: false };
+    let peak = pool[0];
+    for (const sc of pool) if (sc.p > peak.p) peak = sc;
+    return { chosen: byCode.get(peak.code)!, scores, introduced: false };
   }
 
-  // Reserved introduction slot: when the child is coasting, occasionally serve
-  // the best-scored eligible skill the 0.80 argmax is neglecting (a frontier
-  // skill below the success ceiling that `best` did not pick). Bounded by
-  // INTRO_PROB and gated on recent accuracy so a struggling child is left alone.
-  if (opts.introduce && best && opts.introduce.recentAccuracy >= INTRO_ACC_GATE && opts.rand() < INTRO_PROB) {
-    let introBest: SkillScore | null = null;
-    for (const sc of scores) {
-      if (!sc.eligible || sc.code === best.code) continue;
-      if (sc.p >= INTRO_P_CEILING) continue;
-      if (!introBest || sc.score > introBest.score) introBest = sc;
-    }
-    if (introBest) return { chosen: byCode.get(introBest.code)!, scores, introduced: true };
-  }
-
-  return { chosen: best ? byCode.get(best.code)! : null, scores, introduced: false };
+  // Rank within the band: the full score (a mild pull toward target plus spacing
+  // and interleaving). Because everything here is already winnable, an overdue
+  // in-band skill can win on decay — surfacing spacing — without any too-hard
+  // skill ever being reachable.
+  let best = pool[0];
+  for (const sc of pool) if (sc.score > best.score) best = sc;
+  return { chosen: byCode.get(best.code)!, scores, introduced: false };
 }

@@ -131,38 +131,63 @@ describe('peak-end (motivation §3.3)', () => {
   });
 });
 
-describe('frontier introduction', () => {
-  const mk = (): SelState[] => [
-    mkState({ code: 'mastered', skillId: 1, theta: 3 }), // p ~ 0.95
-    mkState({ code: 'frontier', skillId: 2, year: 8, mode: 'compound', theta: -1.5, rate: { source: 'unknown' } }),
-  ];
+describe('the p-band gate (handoff §6 / fix — never serve an expected miss)', () => {
+  const opts = (over: object = {}) => ({ now: 1e12, previousCode: null, recentCodes: [] as string[], rand: () => 0.5, target: 0.8, ...over });
 
-  function countFrontier(introduce: { recentAccuracy: number } | undefined): number {
-    const rng = makeRng(7);
+  it('an above-band (too-hard) skill is never served, however overdue', () => {
+    // toohard p≈0.45 (below the [0.60,1.00] band), never seen -> maximal decay
+    const states = [mkState({ code: 'winnable', theta: 1.4 }), mkState({ code: 'toohard', theta: -0.2, lastSeenAt: null })];
+    const rng = makeRng(3);
+    let hard = 0;
+    for (let i = 0; i < 500; i++) if (selectItem(states, opts({ rand: () => rng.next() })).chosen?.code === 'toohard') hard++;
+    expect(hard).toBe(0); // spacing/decay can never breach the band
+  });
+
+  it('a newly-unlocked too-hard skill waits until θ brings it into band', () => {
+    const rng = makeRng(5);
+    const below = [mkState({ code: 'winnable', theta: 1.4 }), mkState({ code: 'newhard', theta: -1.5, lastSeenAt: null, mode: 'compound', rate: { source: 'unknown' } })];
     let n = 0;
-    for (let i = 0; i < 400; i++) {
-      const { chosen } = selectItem(mk(), {
-        now: 1e12,
-        previousCode: null,
-        recentCodes: [],
-        rand: () => rng.next(),
-        introduce,
-      });
-      if (chosen?.code === 'frontier') n++;
-    }
-    return n;
-  }
+    for (let i = 0; i < 500; i++) if (selectItem(below, opts({ rand: () => rng.next() })).chosen?.code === 'newhard') n++;
+    expect(n).toBe(0);
+    // once its θ implies an in-band p, it is served
+    const inband = [mkState({ code: 'winnable', theta: 1.4 }), mkState({ code: 'newhard', theta: 1.0, lastSeenAt: null, mode: 'compound', rate: { source: 'unknown' } })];
+    let m = 0;
+    for (let i = 0; i < 500; i++) if (selectItem(inband, opts({ rand: () => rng.next() })).chosen?.code === 'newhard') m++;
+    expect(m).toBeGreaterThan(0);
+  });
 
-  it('the strict 0.80 selector never serves the neglected frontier', () => {
-    expect(countFrontier(undefined)).toBe(0);
+  it('an in-band overdue skill wins on decay — spacing operates within the band', () => {
+    const states = [mkState({ code: 'fresh', theta: 1.4, lastSeenAt: 1e12 }), mkState({ code: 'overdue', theta: 1.1, lastSeenAt: null })];
+    expect(selectItem(states, opts()).chosen?.code).toBe('overdue'); // p≈0.75, in band, high decay
   });
-  it('the introduction slot surfaces it when the child is coasting', () => {
-    const n = countFrontier({ recentAccuracy: 1.0 });
-    expect(n).toBeGreaterThan(20);
-    expect(n).toBeLessThan(120);
+
+  it('empty band falls back to the least-hard, never the least-bad too-hard', () => {
+    const states = [mkState({ code: 'hard', theta: -0.85 }), mkState({ code: 'lesshard', theta: -0.4 })]; // both < 0.60
+    expect(selectItem(states, opts()).chosen?.code).toBe('lesshard'); // err too-easy
   });
-  it('a struggling child is left alone (below the accuracy gate)', () => {
-    expect(countFrontier({ recentAccuracy: 0.5 })).toBe(0);
+
+  it('peak-end serves the highest-p skill within the band', () => {
+    const states = [mkState({ code: 'a', theta: 0.9 }), mkState({ code: 'b', theta: 1.6 }), mkState({ code: 'toohard', theta: -1 })];
+    expect(selectItem(states, opts({ peakEnd: true })).chosen?.code).toBe('b');
+  });
+
+  it('a mis-seeded above-level skill is served at most twice, then the gate excludes it', () => {
+    // truly cannot do it, but seeded in-band (θ=1.4, p≈0.80); a winnable p≈0.95 alongside
+    const rng = makeRng(9);
+    let st = { theta: 1.4, rd: SEED_RD, vol: SEED_VOL, childObs: 2 };
+    let lastSeen: number | null = null;
+    let served = 0;
+    for (let i = 0; i < 30; i++) {
+      const hard = mkState({ code: 'hard', theta: st.theta, lastSeenAt: lastSeen });
+      const chosen = selectItem([mkState({ code: 'easy', theta: 3, lastSeenAt: 1e12 }), hard], opts({ rand: () => rng.next() })).chosen;
+      if (chosen?.code === 'hard') {
+        served++;
+        lastSeen = 1e12 + i;
+        const u = update(st, 0, false, 0); // he misses
+        st = { theta: u.theta, rd: u.rd, vol: u.vol, childObs: st.childObs + 1 };
+      }
+    }
+    expect(served).toBeLessThanOrEqual(2);
   });
 });
 
