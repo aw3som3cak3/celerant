@@ -130,6 +130,49 @@ describe('a child changing their own icon touches nothing in the model (add-map-
   });
 });
 
+describe('a grade change re-seeds AND folds the ledger, byte-for-byte (§6.1)', () => {
+  // The gap this closes: every other byte-for-byte replay test uses replay() with
+  // NO override, so the årskurs-change path — updatePlayerYear -> replay(id,
+  // {schoolYear}) — was never asserted to re-seed to the new year AND fold
+  // evidence over it. A re-seed-and-stop regression (dropping practice) would have
+  // slipped straight through. (Confirmed against real data: mouse's stored cache
+  // equalled a fresh replay, i.e. this path already folds — this locks it.)
+  it('changing årskurs re-seeds to the new year and replays evidence over it', () => {
+    const kid = repo.createPlayer(familyId, 'panda', 2, NOW); // årskurs 2
+    let now = NOW + 20_000_000;
+    for (let i = 0; i < 30; i++) {
+      const it = nextItem(kid, 2, now);
+      const ans = __peekPendingAnswer(it.itemId)!;
+      if (i % 3 === 0) {
+        // a genuine miss (wrong twice) — pulls θ DOWN, so folding is visible
+        expect(answer(kid, it.itemId, wrongOf(ans), false, now).status).toBe('retry');
+        answer(kid, it.itemId, wrongOf(ans), false, now + 1000);
+      } else answer(kid, it.itemId, ans, false, now);
+      now += 60_000;
+    }
+    const year2Cache = snapshotAbility(kid);
+
+    repo.updatePlayerYear(kid, 5); // the grade change (exactly what the route calls)
+    expect(repo.playerById(kid)!.school_year).toBe(5);
+    const afterChange = snapshotAbility(kid);
+
+    // (a) the re-seed actually happened: the cache is not the old year-2 cache
+    expect(afterChange).not.toBe(year2Cache);
+    // (b) byte-for-byte: the grade-change cache equals a from-scratch replay under
+    //     the new year — the override path folds the ledger exactly, drops nothing
+    getDb().prepare('DELETE FROM ability WHERE player_id = ?').run(kid);
+    replay(kid); // reads the now-stored school_year = 5
+    expect(snapshotAbility(kid)).toBe(afterChange);
+    // (c) practice is folded, NOT re-seeded away: θ differs from a pure year-5 seed
+    //     (an untouched twin), and some skills carry n_obs > 2 and a last_seen_at
+    const twin = repo.createPlayer(familyId, 'koala', 5, NOW);
+    const strip = (s: string) => s.replace(/"player_id":"[^"]+"/g, '').replace(/"last_seen_at":\d+/g, '"last_seen_at":X');
+    expect(strip(snapshotAbility(kid))).not.toBe(strip(snapshotAbility(twin)));
+    const folded = getDb().prepare('SELECT COUNT(*) c FROM ability WHERE player_id = ? AND n_obs > 2 AND last_seen_at IS NOT NULL').get(kid) as { c: number };
+    expect(folded.c).toBeGreaterThan(0);
+  });
+});
+
 describe('voiding returns θ to seed (§6.5)', () => {
   it('a voided range no longer counts as evidence', () => {
     const c = repo.createPlayer(familyId, 'owl2' as string, 4, NOW); // owl2 not a real icon key, but player.icon is free text at repo level
