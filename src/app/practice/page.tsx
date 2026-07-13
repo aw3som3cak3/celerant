@@ -172,7 +172,13 @@ function Practice() {
             </button>
           ))}
         </div>
-        <a className="quit-btn" href="/">{t('common.back')}</a>
+        {/* The map/cards, reachable any time — not only just after a session ends
+            (add-map-icon-title §1). A quiet secondary link: the choice buttons
+            above are the primary action, this is a look-back/look-ahead glance. */}
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1.2rem', justifyContent: 'center' }}>
+          <a className="quit-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
+          <a className="quit-btn" href="/">{t('common.back')}</a>
+        </div>
       </div>
     );
   }

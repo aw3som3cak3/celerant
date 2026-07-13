@@ -6,6 +6,7 @@ import { BY_KEY } from '@/icons';
 import { PinPad } from '../_components/PinPad';
 import { SkillMap, type MapData } from '../_components/SkillMap';
 import { useI18n } from '../_components/LocaleProvider';
+import { fluencyDisplay } from '@/lib/parent-fluency';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
 type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
@@ -18,16 +19,18 @@ type Overview = {
   diagnostics: Diagnostic[];
   transfer: Transfer[];
   usage: Usage;
-  skills: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null }[];
+  skills: { code: string; year: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean }[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
 type T = (key: string, params?: Record<string, string | number>) => string;
 
+// Only a MEASURED sprint rate shows a fraction; a seeded/provisional rate reads
+// "ej övad" — never as completed sprints the child never did (bug-hunt-fluency.md).
 function fluencyCell(s: Overview['skills'][number], t: T): string {
-  if (s.mode !== 'component') return '—';
-  if (s.rate == null) return t('parent.fluUnknown');
-  const tag = s.rateState === 'measured' ? t('parent.fluMeasured') : t('parent.fluProvisional');
-  return `${s.rate.toFixed(0)}${s.aim ? `/${s.aim.toFixed(0)}` : ''} (${tag})`;
+  const d = fluencyDisplay(s);
+  if (d.kind === 'na') return '—';
+  if (d.kind === 'notPractised') return t('parent.fluNotPractised');
+  return `${d.rate.toFixed(0)}${d.aim ? `/${d.aim.toFixed(0)}` : ''} (${t('parent.fluMeasured')})`;
 }
 
 export default function Parent() {
@@ -167,7 +170,9 @@ export default function Parent() {
               </thead>
               <tbody>
                 {data.skills.map((s) => (
-                  <tr key={s.code}>
+                  // Untouched skills (seed only, never served) are greyed so a
+                  // parent can tell assumed from demonstrated at a glance.
+                  <tr key={s.code} style={s.touched ? undefined : { color: 'var(--muted, #999)', opacity: 0.6 }} title={s.touched ? undefined : t('parent.notPractisedRow')}>
                     <td>{s.code.replace(/_/g, ' ')}</td>
                     <td>{s.year}</td>
                     <td>{s.theta.toFixed(2)}</td>

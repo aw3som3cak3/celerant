@@ -11,6 +11,7 @@ import { getDb } from '@/db';
 import { replay } from '@/db/replay';
 import * as repo from '@/db/repo';
 import { nextItem, answer, __peekPendingAnswer } from '@/lib/practice';
+import { buildChildMap } from '@/lib/map';
 
 const NOW = Date.UTC(2026, 6, 10);
 
@@ -98,6 +99,34 @@ describe('the wrong child — reassign changes owner, not content (§6.2)', () =
     expect((getDb().prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ?').get(b) as { c: number }).c).toBe(8);
     // b's cache now reflects the evidence; a's is back to pure seed
     expect(snapshotAbility(a)).toBe((() => { getDb().prepare('DELETE FROM ability WHERE player_id = ?').run(a); replay(a); return snapshotAbility(a); })());
+  });
+});
+
+describe('a child changing their own icon touches nothing in the model (add-map-icon-title §2)', () => {
+  it('leaves attempts, cards, θ, and map identical', () => {
+    // playerId is populated (200 attempts + cards) from the replay test above.
+    const attemptsBefore = getDb().prepare('SELECT id, skill_code, correct, tries FROM attempt WHERE player_id = ? ORDER BY id').all(playerId);
+    const cardsBefore = getDb().prepare('SELECT skill_code, attempt_id, earned_at FROM card WHERE player_id = ? ORDER BY skill_code').all(playerId);
+    const abilityBefore = snapshotAbility(playerId);
+    const mapBefore = JSON.stringify(buildChildMap(playerId, 4));
+    expect((cardsBefore as unknown[]).length).toBeGreaterThan(0); // there is a map to preserve
+
+    repo.updatePlayerIcon(playerId, 'owl3'); // the icon is a key on player, keyed nowhere in the model
+
+    expect(repo.playerById(playerId)!.icon).toBe('owl3'); // the change took
+    expect(getDb().prepare('SELECT id, skill_code, correct, tries FROM attempt WHERE player_id = ? ORDER BY id').all(playerId)).toEqual(attemptsBefore);
+    expect(getDb().prepare('SELECT skill_code, attempt_id, earned_at FROM card WHERE player_id = ? ORDER BY skill_code').all(playerId)).toEqual(cardsBefore);
+    expect(snapshotAbility(playerId)).toBe(abilityBefore);
+    expect(JSON.stringify(buildChildMap(playerId, 4))).toBe(mapBefore);
+  });
+
+  it('within-family uniqueness: a sibling icon is already taken', () => {
+    const sibling = repo.createPlayer(familyId, 'seal', 4, NOW);
+    // The route rejects an icon another family member holds; the raw set is the
+    // guard's input. (The API returns 409; here we assert the set it checks.)
+    expect(repo.iconsUsedInFamily(familyId).has('seal')).toBe(true);
+    expect(repo.iconsUsedInFamily(familyId).has('a-free-icon')).toBe(false);
+    void sibling;
   });
 });
 
