@@ -42,6 +42,7 @@ input {
 
 .stage {
   min-height: 100vh;
+  min-height: 100dvh; /* keyboard-aware on mobile: content centres in the visible area, not behind the keyboard */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -130,25 +131,29 @@ input {
   align-items: center;
   margin-top: 2rem;
 }
+/* Inline with the input, so it rides above the keyboard. Compact and round. */
 .submit-btn {
   border: 1px solid var(--accent);
   background: var(--accent);
   color: #fff;
   border-radius: 999px;
-  padding: 0.5rem 1.4rem;
-  font-size: 1.1rem;
+  padding: 0.35rem 0.9rem;
+  font-size: 1.2rem;
   line-height: 1;
+  flex: none;
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
+  justify-content: center;
 }
 .submit-btn:disabled {
   opacity: 0.3;
   cursor: default;
 }
 
-/* "vet inte" reads as a real (but quiet) button next to submit. */
+/* "vet inte" — a real but quiet button, just under the input row so it stays
+   reachable above the mobile keyboard. */
 .softbtn {
+  margin-top: 1.6rem;
   border: 1px solid var(--line);
   background: #fff;
   color: var(--ink-soft);
@@ -163,7 +168,7 @@ input {
 
 /* "sluta" ends the whole session — a quiet quit, set apart and understated. */
 .quit-btn {
-  margin-top: 2.2rem;
+  margin-top: 1.1rem;
   background: none;
   border: none;
   color: var(--faint);
@@ -197,21 +202,22 @@ input {
   text-align: center;
 }
 .sessionbar {
-  height: 5px;
-  border-radius: 3px;
+  height: 8px;
+  border-radius: 4px;
   background: var(--line);
   overflow: hidden;
 }
 .sessionbar > span {
   display: block;
   height: 100%;
-  background: var(--faint);
+  background: var(--accent);
   transition: width 300ms ease;
 }
 .sessionbar-label {
-  margin-top: 0.3rem;
-  font-size: 0.8rem;
-  color: var(--faint);
+  margin-top: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink-soft);
   font-variant-numeric: tabular-nums;
 }
 

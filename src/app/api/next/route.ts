@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import { nextItem } from '@/lib/practice';
-import { rampLen, rampTargetP } from '@/lib/onboarding';
+import { rampLen, rampTargetP, playerTarget, RAMP_FLOOR_P } from '@/lib/onboarding';
 import * as repo from '@/db/repo';
 import { json } from '@/lib/api';
 
@@ -26,16 +26,26 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
+  // The honest success target for this player: 0.90 for a new/fragile child,
+  // easing to 0.80 as his wins steady (start-from-below §4).
+  const completed = repo.completedSessionCount(player.id);
+  const baseTarget = playerTarget(completed, repo.maxVolatility(player.id));
+
   let peakEnd = false;
   let warmupTarget: number | undefined;
   if (parsed.data.sessionId != null) {
     const run = repo.sessionRunById(parsed.data.sessionId);
     if (run && run.player_id === player.id && run.ended_at == null) {
       peakEnd = run.completed === run.target - 1;
-      // Warm-up ramp (onboarding-ramp §2): while inside the ramp, serve near a
-      // climbing predicted-success target instead of the flat 0.80.
-      const ramp = rampLen(repo.completedSessionCount(player.id), run.target);
-      if (run.completed < ramp) warmupTarget = rampTargetP(run.completed, ramp);
+      // Warm-up ramp (onboarding §2): while inside the ramp, climb from the easy
+      // floor to the player's base target. And retreat (start-from-below §5): two
+      // misses in a row means the floor was too high — drop back to easy ground.
+      const ramp = rampLen(completed, run.target);
+      if (run.completed < ramp) {
+        warmupTarget = repo.lastTwoMissed(player.id) ? RAMP_FLOOR_P : rampTargetP(run.completed, ramp, baseTarget);
+      } else if (repo.lastTwoMissed(player.id)) {
+        warmupTarget = RAMP_FLOOR_P; // retreat can fire past the ramp too, in a fragile first session
+      }
     }
   }
 
@@ -48,6 +58,7 @@ export async function POST(req: NextRequest) {
       chosenCode: parsed.data.chosenCode,
       peakEnd,
       warmupTarget,
+      baseTarget,
     }),
   );
 }

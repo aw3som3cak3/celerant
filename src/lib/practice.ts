@@ -67,6 +67,7 @@ export type NextOpts = {
   chosenCode?: string; // the child's session-start choice (§3.2) — first item only
   peakEnd?: boolean; // last item of a session: highest-p eligible (§3.3)
   warmupTarget?: number; // onboarding ramp (§2): serve near this predicted success, marks warmup
+  baseTarget?: number; // start-from-below (§4): the honest target for this player (0.90 new -> 0.80)
 };
 
 // Three eligible skills near the success target, for the child to choose from at
@@ -104,7 +105,9 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
   // slot, and still interleaves (recency term varies the skill). The θ reduction
   // is applied later, on the attempt — the ramp only moves what she sees.
   const warmup = opts.warmupTarget != null;
-  const target = warmup ? opts.warmupTarget : opts.stretch ? STRETCH_TARGET : undefined;
+  // Warm-up climbs to its target; otherwise stretch (0.65) or the player's honest
+  // base target (0.90 for a new/fragile player, easing to 0.80 — start-from-below).
+  const target = warmup ? opts.warmupTarget : opts.stretch ? STRETCH_TARGET : opts.baseTarget;
 
   // The child's session-start choice serves as the first item, if still eligible.
   let pick: SelState | undefined;

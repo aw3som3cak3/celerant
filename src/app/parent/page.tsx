@@ -191,7 +191,7 @@ function UsagePanel({ usage }: { usage: Usage }) {
           <span
             key={w.weekStart}
             title={`${w.sessions}`}
-            style={{ width: 10, height: `${Math.round((w.sessions / max) * 100)}%`, minHeight: 2, background: 'var(--line)', display: 'inline-block' }}
+            style={{ width: 10, height: `${Math.round((w.sessions / max) * 100)}%`, minHeight: 2, background: w.sessions > 0 ? 'var(--ink-soft)' : 'var(--line)', display: 'inline-block', borderRadius: 2 }}
           />
         ))}
       </div>

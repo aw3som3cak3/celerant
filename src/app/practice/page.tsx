@@ -141,7 +141,7 @@ function Practice() {
   }
 
   async function submit() {
-    if (!item || busy || value.trim() === '') return;
+    if (!item || busy || phase !== 'answer' || value.trim() === '') return;
     setBusy(true);
     try {
       const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, given: value.trim() });
@@ -154,7 +154,7 @@ function Practice() {
     }
   }
   async function idk() {
-    if (!item || busy) return;
+    if (!item || busy || phase !== 'answer') return;
     setBusy(true);
     try {
       const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, idk: true });
@@ -256,10 +256,12 @@ function Practice() {
         family={item.family}
         show={phase !== 'revealed'}
         value={value}
-        disabled={phase === 'correct'}
         inputRef={inputRef}
         onChange={setValue}
-        onEnter={submit}
+        onSubmit={submit}
+        canSubmit={value.trim() !== ''}
+        showSubmit={phase === 'answer'}
+        submitLabel={t('pin.submit')}
       />
 
       <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
@@ -275,12 +277,9 @@ function Practice() {
         </>
       ) : phase === 'answer' ? (
         <>
-          <div className="answer-actions">
-            <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
-            <button className="submit-btn" onClick={submit} disabled={value.trim() === ''} aria-label={t('pin.submit')}>
-              ✓
-            </button>
-          </div>
+          {/* "vet inte" sits right under the input row (which the keyboard scrolls
+              into view), so it stays reachable above the keyboard on mobile. */}
+          <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
           <button className="quit-btn" onClick={endEarly}>{t('practice.stop')}</button>
         </>
       ) : null}
@@ -289,15 +288,18 @@ function Practice() {
 }
 
 // The one counter permitted on the practice screen (§3.1): a quiet grey bar that
-// fills over the session's items. When it fills, the "Klart" screen appears.
+// fills over the session's items. The label counts DOWN — how many are left — so
+// a child reads "3" (almost done), not "17/20" (arithmetic on the ceiling).
 function SessionBar({ completed, target }: { completed: number; target: number }) {
+  const { t } = useI18n();
   const pct = Math.min(100, Math.round((completed / target) * 100));
+  const left = Math.max(0, target - completed);
   return (
-    <div className="sessionbar-wrap" aria-label={`${completed} av ${target}`}>
+    <div className="sessionbar-wrap" aria-label={t('practice.left', { n: left })}>
       <div className="sessionbar">
         <span style={{ width: `${pct}%` }} />
       </div>
-      <div className="sessionbar-label">{completed}/{target}</div>
+      <div className="sessionbar-label">{t('practice.left', { n: left })}</div>
     </div>
   );
 }
@@ -325,39 +327,60 @@ function Problem({
   family,
   show,
   value,
-  disabled,
   inputRef,
   onChange,
-  onEnter,
+  onSubmit,
+  canSubmit,
+  showSubmit,
+  submitLabel,
 }: {
   prompt: string;
   family: string;
   show: boolean;
   value: string;
-  disabled: boolean;
   inputRef: React.RefObject<HTMLInputElement | null>;
   onChange: (v: string) => void;
-  onEnter: () => void;
+  onSubmit: () => void;
+  canSubmit: boolean;
+  showSubmit: boolean;
+  submitLabel: string;
 }) {
+  const mode = inputModeFor(family);
   return (
     <>
       <div className="prompt">{renderPrompt(prompt)}</div>
       <div className="answer-row" style={{ visibility: show ? 'visible' : 'hidden' }}>
         {family === 'linear' && <span>x =</span>}
+        {/* Never `disabled` between items: disabling dismisses the mobile keyboard,
+            and the OS then re-opens the DEFAULT keyboard on the programmatic
+            refocus, ignoring inputMode. Keeping it enabled holds the numeric pad
+            across the whole session. Typing during the 800ms reveal is harmless —
+            submit is guarded by phase and the value resets on the next item. */}
         <input
           ref={inputRef}
           className="answer-input"
           type="text"
-          inputMode={inputModeFor(family)}
+          inputMode={mode}
+          pattern={mode === 'numeric' ? '[0-9]*' : undefined}
           autoComplete="off"
           spellCheck={false}
           value={value}
-          disabled={disabled}
           // Only digits, and "-"/"/" for negatives and fractions — never letters.
           onChange={(e) => onChange(e.target.value.replace(/[^0-9/-]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && onEnter()}
+          onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
           aria-label="svar"
         />
+        {/* Inline with the input so it's always above the keyboard — a numeric
+            keypad has no Enter key, so the child taps ✓ (onboarding/mobile fix). */}
+        <button
+          className="submit-btn"
+          onClick={onSubmit}
+          disabled={!canSubmit}
+          aria-label={submitLabel}
+          style={{ visibility: showSubmit ? 'visible' : 'hidden' }}
+        >
+          ✓
+        </button>
       </div>
     </>
   );

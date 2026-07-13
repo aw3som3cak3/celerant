@@ -211,15 +211,15 @@ function Players({ me }: { me: Me }) {
   );
 }
 
-// Add a child from the family card, in a modal: pick an icon, then årskurs.
+// Add a child from the family card: pick an icon and that's it. The child never
+// declares a grade (start-from-below §3); the app starts easy and climbs. A parent
+// can set a grade later, privately, in the parent view — a weak hint only.
 function AddChildModal({ used, onClose }: { used: string[]; onClose: () => void }) {
   const { t } = useI18n();
-  const [icon, setIcon] = useState<string | null>(null);
   const [err, setErr] = useState('');
 
-  async function create(year: number) {
-    if (!icon) return;
-    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon, schoolYear: year });
+  async function create(icon: string) {
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon });
     if (r.ok) location.reload();
     else setErr(t('player.iconTaken'));
   }
@@ -231,22 +231,8 @@ function AddChildModal({ used, onClose }: { used: string[]; onClose: () => void 
           <strong>{t('players.addChild')}</strong>
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
-        {!icon ? (
-          <IconGrid allowSearch exclude={new Set(used)} onPick={setIcon} />
-        ) : (
-          <div style={{ textAlign: 'center' }}>
-            <div className="bigpair">{BY_KEY.get(icon)?.glyph}</div>
-            <p className="muted">{t('player.whichYear')}</p>
-            <div className="yearrow">
-              {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (
-                <button key={y} className="yearbtn" onClick={() => create(i)}>
-                  {y}
-                </button>
-              ))}
-            </div>
-            {err && <p className="muted">{err}</p>}
-          </div>
-        )}
+        <IconGrid allowSearch exclude={new Set(used)} onPick={create} />
+        {err && <p className="muted">{err}</p>}
       </div>
     </div>
   );
@@ -331,37 +317,19 @@ function ConfirmPin({ title, hint, onDone }: { title: string; hint: string; onDo
 
 function CreatePlayer({ used, onDone, firstTime }: { used: string[]; onDone: () => void; firstTime?: boolean }) {
   const { t } = useI18n();
-  const [icon, setIcon] = useState<string | null>(null);
-  const [year, setYear] = useState<number | null>(null);
   const [err, setErr] = useState('');
 
-  async function create(y: number) {
-    if (!icon) return;
-    const r = await postJSON<{ ok?: boolean; playerId?: string; error?: string }>('/api/player', { icon, schoolYear: y });
+  // Icon only — no grade (start-from-below §3). Straight to the first easy problem.
+  async function create(icon: string) {
+    const r = await postJSON<{ ok?: boolean; playerId?: string; error?: string }>('/api/player', { icon });
     if (r.ok && r.playerId) location.href = `/practice?p=${r.playerId}`;
     else setErr(t('player.iconTaken'));
   }
 
-  if (!icon) {
-    return (
-      <div className="plain">
-        <h1>{firstTime ? t('player.firstIcon') : t('player.pickIcon')}</h1>
-        <IconGrid exclude={new Set(used)} onPick={setIcon} />
-      </div>
-    );
-  }
   return (
-    <div className="plain" style={{ textAlign: 'center' }}>
-      <div className="bigpair">{BY_KEY.get(icon)?.glyph}</div>
-      <h1>{t('player.whichYear')}</h1>
-      <p className="muted">{t('player.yearHint')}</p>
-      <div className="yearrow">
-        {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (
-          <button key={y} className={`yearbtn ${year === i ? 'on' : ''}`} onClick={() => { setYear(i); create(i); }}>
-            {y}
-          </button>
-        ))}
-      </div>
+    <div className="plain">
+      <h1>{firstTime ? t('player.firstIcon') : t('player.pickIcon')}</h1>
+      <IconGrid exclude={new Set(used)} onPick={create} />
       {err && <p className="muted">{err}</p>}
     </div>
   );

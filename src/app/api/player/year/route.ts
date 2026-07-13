@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import * as repo from '@/db/repo';
 import { parentFamilyFromRequest } from '@/lib/auth';
+import { enteringGradeHint } from '@/lib/onboarding';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -19,6 +20,8 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return json({ error: 'bad_request' }, 400);
   if (!repo.playerBelongsToFamily(parsed.data.playerId, familyId)) return json({ error: 'not_found' }, 404);
 
-  repo.updatePlayerYear(parsed.data.playerId, parsed.data.schoolYear);
+  // Date-correct the parent-named grade (start-from-below §3): before the late-
+  // August turnover, "grade 3" means the child is entering it — seed from year 2.
+  repo.updatePlayerYear(parsed.data.playerId, enteringGradeHint(parsed.data.schoolYear, Date.now()));
   return json({ ok: true });
 }

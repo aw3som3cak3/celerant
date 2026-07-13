@@ -577,7 +577,15 @@ export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
  */
 export function seedTheta(childYear: number, skill: Skill): number {
   const delta = childYear - skill.year;
-  return Math.max(-2.0, Math.min(3.0, 1.4 + 0.8 * (delta - 1)));
+  const base = Math.max(-2.0, Math.min(3.0, 1.4 + 0.8 * (delta - 1)));
+  // start-from-below.md §2: the entry tier is always a genuine easy win (p ≈ 0.92),
+  // for EVERY child regardless of grade — so a behind kid opens on problems he can
+  // do and the app finds his level by climbing up, never by dropping after he
+  // fails. The grade only decides how far up the easy floor extends; it can never
+  // place the opener above it. (Supersedes the old "don't open on number bonds"
+  // anchor: opening easy then climbing is the point.)
+  if (skill.year <= 1) return Math.max(base, 2.4);
+  return base;
 }
 
 /** Transitive closure of `requires`. */

@@ -23,10 +23,50 @@ export function rampLen(completedSessions: number, target: number): number {
 }
 
 // The predicted-success target for warm-up item `index` (0-based) of `len`: the
-// first is the easy floor (~0.95), the last sits at the real edge (0.80), linear
-// in between. By the final warm-up item the child is at her level (§2).
-export function rampTargetP(index: number, len: number): number {
+// first is the easy floor (~0.95), the last sits at the player's current target
+// (`topTarget`, 0.80 normally but 0.90 for a new/fragile player — start-from-
+// below.md §2/§4), linear in between. By the final warm-up item she has arrived.
+export function rampTargetP(index: number, len: number, topTarget: number = RAMP_TOP_P): number {
   if (len <= 1) return RAMP_FLOOR_P;
   const t = Math.min(Math.max(index, 0), len - 1) / (len - 1);
-  return RAMP_FLOOR_P + (RAMP_TOP_P - RAMP_FLOOR_P) * t;
+  return RAMP_FLOOR_P + (topTarget - RAMP_FLOOR_P) * t;
 }
+
+// ── start-from-below (start-from-below.md) ───────────────────────────────────
+// A child who is behind must WIN before the system probes, and the app must find
+// his level by climbing INTO it from underneath — never by starting high and
+// dropping after he fails. Two levers: a gentler success target for the fragile,
+// and a grade that is only ever a weak hint the parent sets, never a self-report.
+
+export const NEW_PLAYER_TARGET = 0.9; // confidence repair wants a high win ratio (§2)
+export const STEADY_TARGET = 0.8; // the normal calibration target, once he isn't fragile
+export const SETTLE_SESSIONS = 4; // sessions over which the target eases 0.90 -> 0.80
+export const STEADY_VOL = 0.09; // below this per-skill volatility, he counts as steady
+
+// The success target for THIS player right now. New/fragile players get ~0.90 and
+// ease toward 0.80 across their first sessions — but ONLY as volatility drops (a
+// child still swinging keeps the easier target; §4). Confidence wins early.
+export function playerTarget(completedSessions: number, maxVolatility: number): number {
+  const steady = maxVolatility <= STEADY_VOL;
+  if (completedSessions >= SETTLE_SESSIONS && steady) return STEADY_TARGET;
+  const ease = Math.min(completedSessions / SETTLE_SESSIONS, 1);
+  const eased = NEW_PLAYER_TARGET - (NEW_PLAYER_TARGET - STEADY_TARGET) * ease;
+  return steady ? eased : Math.max(eased, 0.88); // still swinging -> hold near 0.90
+}
+
+// Date-correct a parent-named grade into the grade to seed from (§3). From ~1 June
+// to mid-August the Swedish school year has not turned over, so a named grade is
+// the one the child is ENTERING: seed from grade-minus-one. `nowMs` is the instant.
+export function enteringGradeHint(namedGrade: number, nowMs: number): number {
+  // formatToParts, not format — the numeric month/day order is locale-specific
+  // (sv-SE renders "15/7", not "07-15"), so pull the parts by name instead.
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Stockholm', month: 'numeric', day: 'numeric' }).formatToParts(nowMs);
+  const m = Number(parts.find((p) => p.type === 'month')?.value ?? 0);
+  const d = Number(parts.find((p) => p.type === 'day')?.value ?? 0);
+  const beforeTurnover = m === 6 || m === 7 || (m === 8 && d < 20); // June 1 – Aug 19
+  return beforeTurnover ? Math.max(0, namedGrade - 1) : namedGrade;
+}
+
+// The default grade when a parent gives none (§3): start from the low floor and
+// let the climb do all the work.
+export const NO_GRADE_DEFAULT = 1;

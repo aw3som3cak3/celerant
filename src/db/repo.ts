@@ -486,6 +486,22 @@ export function completedSessionCount(playerId: string): number {
       .get(playerId) as { c: number }
   ).c;
 }
+
+// Highest per-skill volatility — the "still swinging" signal that holds a new
+// player at the gentler target until his wins are steady (start-from-below §4).
+export function maxVolatility(playerId: string): number {
+  const r = getDb().prepare('SELECT MAX(volatility) v FROM ability WHERE player_id = ?').get(playerId) as { v: number | null };
+  return r.v ?? 0.06;
+}
+
+// Did the last two resolved items both miss? (start-from-below §5): two in a row
+// in the opening means the floor was too high — retreat to easier ground.
+export function lastTwoMissed(playerId: string): boolean {
+  const rows = getDb()
+    .prepare('SELECT correct FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY id DESC LIMIT 2')
+    .all(playerId) as { correct: number }[];
+  return rows.length === 2 && rows.every((r) => r.correct === 0);
+}
 export function getPendingItem(itemId: string): PendingItemRow | undefined {
   return getDb().prepare('SELECT * FROM pending_item WHERE item_id = ?').get(itemId) as PendingItemRow | undefined;
 }

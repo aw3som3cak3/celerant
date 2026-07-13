@@ -214,8 +214,10 @@ export function crossover(playerId: string): CrossoverRow[] {
 // optimisation path — its only automated output is a single calm ceiling alarm
 // (§5.3). Steady moderate use is the success state; growth is the thing to notice.
 function hourInStockholm(ts: number): number {
-  const h = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', hour12: false }).format(ts);
-  return parseInt(h, 10);
+  // hourCycle h23 (not hour12:false, which can render midnight as "24") so the
+  // hour is always 0–23 and the late-evening flag isn't tripped at midnight.
+  const h = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Stockholm', hour: '2-digit', hourCycle: 'h23' }).format(ts);
+  return parseInt(h, 10) % 24;
 }
 export type Displacement = {
   weekly: { weekStart: number; sessions: number }[];
