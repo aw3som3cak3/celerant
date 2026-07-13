@@ -247,12 +247,21 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   if (!goal) return null;
 
   if (goal.goal) {
+    // "Done" is the ONLY thing that takes the goal off the kids' collective
+    // (home) screen. Reaching the target shows 🎉 and the goal STAYS — the family
+    // decides together when it's truly done, then the parent marks it. Marking it
+    // done clears it; the next goal a parent sets starts its count fresh at 0
+    // (setGoal resets created_at, and progress counts only from there).
     return (
       <div className="namebtn" style={{ cursor: 'default' }}>
         {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
         {goal.goal.reached ? ` · ${t('goal.reached')} 🎉` : ''}
-        <button className="idk" onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}>
-          {t('goal.remove')}
+        <button
+          className="idk"
+          style={goal.goal.reached ? { color: 'var(--accent)' } : undefined}
+          onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}
+        >
+          {t('goal.done')}
         </button>
         <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
       </div>
