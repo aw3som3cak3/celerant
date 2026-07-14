@@ -7,7 +7,6 @@ import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
 import { TopBar } from './_components/TopBar';
 import { useI18n } from './_components/LocaleProvider';
-import { CATS_ENABLED } from '@/lib/flags';
 
 const CACHE_KEY = 'celerant.family';
 
@@ -209,13 +208,10 @@ function Players({ me }: { me: Me }) {
           </button>
         </div>
         {/* The shared cat room — reachable any time; it's the family's, not a
-            child's, so it lives on the family card. Hidden until the cat layer is
-            enabled (feature flag). */}
-        {CATS_ENABLED && (
-          <p style={{ marginTop: '0.6rem' }}>
-            <a className="idk" href="/room">🐱 {t('room.title')}</a>
-          </p>
-        )}
+            child's, so it lives on the family card. */}
+        <p style={{ marginTop: '0.6rem' }}>
+          <a className="idk" href="/room">🐱 {t('room.title')}</a>
+        </p>
       </div>
       {adding && <AddChildModal used={me.players!.map((p) => p.icon)} onClose={() => setAdding(false)} />}
     </>

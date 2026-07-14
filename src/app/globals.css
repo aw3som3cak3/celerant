@@ -994,6 +994,22 @@ table.plain-table th {
 .target-meter { flex: 1; max-width: 160px; }
 .target-count { min-width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }
 .target-current { color: var(--accent); font-size: 0.85rem; font-weight: 700; }
+/* "selected" pill: the target sessions currently count toward */
+.pill-selected {
+  background: var(--accent); color: #fff;
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em;
+  padding: 0.15rem 0.55rem; border-radius: 999px; white-space: nowrap;
+}
+/* floating pill above the currently-selected cat / carrier in the room */
+.cat-pill {
+  position: absolute; left: 50%; top: -14px; transform: translateX(-50%);
+  background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; line-height: 1;
+  padding: 3px 6px; border-radius: 999px; white-space: nowrap;
+  pointer-events: none; z-index: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.cat-carrier .cat-pill { position: static; transform: none; display: inline-block; margin-bottom: 2px; }
 .room-nav { text-align: center; margin-top: 1rem; }
 
 /* end-of-session allocation on the practice done screen */
