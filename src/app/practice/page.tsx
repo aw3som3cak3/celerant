@@ -393,7 +393,7 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
           const tgt: Target = { kind: 'cat', id: c.id };
           return (
             <button key={c.id} className={`alloc-chip ${same(chosen, tgt) ? 'on' : ''}`} onClick={() => pick(tgt)}>
-              🐱 {c.name[locale]}
+              <span className="cat-face" style={{ width: 20, height: 20, backgroundImage: `url(/cats/${c.id}/idle.png)`, backgroundSize: '140px 20px' }} aria-hidden /> {c.name[locale]}
             </button>
           );
         })}

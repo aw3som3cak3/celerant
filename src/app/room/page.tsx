@@ -9,29 +9,32 @@ import { useI18n } from '../_components/LocaleProvider';
 
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean };
 
-// ── The single art swap-point (celerant-cat-collection-spec.md §Asset task) ──
-// Today every cat is a placeholder: one emoji, hue-shifted per sprite id so the
-// ten read as distinct. Replace THIS function with the ToffeeCraft sprite lookup
-// (a <div> with a background sprite-sheet + step animation) and nothing else in
-// the room changes — position, wander, z-sort and petting all stay.
-function spriteHue(spriteId: string): number {
-  let h = 0;
-  for (const c of spriteId) h = (h * 31 + c.charCodeAt(0)) % 360;
-  return h;
-}
-function CatSprite({ spriteId, walking }: { spriteId: string; walking: boolean }) {
+// The cat, from the ToffeeCraft sprite sheets (src/reward/sprites.ts). A 32×32
+// frame window over /cats/<spriteId>/<anim>.png, stepped by CSS; scaled up with
+// nearest-neighbour so it stays crisp pixel art. Facing flips with travel.
+function CatSprite({ spriteId, walking, flip }: { spriteId: string; walking: boolean; flip: boolean }) {
+  const anim = walking ? 'walk' : 'idle';
   return (
     <span
-      className={`cat-sprite ${walking ? 'walking' : ''}`}
-      style={{ filter: `hue-rotate(${spriteHue(spriteId)}deg) saturate(1.4)` }}
+      className={`cat-sprite ${walking ? 'walk' : ''}`}
+      style={{ backgroundImage: `url(/cats/${spriteId}/${anim}.png)`, transform: `scale(2.6) scaleX(${flip ? -1 : 1})` }}
       aria-hidden
-    >
-      🐱
-    </span>
+    />
   );
 }
 
-type Wanderer = { id: string; x: number; y: number; walking: boolean };
+// A still cat (first idle frame) for the board, the pet card and chips.
+function CatFace({ spriteId, size = 30 }: { spriteId: string; size?: number }) {
+  return (
+    <span
+      className="cat-face"
+      style={{ width: size, height: size, backgroundImage: `url(/cats/${spriteId}/idle.png)`, backgroundSize: `${size * 7}px ${size}px` }}
+      aria-hidden
+    />
+  );
+}
+
+type Wanderer = { id: string; x: number; y: number; walking: boolean; flip: boolean };
 
 function Room() {
   const { t, locale } = useI18n();
@@ -57,7 +60,7 @@ function Room() {
     if (!data) return;
     setWanderers((prev) => {
       const byId = new Map(prev.map((w) => [w.id, w]));
-      return data.unlockedCats.map((id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 30 + ((i * 37) % 55), walking: false });
+      return data.unlockedCats.map((id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 30 + ((i * 37) % 55), walking: false, flip: false });
     });
   }, [data]);
 
@@ -68,7 +71,11 @@ function Room() {
     const iv = setInterval(() => {
       setWanderers((ws) =>
         ws.map((w) => {
-          if (Math.random() < 0.55) return { ...w, walking: true, x: Math.max(6, Math.min(90, w.x + (Math.random() * 44 - 22))), y: Math.max(28, Math.min(86, w.y + (Math.random() * 30 - 15))) };
+          if (Math.random() < 0.55) {
+            const nx = Math.max(6, Math.min(90, w.x + (Math.random() * 44 - 22)));
+            const ny = Math.max(28, Math.min(86, w.y + (Math.random() * 30 - 15)));
+            return { ...w, walking: true, x: nx, y: ny, flip: nx < w.x };
+          }
           return { ...w, walking: false };
         }),
       );
@@ -113,7 +120,7 @@ function Room() {
               onClick={(e) => pet(w.id, e)}
               title={cat.name[locale]}
             >
-              <CatSprite spriteId={cat.spriteId} walking={w.walking} />
+              <CatSprite spriteId={cat.spriteId} walking={w.walking} flip={w.flip} />
             </button>
           );
         })}
@@ -135,6 +142,7 @@ function Room() {
       {/* Petting card: name + one-line who/what. Meter-free delight. */}
       {petting && (
         <div className="pet-card" onClick={() => setPetting(null)}>
+          <CatFace spriteId={ROSTER_BY_ID.get(petting)!.spriteId} size={48} />
           <strong>{ROSTER_BY_ID.get(petting)!.name[locale]}</strong>
           <span>{ROSTER_BY_ID.get(petting)!.blurb[locale]}</span>
           <button className="idk" onClick={() => setPetting(null)}>{t('common.close')}</button>
@@ -151,7 +159,7 @@ function Room() {
           const isShared = shared.kind === 'cat' && shared.id === cat.id;
           return (
             <div key={cat.id} className={`target-row ${done ? 'done' : ''}`}>
-              <span className="target-face" style={{ filter: `hue-rotate(${spriteHue(cat.spriteId)}deg) saturate(1.4)` }}>🐱</span>
+              <CatFace spriteId={cat.spriteId} size={30} />
               <span className="target-name">{cat.name[locale]}</span>
               <span className="target-meter"><span style={{ width: `${Math.min(100, (n / cat.cost) * 100)}%` }} /></span>
               <span className="target-count">{done ? '✓' : `${n}/${cat.cost}`}</span>
