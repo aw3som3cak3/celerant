@@ -6,6 +6,7 @@ import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 import { SKILLS, ancestors } from '@/skills';
 import { aimFor } from '@/lib/fluency';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
+import { CATS_ENABLED } from '@/lib/flags';
 
 // Incremental cache update for one resolved attempt — the fast path. Attempts
 // are appended in non-decreasing `at`, and attempts touch only θ/n_obs/last_seen
@@ -781,11 +782,16 @@ export function catPropAllocatedSessions(familyId: string, sinceMs: number): num
   return r.c;
 }
 
-// The family goal's progress: completed family sessions MINUS those a kid directed
-// to a cat/prop. Legacy sessions (no allocation row) count to the goal, so
-// existing progress is preserved. Never negative.
+// The family goal's progress. With cats OFF (the current default) the goal counts
+// EVERY completed session — the old reward structure, unchanged, and robust to any
+// stray allocations left from a brief cats-on window. With cats ON it is the
+// RESIDUAL: completed family sessions MINUS those a kid directed to a cat/prop, so
+// a cat genuinely costs the goal a session. Legacy sessions (no allocation row)
+// always count. Never negative.
 export function familyGoalProgress(familyId: string, sinceMs: number): number {
-  return Math.max(0, completedSessionsForFamily(familyId, sinceMs) - catPropAllocatedSessions(familyId, sinceMs));
+  const completed = completedSessionsForFamily(familyId, sinceMs);
+  if (!CATS_ENABLED) return completed;
+  return Math.max(0, completed - catPropAllocatedSessions(familyId, sinceMs));
 }
 
 export type SharedTargetRow = { target_kind: 'cat' | 'family' | 'prop'; target_id: string };

@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
+import { CATS_ENABLED } from '@/lib/flags';
 import { useI18n } from '../_components/LocaleProvider';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
@@ -195,10 +196,14 @@ function Practice() {
           {t('practice.doneToday')}
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
-        {sessionId != null && <SessionAllocation sessionId={sessionId} />}
+        {CATS_ENABLED && sessionId != null && <SessionAllocation sessionId={sessionId} />}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
+          {CATS_ENABLED ? (
+            <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
+          ) : (
+            <a className="next-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
+          )}
           <a className="next-btn" href="/">{t('common.home')}</a>
         </div>
       </div>
@@ -354,7 +359,7 @@ function Problem({
 // already auto-directed to the family's shared target; this is the one-tap confirm
 // (pre-selected) with the option to redirect it — to another cat or the family
 // goal. Frictionless for the youngest: doing nothing keeps the default.
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean };
 function SessionAllocation({ sessionId }: { sessionId: number }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<RewardData | null>(null);
@@ -392,9 +397,12 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
             </button>
           );
         })}
-        <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-          🎯 {t('room.familyGoal')}
-        </button>
+        {/* the family goal is a spend option ONLY while it exists and is unreached */}
+        {data.familyGoalOpen && (
+          <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
+            🎯 {t('room.familyGoal')}
+          </button>
+        )}
       </div>
     </div>
   );

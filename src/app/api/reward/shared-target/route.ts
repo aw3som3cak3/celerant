@@ -4,6 +4,7 @@ import * as repo from '@/db/repo';
 import { sessionFromRequest } from '@/lib/auth';
 import { ROSTER_BY_ID } from '@/reward/roster';
 import { rewardState } from '@/lib/reward';
+import { CATS_ENABLED } from '@/lib/flags';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -15,6 +16,7 @@ const Body = z.object({ target: z.object({ kind: z.enum(['cat', 'family']), id: 
 // Cooperative and family-wide, so any family-session member may set it — it's just
 // a default; each kid can still redirect their own session.
 export async function POST(req: NextRequest) {
+  if (!CATS_ENABLED) return json({ error: 'not_found' }, 404);
   const now = Date.now();
   const s = sessionFromRequest(req, now);
   if (!s) return json({ error: 'unauthorized' }, 401);
