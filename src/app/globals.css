@@ -918,13 +918,29 @@ table.plain-table th {
   transform: translate(-50%, -50%);
   transition: left 2.4s ease-in-out, top 2.4s ease-in-out;
   background: none; border: none; cursor: pointer; padding: 0;
-  font-size: 2.4rem;
-  line-height: 1;
+  line-height: 0;
 }
-.cat-sprite { display: inline-block; transition: transform 0.2s; }
-.cat-sprite.walking { animation: catbob 0.5s steps(2) infinite; }
-@keyframes catbob { 0% { transform: translateY(0) scaleX(1); } 50% { transform: translateY(-3px) scaleX(-1); } 100% { transform: translateY(0) scaleX(-1); } }
-.cat-actor:active .cat-sprite { transform: scale(1.2); }
+/* a 32×32 frame window over the sprite sheet, stepped by CSS, scaled up crisp */
+.cat-sprite {
+  display: block;
+  width: 32px; height: 32px;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+  background-size: 224px 32px; /* 7 frames wide (idle & walk) */
+  transform-origin: center bottom;
+  animation: catplay7 1.1s steps(7) infinite;
+}
+.cat-sprite.walk { animation-duration: 0.6s; }
+@keyframes catplay7 { from { background-position-x: 0; } to { background-position-x: -224px; } }
+/* a still cat (first idle frame) for boards, chips and the pet card */
+.cat-face {
+  display: inline-block;
+  image-rendering: pixelated;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  vertical-align: middle;
+  flex: none;
+}
 .room-heart {
   position: absolute;
   transform: translate(-50%, -50%);

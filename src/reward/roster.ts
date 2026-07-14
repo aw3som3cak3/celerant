@@ -6,9 +6,9 @@ import type { Locale } from '@/lib/i18n';
 // hard gate — any target can be collected at any time.
 //
 // Names are LOCKED (only Euclid→Euklides and Archimedes→Arkimedes differ by
-// locale); blurbs are translations. `spriteId` is the single indirection point
-// for art: today it maps to a placeholder cat (see room UI), and real ToffeeCraft
-// sprites drop in behind the same id with no model change.
+// locale); blurbs are translations. `spriteId` names the sprite folder under
+// /public/cats/<spriteId>/ (idle/walk/sit/sleep.png, 32×32 frames) — one distinct
+// ToffeeCraft cat per mathematician (see src/reward/sprites.ts).
 
 export type RewardKind = 'cat' | 'family' | 'prop';
 export type Target = { kind: RewardKind; id: string };
