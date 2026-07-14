@@ -4,9 +4,10 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
+import { CATS_ENABLED } from '@/lib/flags';
 import { useI18n } from '../_components/LocaleProvider';
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean };
 
 // ── The single art swap-point (celerant-cat-collection-spec.md §Asset task) ──
 // Today every cat is a placeholder: one emoji, hue-shifted per sprite id so the
@@ -44,6 +45,10 @@ function Room() {
 
   const load = useCallback(() => getJSON<RewardData>('/api/reward').then(setData), []);
   useEffect(() => {
+    if (!CATS_ENABLED) {
+      location.href = '/'; // the room is hidden until the cat layer ships
+      return;
+    }
     load();
   }, [load]);
 
@@ -155,16 +160,20 @@ function Room() {
             </div>
           );
         })}
-        <div className={`target-row ${shared.kind === 'family' ? '' : ''}`}>
-          <span className="target-face">🎯</span>
-          <span className="target-name">{t('room.familyGoal')}</span>
-          <span className="target-count">{data.progress['family'] ?? 0}</span>
-          {shared.kind !== 'family' ? (
-            <button className="idk" onClick={() => setSharedTarget({ kind: 'family', id: 'family' })}>{t('room.collectThis')}</button>
-          ) : (
-            <span className="target-current">{t('room.collecting')}</span>
-          )}
-        </div>
+        {/* the family goal is only a collectable target while it exists and is
+            unreached; a reached goal is celebrated elsewhere (the goal chip) */}
+        {data.familyGoalOpen && (
+          <div className="target-row">
+            <span className="target-face">🎯</span>
+            <span className="target-name">{t('room.familyGoal')}</span>
+            <span className="target-count">{data.progress['family'] ?? 0}</span>
+            {shared.kind !== 'family' ? (
+              <button className="idk" onClick={() => setSharedTarget({ kind: 'family', id: 'family' })}>{t('room.collectThis')}</button>
+            ) : (
+              <span className="target-current">{t('room.collecting')}</span>
+            )}
+          </div>
+        )}
       </div>
 
       <p className="room-nav">

@@ -9,6 +9,7 @@ export type RewardState = {
   progress: Record<string, number>; // targetId -> completed session count (cats + 'family')
   unlockedCats: string[]; // cat ids where progress >= cost, in display order
   sharedTarget: Target; // the resolved current default target
+  familyGoalOpen: boolean; // a family goal exists and is not yet reached — the only time it's a spend option
 };
 
 // The current default target: the family's set choice if still unresolved, else
@@ -41,6 +42,7 @@ export function rewardState(familyId: string): RewardState {
   // The family goal is the residual: completed sessions not directed to a cat/prop.
   const goal = repo.getGoal(familyId);
   progress['family'] = goal ? repo.familyGoalProgress(familyId, goal.created_at) : 0;
+  const familyGoalOpen = goal != null && goal.reached_at == null;
 
-  return { progress, unlockedCats: unlockedIds, sharedTarget: resolveSharedTarget(familyId, unlockedIds) };
+  return { progress, unlockedCats: unlockedIds, sharedTarget: resolveSharedTarget(familyId, unlockedIds), familyGoalOpen };
 }

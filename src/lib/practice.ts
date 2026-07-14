@@ -6,6 +6,7 @@ import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, typ
 import { aimFor } from './fluency';
 import { seedGradeFor } from './onboarding';
 import { rewardState, resolveSharedTarget } from './reward';
+import { CATS_ENABLED } from './flags';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
@@ -241,14 +242,16 @@ export function answer(
     session = { completed: run.completed, target: run.target, done: run.ended_at != null };
     if (session.done) {
       repo.appendUsageEvent(playerId, 'session_ended', 'completed', now); // §4.3
-      // Cat collection: auto-direct this completed session to the family's shared
-      // target (the child can redirect it on the done screen). Set BEFORE the goal
-      // check, since the goal is the residual — a session going to a cat must not
-      // also count toward the goal (the intended opportunity cost).
-      const player = repo.playerById(playerId);
-      if (player) {
-        const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
-        repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
+      // Cat collection (only when enabled): auto-direct this completed session to
+      // the family's shared target as a starting point; the child picks/confirms on
+      // the done screen. Set BEFORE the goal check, since with cats on the goal is
+      // the residual — a session going to a cat must not also count toward it.
+      if (CATS_ENABLED) {
+        const player = repo.playerById(playerId);
+        if (player) {
+          const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
+          repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
+        }
       }
       checkFamilyGoal(playerId, now);
     }
