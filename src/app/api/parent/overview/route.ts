@@ -22,6 +22,13 @@ const TRIVIAL_ACC = 0.98; // ~always right, θ unbounded -> year set too high
 const TRIVIAL_MIN_N = 15;
 const TRIVIAL_THETA = 3.0;
 
+// Under-placed child (fix-reach-up.md §4): sustainedly acing everything AND being
+// served mostly trivial items — reach-up should be pulling him up on its own, so
+// this firing is also the audit on reach-up. One calm sentence; it never auto-acts.
+const UNDERPLACED_ACC = 0.92; // recent first-try accuracy
+const UNDERPLACED_TRIVIAL = 0.5; // recent share of trivial (p≥0.85) items
+const UNDERPLACED_MIN_N = 30; // enough of a track record to be a pattern, not a good day
+
 // Parent view (brief §8, ui-lifecycle §4.6). Parent-PIN gated. θ per skill as a
 // plain table, no accuracy percentage, plus fired diagnostics. One player at a
 // time; never a sibling join.
@@ -40,7 +47,7 @@ export function GET(req: NextRequest) {
   const rows: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean }[] = [];
   // Codes, not sentences — the client translates them (parent.diagCollapse /
   // parent.diagTrivial), so the diagnostic honours the chosen locale.
-  const diagnostics: { code: 'collapse' | 'trivial'; skill: string }[] = [];
+  const diagnostics: { code: 'collapse' | 'trivial' | 'underplaced'; skill: string }[] = [];
 
   for (const ab of ability.values()) {
     const meta = META.get(ab.skill_code);
@@ -65,6 +72,18 @@ export function GET(req: NextRequest) {
     } else if (count >= TRIVIAL_MIN_N && acc >= TRIVIAL_ACC && ab.theta > TRIVIAL_THETA) {
       diagnostics.push({ code: 'trivial', skill: skillLabel(ab.skill_code) });
     }
+  }
+
+  // Child-level, not per-skill: is he acing everything AND still being served
+  // mostly trivial items? If reach-up were keeping up he'd have climbed to his
+  // edge and this would stay quiet — so it fires both as the manual escape hatch
+  // (raise his year) and as the signal that reach-up isn't strong enough yet.
+  if (
+    repo.totalAttempts(playerId) >= UNDERPLACED_MIN_N &&
+    repo.recentOverallFirstTryAccuracy(playerId, 20) >= UNDERPLACED_ACC &&
+    repo.recentTrivialProportion(playerId, 20) >= UNDERPLACED_TRIVIAL
+  ) {
+    diagnostics.push({ code: 'underplaced', skill: '' });
   }
 
   rows.sort((a, b) => a.year - b.year || a.code.localeCompare(b.code));

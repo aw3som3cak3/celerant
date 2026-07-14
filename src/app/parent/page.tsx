@@ -9,7 +9,12 @@ import { useI18n } from '../_components/LocaleProvider';
 import { fluencyDisplay } from '@/lib/parent-fluency';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
-type Diagnostic = { code: 'collapse' | 'trivial'; skill: string };
+type Diagnostic = { code: 'collapse' | 'trivial' | 'underplaced'; skill: string };
+const DIAG_KEY = {
+  collapse: 'parent.diagCollapse',
+  trivial: 'parent.diagTrivial',
+  underplaced: 'parent.diagUnderplaced',
+} as const;
 type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: number; nBefore: number; nAfter: number };
 type Usage = { weekly: { weekStart: number; sessions: number }[]; lateEveningSessions: number; enTillRate: number; sessionsLast7: number; alarm: boolean };
 type Overview = {
@@ -107,7 +112,7 @@ export default function Parent() {
             <div style={{ margin: '0.8rem 0' }}>
               {data.diagnostics.map((d, i) => (
                 <p key={i} style={{ color: 'var(--accent)' }}>
-                  ⚠ {t(d.code === 'collapse' ? 'parent.diagCollapse' : 'parent.diagTrivial', { skill: d.skill })}
+                  ⚠ {t(DIAG_KEY[d.code], { skill: d.skill })}
                 </p>
               ))}
             </div>
