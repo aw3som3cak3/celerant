@@ -4,7 +4,6 @@ import * as repo from '@/db/repo';
 import { sessionFromRequest } from '@/lib/auth';
 import { ROSTER_BY_ID } from '@/reward/roster';
 import { rewardState } from '@/lib/reward';
-import { CATS_ENABLED } from '@/lib/flags';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -19,7 +18,6 @@ const Body = z.object({
 // §Allocation). One tap on the done screen. Family-session gated; the session must
 // belong to this family and be completed. Idempotent (one row per session).
 export async function POST(req: NextRequest) {
-  if (!CATS_ENABLED) return json({ error: 'not_found' }, 404);
   const now = Date.now();
   const s = sessionFromRequest(req, now);
   if (!s) return json({ error: 'unauthorized' }, 401);

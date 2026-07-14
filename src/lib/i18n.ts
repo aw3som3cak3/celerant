@@ -124,6 +124,7 @@ const sv: Dict = {
   'room.empty': 'Rummet väntar på sin första katt',
   'room.collectThis': 'samla den här',
   'room.collecting': 'samlar nu',
+  'room.selected': 'vald',
   'room.familyGoal': 'Familjemålet',
   'reward.countsToward': 'Det här passet räknas mot',
 
@@ -268,6 +269,7 @@ const en: Dict = {
   'room.empty': 'The room is waiting for its first cat',
   'room.collectThis': 'collect this one',
   'room.collecting': 'collecting now',
+  'room.selected': 'selected',
   'room.familyGoal': 'Family goal',
   'reward.countsToward': 'This session counts toward',
 

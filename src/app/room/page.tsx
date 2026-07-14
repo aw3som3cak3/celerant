@@ -4,10 +4,9 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
-import { CATS_ENABLED } from '@/lib/flags';
 import { useI18n } from '../_components/LocaleProvider';
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // The cat, from the ToffeeCraft sprite sheets (src/reward/sprites.ts). A 32×32
 // frame window over /cats/<spriteId>/<anim>.png, stepped by CSS; scaled up with
@@ -48,10 +47,6 @@ function Room() {
 
   const load = useCallback(() => getJSON<RewardData>('/api/reward').then(setData), []);
   useEffect(() => {
-    if (!CATS_ENABLED) {
-      location.href = '/'; // the room is hidden until the cat layer ships
-      return;
-    }
     load();
   }, [load]);
 
@@ -60,7 +55,9 @@ function Room() {
     if (!data) return;
     setWanderers((prev) => {
       const byId = new Map(prev.map((w) => [w.id, w]));
-      return data.unlockedCats.map((id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 30 + ((i * 37) % 55), walking: false, flip: false });
+      // y stays in the bottom ~40% of the stage — the cats live ON the floor, never
+      // floating up into the sky/wall area of the background.
+      return data.unlockedCats.map((id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 64 + ((i * 17) % 24), walking: false, flip: false });
     });
   }, [data]);
 
@@ -73,7 +70,8 @@ function Room() {
         ws.map((w) => {
           if (Math.random() < 0.55) {
             const nx = Math.max(6, Math.min(90, w.x + (Math.random() * 44 - 22)));
-            const ny = Math.max(28, Math.min(86, w.y + (Math.random() * 30 - 15)));
+            // clamp to the floor band (bottom ~40%): never above 62% from the top
+            const ny = Math.max(62, Math.min(90, w.y + (Math.random() * 22 - 11)));
             return { ...w, walking: true, x: nx, y: ny, flip: nx < w.x };
           }
           return { ...w, walking: false };
@@ -120,6 +118,7 @@ function Room() {
               onClick={(e) => pet(w.id, e)}
               title={cat.name[locale]}
             >
+              {shared.kind === 'cat' && shared.id === w.id && <span className="cat-pill">{t('room.selected')}</span>}
               <CatSprite spriteId={cat.spriteId} walking={w.walking} flip={w.flip} />
             </button>
           );
@@ -129,6 +128,7 @@ function Room() {
             from session one, so the room is a visible climb, not an empty floor. */}
         {sharedCat && !sharedUnlocked && (
           <div className="cat-carrier">
+            <span className="cat-pill">{t('room.selected')}</span>
             <div className="carrier-box">📦</div>
             <div className="carrier-label">{sharedCat.name[locale]}</div>
             <div className="carrier-meter"><span style={{ width: `${Math.min(100, ((data.progress[sharedCat.id] ?? 0) / sharedCat.cost) * 100)}%` }} /></div>
@@ -164,7 +164,7 @@ function Room() {
               <span className="target-meter"><span style={{ width: `${Math.min(100, (n / cat.cost) * 100)}%` }} /></span>
               <span className="target-count">{done ? '✓' : `${n}/${cat.cost}`}</span>
               {!done && !isShared && <button className="idk" onClick={() => setSharedTarget({ kind: 'cat', id: cat.id })}>{t('room.collectThis')}</button>}
-              {isShared && <span className="target-current">{t('room.collecting')}</span>}
+              {isShared && <span className="pill-selected">{t('room.selected')}</span>}
             </div>
           );
         })}
@@ -173,12 +173,12 @@ function Room() {
         {data.familyGoalOpen && (
           <div className="target-row">
             <span className="target-face">🎯</span>
-            <span className="target-name">{t('room.familyGoal')}</span>
+            <span className="target-name">{data.familyGoalLabel ?? t('room.familyGoal')}</span>
             <span className="target-count">{data.progress['family'] ?? 0}</span>
             {shared.kind !== 'family' ? (
               <button className="idk" onClick={() => setSharedTarget({ kind: 'family', id: 'family' })}>{t('room.collectThis')}</button>
             ) : (
-              <span className="target-current">{t('room.collecting')}</span>
+              <span className="pill-selected">{t('room.selected')}</span>
             )}
           </div>
         )}

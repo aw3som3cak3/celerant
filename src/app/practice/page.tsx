@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
-import { CATS_ENABLED } from '@/lib/flags';
 import { useI18n } from '../_components/LocaleProvider';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
@@ -196,14 +195,10 @@ function Practice() {
           {t('practice.doneToday')}
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
-        {CATS_ENABLED && sessionId != null && <SessionAllocation sessionId={sessionId} />}
+        {sessionId != null && <SessionAllocation sessionId={sessionId} />}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          {CATS_ENABLED ? (
-            <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
-          ) : (
-            <a className="next-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
-          )}
+          <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
           <a className="next-btn" href="/">{t('common.home')}</a>
         </div>
       </div>
@@ -359,7 +354,7 @@ function Problem({
 // already auto-directed to the family's shared target; this is the one-tap confirm
 // (pre-selected) with the option to redirect it — to another cat or the family
 // goal. Frictionless for the youngest: doing nothing keeps the default.
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 function SessionAllocation({ sessionId }: { sessionId: number }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<RewardData | null>(null);
@@ -381,7 +376,7 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
   if (!data || !chosen) return null;
   // offer: the unresolved cats (a few, in order) + the family goal
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
-  const label = (target: Target) => (target.kind === 'family' ? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
+  const label = (target: Target) => (target.kind === 'family' ? data.familyGoalLabel ?? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
   const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 20}` : `${data.progress['family'] ?? 0}`;
 
@@ -397,10 +392,11 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
             </button>
           );
         })}
-        {/* the family goal is a spend option ONLY while it exists and is unreached */}
+        {/* the family goal is a spend option ONLY while it exists and is unreached,
+            and it wears the goal's OWN name (e.g. "simhallen"), not a generic label */}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            🎯 {t('room.familyGoal')}
+            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
           </button>
         )}
       </div>

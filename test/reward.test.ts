@@ -11,7 +11,6 @@ import * as repo from '@/db/repo';
 import { rewardState, resolveSharedTarget } from '@/lib/reward';
 import { ROSTER, CATS, CAT_COST } from '@/reward/roster';
 import { LOCALES } from '@/lib/i18n';
-import { CATS_ENABLED } from '@/lib/flags';
 
 const NOW = Date.UTC(2026, 6, 14);
 let familyId: string;
@@ -73,13 +72,10 @@ describe('the family goal is the residual (opportunity cost)', () => {
     for (let i = 0; i < 2; i++) completeSession((now += 1000)); // legacy: no allocation row
 
     const st = rewardState(familyId);
-    expect(st.progress['euclid']).toBe(3); // cat counts are independent of the flag
-    // With cats ON the family goal is the residual (7 completed − 3 to a cat = 4);
-    // with cats OFF it is the full count (the old reward structure, ignoring any
-    // stray allocations). 7 completed since the goal was set.
-    const expectedFamily = CATS_ENABLED ? 4 : 7;
-    expect(st.progress['family']).toBe(expectedFamily);
-    expect(repo.familyGoalProgress(familyId, gStart)).toBe(expectedFamily);
+    expect(st.progress['euclid']).toBe(3);
+    // the family goal is the residual: 7 completed since the goal − 3 to a cat = 4
+    expect(st.progress['family']).toBe(4);
+    expect(repo.familyGoalProgress(familyId, gStart)).toBe(4);
   });
 });
 
@@ -99,7 +95,7 @@ describe('shared target resolution (spec §Replay reducer)', () => {
 });
 
 describe('auto-allocation on session completion (through the practice flow)', () => {
-  it('directs a completed session to the shared target ONLY when cats are enabled', async () => {
+  it('directs a completed session to the shared target', async () => {
     const { nextItem, answer, __peekPendingAnswer } = await import('@/lib/practice');
     const fam = repo.createFamily('cat+dog', 'q:r', 'q:s', NOW);
     const kid = repo.createPlayer(fam, 'cat', 2, NOW);
@@ -112,11 +108,7 @@ describe('auto-allocation on session completion (through the practice flow)', ()
       now += 1000;
     }
     const alloc = repo.getAllocation(sid);
-    if (CATS_ENABLED) {
-      expect(alloc?.target_kind).toBe('cat');
-      expect(alloc?.target_id).toBe('newton');
-    } else {
-      expect(alloc).toBeUndefined(); // feature flag off: old reward structure, no cat allocation
-    }
+    expect(alloc?.target_kind).toBe('cat');
+    expect(alloc?.target_id).toBe('newton');
   });
 });
