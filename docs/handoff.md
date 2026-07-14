@@ -194,6 +194,31 @@ below-band skills and was the same disease.)
 The one line: **a child never sees a problem the system already expects them to
 miss.**
 
+**The band self-adjusts at BOTH edges (fix-reach-up.md).** The gate stops
+too-hard items but not too-EASY ones: an over-graded or under-challenged child
+grinds trivial wins, because overdue easy skills keep winning on decay and nothing
+pulls him up (real data: a correctly-re-graded 4th-grader still spent 62% of his
+items at p ≥ 0.85). Two demonstrated-behaviour overrides now move the band:
+
+- **Retreat down** (start-from-below §5): two misses in a row drop the floor to
+  the easy ground — a fragile child is caught.
+- **Reach-up up** (fix-reach-up.md §3): a demonstrably *coasting* child (high
+  recent accuracy, steady volatility, high trivial share) is served the closest
+  skill just ABOVE the band — the next rung, never a leap — and the *firmness*
+  scales with the trivial share, so a kid at 60% trivial is probed far more often
+  than one at 20% (a timid probe can't outrun the decay schedule). It fires 0 for
+  anyone not coasting, so the "never an expected miss" guarantee holds absolutely
+  for a struggling child at any scaling; and it goes quiet right after a miss —
+  firm while he's winning, patient the moment he isn't, so a too-hard probe never
+  cascades into a retreat. `reachUpProbability` computes the strength;
+  `selectItem({reachUp})` serves the rung. The parent view also fires an
+  `underplaced` nudge when a child aces everything AND is still served mostly
+  trivial — both the manual escape hatch and the audit that reach-up is keeping up.
+
+Decay was checked first (fix-reach-up.md §2): mastered-skill resurfacing measured
+at ~9–14 items in real play — once per session, not every few — so decay is not
+over-resurfacing, and reach-up is not compensating for a decay bug.
+
 Log the full score vector into `attempt.item_json`. When the selector
 misbehaves — it will — you need to see why it chose what it chose. (That log is
 exactly what diagnosed this regression.)
