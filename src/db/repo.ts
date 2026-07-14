@@ -736,6 +736,73 @@ export function markGoalReached(familyId: string, now: number): void {
   }
 }
 
+// --- cat collection reward layer (celerant-cat-collection-spec.md) ----------
+// A completed session is directed to ONE target. One row per session (upserted
+// while the kid is on the done screen). The family goal is the RESIDUAL — every
+// completed session counts toward it EXCEPT those directed to a cat/prop — so a
+// cat genuinely costs the goal a session (the intended opportunity cost).
+
+export type AllocationRow = { session_run_id: number; target_kind: 'cat' | 'family' | 'prop'; target_id: string };
+
+export function setAllocation(sessionRunId: number, playerId: string, familyId: string, kind: 'cat' | 'family' | 'prop', targetId: string, at: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO session_allocation (session_run_id, player_id, family_id, target_kind, target_id, at)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(session_run_id) DO UPDATE SET target_kind = excluded.target_kind, target_id = excluded.target_id, at = excluded.at`,
+    )
+    .run(sessionRunId, playerId, familyId, kind, targetId, at);
+}
+
+export function getAllocation(sessionRunId: number): AllocationRow | undefined {
+  return getDb()
+    .prepare('SELECT session_run_id, target_kind, target_id FROM session_allocation WHERE session_run_id = ?')
+    .get(sessionRunId) as AllocationRow | undefined;
+}
+
+// Sessions directed to each cat (all-time), for the reward state's progress map.
+export function catAllocationCounts(familyId: string): Map<string, number> {
+  const rows = getDb()
+    .prepare("SELECT target_id, COUNT(*) c FROM session_allocation WHERE family_id = ? AND target_kind = 'cat' GROUP BY target_id")
+    .all(familyId) as { target_id: string; c: number }[];
+  return new Map(rows.map((r) => [r.target_id, r.c]));
+}
+
+// Completed family sessions (since a cutoff) that were directed to a cat/prop —
+// subtracted from the family-goal count so the goal is the residual.
+export function catPropAllocatedSessions(familyId: string, sinceMs: number): number {
+  const r = getDb()
+    .prepare(
+      `SELECT COUNT(*) c FROM session_allocation a JOIN session_run sr ON sr.id = a.session_run_id
+       WHERE a.family_id = ? AND a.target_kind IN ('cat','prop')
+       AND sr.started_at >= ? AND sr.ended_at IS NOT NULL AND sr.ended_early = 0 AND sr.completed >= sr.target`,
+    )
+    .get(familyId, sinceMs) as { c: number };
+  return r.c;
+}
+
+// The family goal's progress: completed family sessions MINUS those a kid directed
+// to a cat/prop. Legacy sessions (no allocation row) count to the goal, so
+// existing progress is preserved. Never negative.
+export function familyGoalProgress(familyId: string, sinceMs: number): number {
+  return Math.max(0, completedSessionsForFamily(familyId, sinceMs) - catPropAllocatedSessions(familyId, sinceMs));
+}
+
+export type SharedTargetRow = { target_kind: 'cat' | 'family' | 'prop'; target_id: string };
+export function setSharedTarget(familyId: string, kind: 'cat' | 'family' | 'prop', targetId: string, at: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO family_shared_target (family_id, target_kind, target_id, at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(family_id) DO UPDATE SET target_kind = excluded.target_kind, target_id = excluded.target_id, at = excluded.at`,
+    )
+    .run(familyId, kind, targetId, at);
+}
+export function getSharedTarget(familyId: string): SharedTargetRow | undefined {
+  return getDb()
+    .prepare('SELECT target_kind, target_id FROM family_shared_target WHERE family_id = ?')
+    .get(familyId) as SharedTargetRow | undefined;
+}
+
 // --- event ledgers (instrumentation.md §4) ----------------------------------
 
 export function appendGoalEvent(

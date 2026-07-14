@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
+import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
@@ -194,9 +195,10 @@ function Practice() {
           {t('practice.doneToday')}
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
+        {sessionId != null && <SessionAllocation sessionId={sessionId} />}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          <a className="next-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
+          <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
           <a className="next-btn" href="/">{t('common.home')}</a>
         </div>
       </div>
@@ -345,6 +347,56 @@ function Problem({
         </button>
       </div>
     </>
+  );
+}
+
+// End-of-session allocation (celerant-cat-collection-spec.md §UI). The session was
+// already auto-directed to the family's shared target; this is the one-tap confirm
+// (pre-selected) with the option to redirect it — to another cat or the family
+// goal. Frictionless for the youngest: doing nothing keeps the default.
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target };
+function SessionAllocation({ sessionId }: { sessionId: number }) {
+  const { t, locale } = useI18n();
+  const [data, setData] = useState<RewardData | null>(null);
+  const [chosen, setChosen] = useState<Target | null>(null);
+
+  useEffect(() => {
+    getJSON<RewardData>('/api/reward').then((d) => {
+      setData(d);
+      setChosen(d.sharedTarget);
+    });
+  }, []);
+
+  async function pick(target: Target) {
+    setChosen(target);
+    const r = await postJSON<{ reward?: RewardData }>('/api/reward/allocate', { sessionId, target });
+    if (r.reward) setData(r.reward);
+  }
+
+  if (!data || !chosen) return null;
+  // offer: the unresolved cats (a few, in order) + the family goal
+  const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
+  const label = (target: Target) => (target.kind === 'family' ? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
+  const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
+  const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 20}` : `${data.progress['family'] ?? 0}`;
+
+  return (
+    <div className="alloc-box">
+      <div className="alloc-head">{t('reward.countsToward')} <span className="alloc-current">{label(chosen)}</span> — {chosenCount}</div>
+      <div className="alloc-choices">
+        {cats.map((c) => {
+          const tgt: Target = { kind: 'cat', id: c.id };
+          return (
+            <button key={c.id} className={`alloc-chip ${same(chosen, tgt) ? 'on' : ''}`} onClick={() => pick(tgt)}>
+              🐱 {c.name[locale]}
+            </button>
+          );
+        })}
+        <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
+          🎯 {t('room.familyGoal')}
+        </button>
+      </div>
+    </div>
   );
 }
 

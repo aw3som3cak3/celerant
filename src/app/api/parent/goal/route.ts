@@ -14,7 +14,7 @@ export function GET(req: NextRequest) {
   const familyId = parentFamilyFromRequest(req, Date.now());
   if (!familyId) return json({ error: 'forbidden' }, 403);
   const goal = repo.getGoal(familyId);
-  const progress = goal ? repo.completedSessionsForFamily(familyId, goal.created_at) : 0;
+  const progress = goal ? repo.familyGoalProgress(familyId, goal.created_at) : 0;
   return json({ goal: goal ? { label: goal.label, target: goal.target, reached: goal.reached_at != null } : null, progress });
 }
 
