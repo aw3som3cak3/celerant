@@ -31,7 +31,7 @@ export function GET(req: NextRequest) {
           label: goalRow.label,
           target: goalRow.target,
           reached: goalRow.reached_at != null,
-          progress: repo.completedSessionsForFamily(s.familyId, goalRow.created_at),
+          progress: repo.familyGoalProgress(s.familyId, goalRow.created_at),
         }
       : null,
   });

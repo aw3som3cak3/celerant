@@ -5,6 +5,7 @@ import { SKILLS, generateCanon } from '@/skills';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimFor } from './fluency';
 import { seedGradeFor } from './onboarding';
+import { rewardState, resolveSharedTarget } from './reward';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
@@ -240,6 +241,15 @@ export function answer(
     session = { completed: run.completed, target: run.target, done: run.ended_at != null };
     if (session.done) {
       repo.appendUsageEvent(playerId, 'session_ended', 'completed', now); // §4.3
+      // Cat collection: auto-direct this completed session to the family's shared
+      // target (the child can redirect it on the done screen). Set BEFORE the goal
+      // check, since the goal is the residual — a session going to a cat must not
+      // also count toward the goal (the intended opportunity cost).
+      const player = repo.playerById(playerId);
+      if (player) {
+        const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
+        repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
+      }
       checkFamilyGoal(playerId, now);
     }
   }
@@ -256,8 +266,9 @@ function checkFamilyGoal(playerId: string, now: number): void {
   const goal = repo.getGoal(player.family_id);
   if (!goal || goal.reached_at != null) return;
   // Log the family-wide count crossing (never which child — §4.1), then, if the
-  // target is met, mark reached (which logs the 'reached' event).
-  const count = repo.completedSessionsForFamily(player.family_id, goal.created_at);
+  // target is met, mark reached (which logs the 'reached' event). The count is the
+  // RESIDUAL — sessions directed to a cat don't count toward the goal.
+  const count = repo.familyGoalProgress(player.family_id, goal.created_at);
   repo.appendGoalEvent(player.family_id, goal.label, goal.target, 'progressed', count, now);
   if (count >= goal.target) repo.markGoalReached(player.family_id, now);
 }

@@ -883,3 +883,116 @@ table.plain-table th {
   align-items: center;
   margin-bottom: 0.4rem;
 }
+
+/* ── Cat collection room (celerant-cat-collection-spec.md) ──────────────────
+   A deliberately SEPARATE visual register from the Apple-minimal practice UI:
+   pixel-art, blocky, warm. Kept apart on purpose. */
+.room-wrap {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 0.8rem;
+  image-rendering: pixelated;
+}
+.room-loading { text-align: center; color: var(--muted, #999); }
+.room-stage {
+  position: relative;
+  height: 340px;
+  border: 4px solid #3a2f28;
+  border-radius: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, #b9d4e8 0%, #cfe6d8 55%, #e7d7b8 55%, #d8c39a 100%);
+  box-shadow: inset 0 0 0 4px #efe3c8;
+}
+/* a simple pixel "rug" band on the floor */
+.room-stage::after {
+  content: '';
+  position: absolute;
+  left: 8%; right: 8%; bottom: 10%; height: 34%;
+  background: repeating-linear-gradient(45deg, #e7b7a6 0 12px, #e0a892 12px 24px);
+  opacity: 0.5;
+  border-radius: 40%;
+}
+.cat-actor {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: left 2.4s ease-in-out, top 2.4s ease-in-out;
+  background: none; border: none; cursor: pointer; padding: 0;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+.cat-sprite { display: inline-block; transition: transform 0.2s; }
+.cat-sprite.walking { animation: catbob 0.5s steps(2) infinite; }
+@keyframes catbob { 0% { transform: translateY(0) scaleX(1); } 50% { transform: translateY(-3px) scaleX(-1); } 100% { transform: translateY(0) scaleX(-1); } }
+.cat-actor:active .cat-sprite { transform: scale(1.2); }
+.room-heart {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  color: #e0577b;
+  font-size: 1.4rem;
+  pointer-events: none;
+  animation: heartfloat 0.9s ease-out forwards;
+  z-index: 999;
+}
+@keyframes heartfloat { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%) scale(1.2); } }
+.room-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #6b5b4a; }
+
+.cat-carrier {
+  position: absolute;
+  left: 50%; bottom: 12%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 500;
+}
+.carrier-box { font-size: 2.6rem; }
+.carrier-label { font-weight: 700; color: #4a3b2c; font-size: 0.9rem; }
+.carrier-meter, .target-meter {
+  display: inline-block;
+  width: 120px; height: 10px;
+  background: #efe3c8; border: 2px solid #3a2f28; border-radius: 6px;
+  overflow: hidden; vertical-align: middle;
+}
+.carrier-meter > span, .target-meter > span { display: block; height: 100%; background: #e0577b; }
+.carrier-count { font-size: 0.8rem; color: #4a3b2c; font-weight: 700; }
+
+.pet-card {
+  margin: 0.8rem auto;
+  max-width: 340px;
+  display: flex; flex-direction: column; gap: 0.4rem;
+  padding: 0.8rem 1rem;
+  border: 3px solid #3a2f28; border-radius: 10px;
+  background: #fff7e6; text-align: center;
+}
+.pet-card strong { font-size: 1.2rem; }
+
+.target-board { margin: 1rem 0; }
+.target-board h2 { font-size: 1.1rem; margin: 0.6rem 0; }
+.target-row {
+  display: flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 0; border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.target-row.done { opacity: 0.7; }
+.target-face { font-size: 1.4rem; }
+.target-name { min-width: 6rem; font-weight: 600; }
+.target-meter { flex: 1; max-width: 160px; }
+.target-count { min-width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }
+.target-current { color: var(--accent); font-size: 0.85rem; font-weight: 700; }
+.room-nav { text-align: center; margin-top: 1rem; }
+
+/* end-of-session allocation on the practice done screen */
+.alloc-box {
+  margin: 1.2rem auto 0;
+  max-width: 380px;
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.alloc-head { font-size: 0.9rem; color: var(--muted, #777); margin-bottom: 0.5rem; }
+.alloc-current { font-weight: 700; }
+.alloc-choices { display: flex; flex-wrap: wrap; gap: 0.4rem; justify-content: center; margin-top: 0.5rem; }
+.alloc-chip {
+  border: 1px solid var(--line); background: #fff; border-radius: 999px;
+  padding: 0.3rem 0.7rem; cursor: pointer; font-size: 0.9rem;
+}
+.alloc-chip.on { border-color: var(--accent); color: var(--accent); font-weight: 700; }

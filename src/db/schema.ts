@@ -180,6 +180,35 @@ CREATE TABLE IF NOT EXISTS goal_event (
 );
 CREATE INDEX IF NOT EXISTS idx_goal_event_family ON goal_event(family_id, at);
 
+-- Cat collection reward layer (celerant-cat-collection-spec.md). MOTIVATIONAL
+-- LAYER: strictly downstream, replay() never reads these; dropping every row
+-- changes no θ. A completed session is DIRECTED to one target (a cat, or left for
+-- the family goal). Cats unlock at their cost (20 sessions). One allocation row
+-- per completed session (upserted while the kid is on the done screen, then
+-- fixed); the reward state is a pure count over these rows, so it is idempotent.
+-- Session-contingent and flat: never per-answer, never streak-based. The family
+-- goal is the RESIDUAL (completed sessions minus those directed to a cat/prop),
+-- so directing a session to a cat is genuinely not spent on the goal.
+CREATE TABLE IF NOT EXISTS session_allocation (
+  session_run_id INTEGER PRIMARY KEY REFERENCES session_run(id),
+  player_id      TEXT NOT NULL REFERENCES player(id),
+  family_id      TEXT NOT NULL REFERENCES family(id),
+  target_kind    TEXT NOT NULL CHECK (target_kind IN ('cat','family','prop')),
+  target_id      TEXT NOT NULL,
+  at             INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_session_allocation_family ON session_allocation(family_id, target_kind, target_id);
+
+-- The family's current shared DEFAULT target ("let's all collect for Pythagoras").
+-- Latest-wins settings row (SHARED_TARGET_SET), not a ledger. A completed session
+-- auto-directs here unless the kid redirects it. Cooperative, family-wide.
+CREATE TABLE IF NOT EXISTS family_shared_target (
+  family_id   TEXT PRIMARY KEY REFERENCES family(id),
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('cat','family','prop')),
+  target_id   TEXT NOT NULL,
+  at          INTEGER NOT NULL
+);
+
 -- LEDGER (instrumentation.md §4.3). Append-only stream of motivational-layer
 -- events (not attempts/sprints/goals) to correlate against usage. Invisible to
 -- the child; changes no behaviour; in the export. NOT engagement instrumentation

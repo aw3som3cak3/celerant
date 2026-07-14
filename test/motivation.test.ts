@@ -68,10 +68,13 @@ describe('card shelf (§3.4)', () => {
 });
 
 describe('the motivational layer is strictly downstream (§5)', () => {
-  it('dropping card / session_run / family_goal / goal_event / usage_event changes no ability', () => {
+  it('dropping card / session_run / allocation / family_goal / goal_event / usage_event changes no ability', () => {
     const before = snapshot(playerId);
     const db = getDb();
     db.prepare('DELETE FROM card WHERE player_id = ?').run(playerId);
+    // session_allocation before session_run (FK child first) — both droppable
+    db.prepare('DELETE FROM session_allocation WHERE player_id = ?').run(playerId);
+    db.prepare('DELETE FROM family_shared_target WHERE family_id = ?').run(familyId);
     db.prepare('DELETE FROM session_run WHERE player_id = ?').run(playerId);
     db.prepare('DELETE FROM family_goal WHERE family_id = ?').run(familyId);
     db.prepare('DELETE FROM goal_event WHERE family_id = ?').run(familyId);

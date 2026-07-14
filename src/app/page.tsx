@@ -207,6 +207,11 @@ function Players({ me }: { me: Me }) {
             +
           </button>
         </div>
+        {/* The shared cat room — reachable any time; it's the family's, not a
+            child's, so it lives on the family card. */}
+        <p style={{ marginTop: '0.6rem' }}>
+          <a className="idk" href="/room">🐱 {t('room.title')}</a>
+        </p>
       </div>
       {adding && <AddChildModal used={me.players!.map((p) => p.icon)} onClose={() => setAdding(false)} />}
     </>
