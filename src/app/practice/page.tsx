@@ -176,9 +176,9 @@ function Practice() {
         {/* The map/cards, reachable any time — not only just after a session ends
             (add-map-icon-title §1). A quiet secondary link: the choice buttons
             above are the primary action, this is a look-back/look-ahead glance. */}
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1.2rem', justifyContent: 'center' }}>
-          <a className="quit-btn" href={`/shelf?p=${playerId}`}>{t('practice.cards')}</a>
-          <a className="quit-btn" href="/">{t('common.back')}</a>
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <a className="quit-btn" href={`/shelf?p=${playerId}`}>🗺️ {t('practice.cards')}</a>
+          <a className="quit-btn" href="/">🏠 {t('common.home')}</a>
         </div>
       </div>
     );
@@ -196,10 +196,11 @@ function Practice() {
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         {sessionId != null && <SessionAllocation sessionId={sessionId} />}
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem' }}>
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          <a className="next-btn" href={`/room?p=${playerId}`}>{t('room.title')}</a>
-          <a className="next-btn" href="/">{t('common.home')}</a>
+          <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
+          {/* back to the family screen — where the kids see their icons again */}
+          <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
         </div>
       </div>
     );
@@ -244,7 +245,8 @@ function Practice() {
           {/* "vet inte" sits right under the input row (which the keyboard scrolls
               into view), so it stays reachable above the keyboard on mobile. */}
           <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
-          <button className="quit-btn" onClick={endEarly}>{t('practice.stop')}</button>
+          {/* leaving mid-session ends it and returns to the family screen */}
+          <button className="quit-btn" onClick={endEarly}>🏠 {t('common.home')}</button>
         </>
       ) : null}
     </div>

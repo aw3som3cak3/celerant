@@ -175,6 +175,8 @@ function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose
 function Players({ me }: { me: Me }) {
   const { t } = useI18n();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [changing, setChanging] = useState<Player | null>(null);
   return (
     <>
       <TopBar authed />
@@ -192,29 +194,74 @@ function Players({ me }: { me: Me }) {
           </div>
         )}
 
-        <div className="or-divider">{t('family.children')}</div>
+        <div className="or-divider">{editing ? t('players.pickToChange') : t('family.children')}</div>
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            <button key={p.id} className="child-tile" title={BY_KEY.get(p.icon)?.name} onClick={() => (location.href = `/practice?p=${p.id}`)}>
-              {/* No grade on the child-facing tile (fix-grade-source-of-truth §2):
-                  a grade is a status label, and the icon-identity design exists to
-                  avoid status labels. Grade lives in the parent view only. */}
+            // In edit mode a tap opens the icon picker for THAT child; otherwise it
+            // starts their session. No grade on the tile (fix-grade-source-of-truth §2).
+            <button
+              key={p.id}
+              className={`child-tile ${editing ? 'editing' : ''}`}
+              title={BY_KEY.get(p.icon)?.name}
+              onClick={() => (editing ? setChanging(p) : (location.href = `/practice?p=${p.id}`))}
+            >
               {BY_KEY.get(p.icon)?.glyph ?? '?'}
+              {editing && <span className="tile-edit">✏️</span>}
             </button>
           ))}
-          <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
-            +
+          {!editing && (
+            <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
+              +
+            </button>
+          )}
+        </div>
+
+        <div className="family-actions">
+          {/* The shared cat room — a real button, not a faint link. */}
+          <a className="room-btn" href="/room">🐱 {t('room.title')}</a>
+          {/* Kids change their own icon right here, where they see them. */}
+          <button className="pill-btn" onClick={() => setEditing((e) => !e)}>
+            {editing ? t('common.done') : `✏️ ${t('players.changeIcon')}`}
           </button>
         </div>
-        {/* The shared cat room — reachable any time; it's the family's, not a
-            child's, so it lives on the family card. */}
-        <p style={{ marginTop: '0.6rem' }}>
-          <a className="idk" href="/room">🐱 {t('room.title')}</a>
-        </p>
       </div>
       {adding && <AddChildModal used={me.players!.map((p) => p.icon)} onClose={() => setAdding(false)} />}
+      {changing && (
+        <ChangeIconModal
+          player={changing}
+          used={me.players!.filter((x) => x.id !== changing.id).map((x) => x.icon)}
+          onClose={() => setChanging(null)}
+        />
+      )}
     </>
+  );
+}
+
+// A child changes their OWN icon from the family screen (ui-lifecycle §5.2): no PIN,
+// just pick a new one. Icons taken by siblings are absent; their θ, cards and map
+// are keyed on player_id, so they follow the child across the change untouched.
+function ChangeIconModal({ player, used, onClose }: { player: Player; used: string[]; onClose: () => void }) {
+  const { t } = useI18n();
+  const [err, setErr] = useState('');
+
+  async function change(icon: string) {
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player/icon', { playerId: player.id, icon });
+    if (r.ok) location.reload();
+    else setErr(t('player.iconTaken'));
+  }
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <strong>{BY_KEY.get(player.icon)?.glyph} {t('players.changeIcon')}</strong>
+          <button className="idk" onClick={onClose}>{t('common.close')}</button>
+        </div>
+        <IconGrid allowSearch exclude={new Set(used)} onPick={change} />
+        {err && <p className="muted">{err}</p>}
+      </div>
+    </div>
   );
 }
 
