@@ -10,7 +10,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 import { getDb } from '@/db';
 import * as repo from '@/db/repo';
 import { nextItem, answer, __peekPendingAnswer, buildStates } from '@/lib/practice';
-import { buildChildMap, buildParentMap, frontierCodes } from '@/lib/map';
+import { buildChildMap, buildParentMap, frontierCodes, buildCardShelf } from '@/lib/map';
 import { positions } from '@/lib/graph';
 import { computeUnlocked } from '@/lib/selector';
 import { SKILLS } from '@/skills';
@@ -118,6 +118,23 @@ describe('the map — the three rings and the fog (the-map.md §2, §5, §8)', (
     expect(frontierCodes(pid, SY)).toEqual(frontier);
     const mapFrontier = new Set(buildChildMap(pid, SY).nodes.filter((n) => n.state === 'frontier').map((n) => n.id));
     expect(mapFrontier).toEqual(frontier);
+  });
+
+  it('the card shelf: trophies = reached, active = frontier, still fogged beyond', () => {
+    const { reached, frontier } = ringsIndependently(pid, SY);
+    const shelf = buildCardShelf(pid, SY);
+    // trophies are exactly the reached skills; active is exactly the frontier
+    expect(new Set(shelf.trophies.map((t) => t.code))).toEqual(reached);
+    expect(new Set(shelf.active.map((a) => a.node.code))).toEqual(frontier);
+    // each active strip's "from" are reached prerequisites of that skill; the
+    // "coming" is only a count — no successor identity leaks (fog holds).
+    for (const a of shelf.active) {
+      for (const f of a.from) expect(reached.has(f.code)).toBe(true);
+      expect(typeof a.coming).toBe('number');
+      expect(a.coming).toBeGreaterThanOrEqual(0);
+      // @ts-expect-error — there is deliberately no successor code/label on the shelf
+      expect(a.next).toBeUndefined();
+    }
   });
 
   it('positions are graph-only and stable when a node moves frontier → reached (§8)', () => {

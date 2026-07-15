@@ -1,7 +1,8 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { SKILLS } from '@/skills';
+import { SKILLS, generateCanon } from '@/skills';
 import { skillLabel } from './labels';
+import { makeRng, randomSeed } from './rng';
 import { positions, skillEdges, extent } from './graph';
 import { buildStates } from './practice';
 import { computeUnlocked } from './selector';
@@ -122,6 +123,53 @@ export function buildChildMap(playerId: string, schoolYear: number): ChildMap {
     rows = Math.max(rows, n.y + 1);
   }
   return { nodes, edges, cols, rows };
+}
+
+// ── card shelf (the child's simplified view) ────────────────────────────────
+// The full graph is too much history for a child. Instead: a TROPHY SHELF of the
+// skills they've completed, and — separately — one focused strip per skill they're
+// working on now, showing only what leads INTO it and a hint of what's just BEYOND.
+// Fog still holds: successors are shown as counted silhouettes, never named.
+export type ShelfCard = { code: string; label: string; family: string; sample: string };
+export type CardShelf = {
+  trophies: { code: string; label: string; family: string; prompt: string; given: string | null }[];
+  active: { node: ShelfCard; from: ShelfCard[]; coming: number }[];
+};
+
+export function buildCardShelf(playerId: string, schoolYear: number): CardShelf {
+  const { reached, frontier, near } = rings(playerId, schoolYear);
+
+  // trophies: every completed skill, in the order they were earned, each carrying
+  // the actual problem the child solved.
+  const trophies = repo.cardsForPlayer(playerId).map((c) => ({
+    code: c.skillCode,
+    label: skillLabel(c.skillCode),
+    family: META.get(c.skillCode)?.family ?? '',
+    prompt: c.prompt,
+    given: c.given,
+  }));
+
+  const asCard = (code: string): ShelfCard => {
+    let sample = '';
+    try {
+      sample = generateCanon(code, makeRng(randomSeed())).prompt;
+    } catch {
+      /* a skill with no generator sample — the label alone stands in */
+    }
+    return { code, label: skillLabel(code), family: META.get(code)?.family ?? '', sample };
+  };
+
+  // active: one focus strip per frontier skill — the reached prerequisites that
+  // lead into it, the skill itself (tappable to practise), and a count of the
+  // silhouettes just beyond (the "coming" nodes, kept fogged: no identity).
+  const active = [...frontier].map((f) => {
+    const meta = META.get(f)!;
+    const from = meta.requires.filter((r) => reached.has(r)).map(asCard);
+    const coming = SKILLS.filter((s) => s.requires.includes(f) && near.has(s.code)).length;
+    return { node: asCard(f), from, coming };
+  });
+
+  return { trophies, active };
 }
 
 // ── parent map (§6) ─────────────────────────────────────────────────────────
