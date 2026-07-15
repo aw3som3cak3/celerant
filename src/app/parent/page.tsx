@@ -249,38 +249,49 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   const { t } = useI18n();
   const [label, setLabel] = useState('');
   const [target, setTarget] = useState('');
+  const [addingNew, setAddingNew] = useState(false);
   if (!goal) return null;
 
-  if (goal.goal) {
-    // "Done" is the ONLY thing that takes the goal off the kids' collective
-    // (home) screen. Reaching the target shows 🎉 and the goal STAYS — the family
-    // decides together when it's truly done, then the parent marks it. Marking it
-    // done clears it; the next goal a parent sets starts its count fresh at 0
-    // (setGoal resets created_at, and progress counts only from there).
-    return (
-      <div className="namebtn" style={{ cursor: 'default' }}>
-        {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
-        {goal.goal.reached ? ` · ${t('goal.reached')} 🎉` : ''}
-        <button
-          className="idk"
-          style={goal.goal.reached ? { color: 'var(--accent)' } : undefined}
-          onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}
-        >
-          {t('goal.done')}
-        </button>
-        <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
-      </div>
-    );
-  }
-  return (
-    <div className="namebtn" style={{ cursor: 'default' }}>
+  // Setting a goal replaces any current one and restarts its count at 0.
+  const setForm = (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
       <input className="field" placeholder={t('goal.labelPlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
       <input className="field" placeholder={t('goal.targetPlaceholder')} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))} />
-      <button className="primary" disabled={!label || !target} onClick={async () => { await postJSON('/api/parent/goal', { label, target: Number(target) }); setLabel(''); setTarget(''); onChange(); }}>
+      <button
+        className="primary"
+        disabled={!label || !target}
+        onClick={async () => { await postJSON('/api/parent/goal', { label, target: Number(target) }); setLabel(''); setTarget(''); setAddingNew(false); onChange(); }}
+      >
         {t('goal.set')}
       </button>
     </div>
   );
+
+  // A goal is set: show its progress, a clear CLOSE button (the parent decides
+  // when it's fulfilled), and a clear way to set a NEW one.
+  if (goal.goal) {
+    return (
+      <div className="namebtn" style={{ cursor: 'default' }}>
+        <div>
+          {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
+          {goal.goal.reached ? ` · ${t('goal.reached')} 🎉` : ''}
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+          <button
+            className={`pill-btn ${goal.goal.reached ? 'accent' : ''}`}
+            onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}
+          >
+            {t('goal.done')}
+          </button>
+          {!addingNew && <button className="pill-btn" onClick={() => setAddingNew(true)}>{t('goal.new')}</button>}
+        </div>
+        {addingNew && setForm}
+        <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
+      </div>
+    );
+  }
+  // No goal yet: the set-goal form, always available.
+  return <div className="namebtn" style={{ cursor: 'default' }}>{setForm}</div>;
 }
 
 // Session length — shorter for a young child, so finishing (and the day's dot)
