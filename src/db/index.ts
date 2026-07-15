@@ -4,7 +4,7 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { SCHEMA } from './schema';
 import { seedPrereg } from './prereg-seed';
-import { runStartupMigration } from './replay';
+import { runStartupMigration, runOneOffPlacements } from './replay';
 
 // A single connection, reused across hot reloads in dev via a global.
 const globalForDb = globalThis as unknown as { __db?: Database.Database };
@@ -36,6 +36,7 @@ function open(): Database.Database {
   // cache under the current model. Uses this db handle directly (not getDb), so
   // it can't recurse through open(). Idempotent — guarded by a meta flag.
   runStartupMigration(db);
+  runOneOffPlacements(db);
 
   return db;
 }
