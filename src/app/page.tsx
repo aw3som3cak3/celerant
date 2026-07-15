@@ -174,7 +174,6 @@ function IconModal({ exclude, onClose, onPick }: { exclude: Set<string>; onClose
 
 function Players({ me }: { me: Me }) {
   const { t } = useI18n();
-  const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(false);
   const [changing, setChanging] = useState<Player | null>(null);
   return (
@@ -210,11 +209,8 @@ function Players({ me }: { me: Me }) {
               {editing && <span className="tile-edit">✏️</span>}
             </button>
           ))}
-          {!editing && (
-            <button className="child-tile add" onClick={() => setAdding(true)} aria-label={t('players.addChild')}>
-              +
-            </button>
-          )}
+          {/* Adding a child is a PARENT action — it lives in the parent view, not
+              on this shared screen the kids see. */}
         </div>
 
         <div className="family-actions">
@@ -226,7 +222,6 @@ function Players({ me }: { me: Me }) {
           </button>
         </div>
       </div>
-      {adding && <AddChildModal used={me.players!.map((p) => p.icon)} onClose={() => setAdding(false)} />}
       {changing && (
         <ChangeIconModal
           player={changing}
@@ -259,33 +254,6 @@ function ChangeIconModal({ player, used, onClose }: { player: Player; used: stri
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
         <IconGrid allowSearch exclude={new Set(used)} onPick={change} />
-        {err && <p className="muted">{err}</p>}
-      </div>
-    </div>
-  );
-}
-
-// Add a child from the family card: pick an icon and that's it. The child never
-// declares a grade (start-from-below §3); the app starts easy and climbs. A parent
-// can set a grade later, privately, in the parent view — a weak hint only.
-function AddChildModal({ used, onClose }: { used: string[]; onClose: () => void }) {
-  const { t } = useI18n();
-  const [err, setErr] = useState('');
-
-  async function create(icon: string) {
-    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon });
-    if (r.ok) location.reload();
-    else setErr(t('player.iconTaken'));
-  }
-
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <strong>{t('players.addChild')}</strong>
-          <button className="idk" onClick={onClose}>{t('common.close')}</button>
-        </div>
-        <IconGrid allowSearch exclude={new Set(used)} onPick={create} />
         {err && <p className="muted">{err}</p>}
       </div>
     </div>

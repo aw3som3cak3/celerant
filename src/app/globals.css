@@ -1068,7 +1068,7 @@ table.plain-table th {
   box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
 .cat-carrier .cat-pill { position: static; transform: none; display: inline-block; margin-bottom: 2px; }
-.room-nav { text-align: center; margin-top: 1rem; }
+.room-nav { display: flex; gap: 0.6rem; justify-content: center; margin-top: 1.2rem; }
 
 /* end-of-session allocation on the practice done screen */
 .alloc-box {

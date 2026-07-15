@@ -184,11 +184,10 @@ function Room() {
         )}
       </div>
 
-      <p className="room-nav">
-        {p && <a className="idk" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>}
-        {' · '}
-        <a className="idk" href="/">{t('common.home')}</a>
-      </p>
+      <div className="room-nav">
+        {p && <a className="room-btn" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>}
+        <a className="room-btn" href="/">🏠 {t('common.home')}</a>
+      </div>
     </div>
   );
 }

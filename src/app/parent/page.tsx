@@ -5,6 +5,7 @@ import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { PinPad } from '../_components/PinPad';
 import { SkillMap, type MapData } from '../_components/SkillMap';
+import { IconGrid } from '../_components/IconGrid';
 import { useI18n } from '../_components/LocaleProvider';
 import { fluencyDisplay } from '@/lib/parent-fluency';
 
@@ -101,6 +102,10 @@ export default function Parent() {
           </button>
         ))}
       </div>
+
+      {/* Adding a child is a parent action — it lives here, behind the PIN, not on
+          the shared family screen the kids see. */}
+      {players && <AddChild used={players.map((p) => p.icon)} onDone={loadAll} />}
 
       {data && (
         <>
@@ -292,6 +297,35 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   }
   // No goal yet: the set-goal form, always available.
   return <div className="namebtn" style={{ cursor: 'default' }}>{setForm}</div>;
+}
+
+// Add a child — a parent action (behind the PIN). Pick an icon; the app starts
+// easy and climbs, and the parent can set the årskurs afterward on that child.
+function AddChild({ used, onDone }: { used: string[]; onDone: () => void }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const [err, setErr] = useState('');
+  async function create(icon: string) {
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon });
+    if (r.ok) { setOpen(false); setErr(''); onDone(); } else setErr(t('player.iconTaken'));
+  }
+  return (
+    <div style={{ margin: '0.5rem 0' }}>
+      <button className="pill-btn" onClick={() => setOpen(true)}>+ {t('players.addChild')}</button>
+      {open && (
+        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <strong>{t('players.addChild')}</strong>
+              <button className="idk" onClick={() => setOpen(false)}>{t('common.close')}</button>
+            </div>
+            <IconGrid allowSearch exclude={new Set(used)} onPick={create} />
+            {err && <p className="muted">{err}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Session length — shorter for a young child, so finishing (and the day's dot)
