@@ -1,30 +1,27 @@
 import { NextRequest } from 'next/server';
 import { requirePlayer } from '@/lib/auth';
 import * as repo from '@/db/repo';
-import { skillLabel } from '@/lib/labels';
+import { buildCardShelf } from '@/lib/map';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// The child's card shelf (§3.4): the first problem of each kind they ever
-// solved, their own answer, the date. No titles, no ratings, no hierarchy. It
-// belongs to the child, like the celeration chart — the parent view never sees
+// The child's card shelf (§3.4), simplified: a trophy shelf of completed skills,
+// plus one focused strip per skill they're working on now (what leads into it and
+// a hint of what's just beyond). Belongs to the child; the parent view never sees
 // it.
 export function GET(req: NextRequest) {
   const now = Date.now();
   const playerId = req.nextUrl.searchParams.get('playerId') ?? '';
   const player = requirePlayer(req, playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
+  const shelf = buildCardShelf(player.id, player.school_year);
   return json({
-    // The last-7-days record lives here, in the child's own private space,
-    // alongside the cards and the chart — theirs to see, no sibling's to compare.
+    // The last-7-days record lives here, in the child's own private space —
+    // theirs to see, no sibling's to compare.
     days: repo.sessionDaysLast7(player.id, now),
-    cards: repo.cardsForPlayer(player.id).map((c) => ({
-      label: skillLabel(c.skillCode),
-      prompt: c.prompt,
-      given: c.given,
-      earnedAt: c.earnedAt,
-    })),
+    trophies: shelf.trophies,
+    active: shelf.active,
   });
 }
