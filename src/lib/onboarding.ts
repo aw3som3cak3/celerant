@@ -82,16 +82,20 @@ export const NO_GRADE_DEFAULT = 1;
 // coasting, and with a FIRMNESS that scales to how under-challenged he is. A
 // struggling kid never triggers it at any scaling, so the "never an expected
 // miss" guarantee holds absolutely for anyone not coasting.
-export const COAST_ACC = 0.9; // recent first-try accuracy to count as ready
+export const COAST_ACC = 0.85; // recent first-try accuracy to count as coasting (a
+// kid acing at 90–95% sits well clear of this; the old 0.90 let a stray miss in a
+// small window tip a coasting kid under and drop reach-up out entirely)
 export const COAST_TRIVIAL = 0.4; // recent share of trivial (p≥0.85) items to count as under-challenged
 
 // Probability that THIS item is a reach-up probe. 0 unless clearly coasting;
 // scaled by the trivial proportion so a kid at 60% trivial gets probed far more
 // often than one at 20% (a timid probe can't outrun a decay schedule that keeps
-// resurfacing easy skills). Zero right after a miss — firm while he's winning,
-// patient the moment he isn't (no cascade).
-export function reachUpProbability(recentAcc: number, maxVolatility: number, trivialProp: number, recentMiss: boolean): number {
-  if (recentMiss) return 0;
+// resurfacing easy skills). It goes patient only when the child is genuinely
+// stumbling — TWO misses in a row (`recentlyStruggling`), not one stray flub —
+// which also hands off to the two-miss retreat cleanly (no cascade). A single miss
+// while otherwise acing no longer pauses the climb.
+export function reachUpProbability(recentAcc: number, maxVolatility: number, trivialProp: number, recentlyStruggling: boolean): number {
+  if (recentlyStruggling) return 0;
   if (recentAcc < COAST_ACC || maxVolatility > STEADY_VOL || trivialProp < COAST_TRIVIAL) return 0;
   return Math.min(trivialProp, 0.8);
 }

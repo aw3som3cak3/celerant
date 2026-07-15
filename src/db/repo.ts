@@ -388,16 +388,6 @@ export function recentTrivialProportion(playerId: string, n: number): number {
   return total === 0 ? 0 : trivial / total;
 }
 
-// Was the most recent real (non-warm-up) item a miss? Reach-up goes patient right
-// after a miss — firm while the child is winning, quiet the moment he isn't, so a
-// too-hard probe never cascades (fix-reach-up.md §3).
-export function lastAttemptMissed(playerId: string): boolean {
-  const r = getDb()
-    .prepare('SELECT correct FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 ORDER BY id DESC LIMIT 1')
-    .get(playerId) as { correct: number } | undefined;
-  return r != null && r.correct === 0;
-}
-
 export function totalAttempts(playerId: string): number {
   const r = getDb()
     .prepare('SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL')
