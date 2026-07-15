@@ -248,9 +248,9 @@ describe('reach-up firmness scales with under-challenge (reachUpProbability)', (
     expect(reachUpProbability(0.95, V, 0.3, false)).toBe(0); // not under-challenged
   });
 
-  it('goes quiet right after a miss — patient, no cascade', () => {
-    expect(reachUpProbability(0.95, V, 0.62, true)).toBe(0);
-    expect(reachUpProbability(0.95, V, 0.62, false)).toBeGreaterThan(0);
+  it('goes quiet only when genuinely struggling (two misses), not on a stray flub', () => {
+    expect(reachUpProbability(0.95, V, 0.62, true)).toBe(0); // recentlyStruggling (two in a row) -> patient
+    expect(reachUpProbability(0.95, V, 0.62, false)).toBeGreaterThan(0); // a single flub no longer pauses it
   });
 
   it('scales: a 60%-trivial kid is probed firmer than a 45%-trivial kid', () => {
@@ -354,8 +354,8 @@ function simulateReachUp(seed: number, seedThetas: number[], trueThetas: number[
   for (let t = 0; t < steps; t++) {
     const recentAcc = outcomes.length ? outcomes.slice(-12).reduce((a, b) => a + b, 0) / Math.min(outcomes.length, 12) : 1;
     const trivialProp = servedP.length ? servedP.slice(-12).filter((p) => p >= 0.85).length / Math.min(servedP.length, 12) : 0;
-    const recentMiss = outcomes.length > 0 && outcomes[outcomes.length - 1] === 0;
-    const prob = enableReachUp ? reachUpProbability(recentAcc, 0.06, trivialProp, recentMiss) : 0;
+    const recentlyStruggling = outcomes.length >= 2 && outcomes[outcomes.length - 1] === 0 && outcomes[outcomes.length - 2] === 0;
+    const prob = enableReachUp ? reachUpProbability(recentAcc, 0.06, trivialProp, recentlyStruggling) : 0;
     const reachUp = rng.next() < prob;
 
     const states: SelState[] = seedThetas.map((_, i) => ({

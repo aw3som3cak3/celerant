@@ -40,7 +40,10 @@ export async function POST(req: NextRequest) {
   // miss must not drag his floor down (no cascade).
   const recentAcc = repo.recentOverallFirstTryAccuracy(player.id, 12);
   const trivialProp = repo.recentTrivialProportion(player.id, 12);
-  const reachUpProb = reachUpProbability(recentAcc, maxVol, trivialProp, repo.lastAttemptMissed(player.id));
+  // Pause reach-up only when genuinely stumbling — two misses in a row — not on a
+  // single stray flub, so an acing kid keeps climbing. Two misses also arm the
+  // retreat below (they're mutually exclusive with coasting), so no cascade.
+  const reachUpProb = reachUpProbability(recentAcc, maxVol, trivialProp, repo.lastTwoMissed(player.id));
   const coasting = reachUpProb > 0;
   const reachUp = Math.random() < reachUpProb;
 

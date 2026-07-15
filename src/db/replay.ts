@@ -215,17 +215,25 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   const done = (key: string) => db.prepare('SELECT 1 FROM meta WHERE key = ?').get(key) != null;
   const mark = (key: string) => db.prepare("INSERT INTO meta (key, value) VALUES (?, '1') ON CONFLICT(key) DO UPDATE SET value = '1'").run(key);
 
-  // pig mastered year-1 (θ 3+ over 100+ reps) but her åk1 seed locked year-2, so
-  // she was grinding mastered content. Placed at åk3 (seeds year-2 — her real
-  // level); her ledger folds over the new seed, keeping year-1 mastered. Confirmed
-  // with the parent; she can be re-graded any time from the parent view.
-  if (!done('placed_pig_ak3')) {
+  // Set one real child's grade once, by their CURRENT icon, and replay their
+  // ledger over the new seed. Marks the flag ONLY once actually applied, so it
+  // never fires on a DB where the child isn't there yet and never clobbers a grade
+  // a parent later sets by hand.
+  const place = (flag: string, icon: string, grade: number) => {
+    if (done(flag)) return;
     const fam = db.prepare("SELECT id FROM family WHERE icon_display = 'turtle+ice_cream'").get() as { id: string } | undefined;
-    const pig = fam && (db.prepare('SELECT id FROM player WHERE family_id = ? AND icon = ?').get(fam.id, 'pig') as { id: string } | undefined);
-    if (pig) {
-      db.prepare('UPDATE player SET school_year = 3 WHERE id = ?').run(pig.id);
-      replayOne(db, pig.id);
-      mark('placed_pig_ak3'); // mark ONLY once actually applied — never on a DB where pig isn't there yet
+    const kid = fam && (db.prepare('SELECT id FROM player WHERE family_id = ? AND icon = ?').get(fam.id, icon) as { id: string } | undefined);
+    if (kid) {
+      db.prepare('UPDATE player SET school_year = ? WHERE id = ?').run(grade, kid.id);
+      replayOne(db, kid.id);
+      mark(flag);
     }
-  }
+  };
+
+  // pig (now turtle) mastered year-1 but her åk1 seed locked year-2 — placed at
+  // åk3 so year-2 becomes her served content. (Already applied.)
+  place('placed_pig_ak3', 'pig', 3);
+  // mouse climbed from behind-and-struggling to 95% mastery of åk2 and is now
+  // coasting on it — placed at åk3 so he gets year-2 content and stays engaged.
+  place('placed_mouse_ak3', 'mouse', 3);
 }
