@@ -752,6 +752,7 @@ table.plain-table th {
   cursor: pointer;
 }
 .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
+.pill-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* the primary "back to the family" button on the done screen */
 .next-btn.primary {
   background: var(--accent);
