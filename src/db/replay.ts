@@ -206,3 +206,26 @@ export function runStartupMigration(db: ReturnType<typeof getDb>): void {
   });
   tx();
 }
+
+// One-off manual placements — narrowly-scoped corrections for a specific child,
+// each guarded by its OWN meta flag so it applies exactly once and never re-runs.
+// (Unlike a MODEL_VERSION bump, this doesn't re-seed everyone, so it can't clobber
+// a grade a parent has since changed by hand.)
+export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
+  const done = (key: string) => db.prepare('SELECT 1 FROM meta WHERE key = ?').get(key) != null;
+  const mark = (key: string) => db.prepare("INSERT INTO meta (key, value) VALUES (?, '1') ON CONFLICT(key) DO UPDATE SET value = '1'").run(key);
+
+  // pig mastered year-1 (θ 3+ over 100+ reps) but her åk1 seed locked year-2, so
+  // she was grinding mastered content. Placed at åk3 (seeds year-2 — her real
+  // level); her ledger folds over the new seed, keeping year-1 mastered. Confirmed
+  // with the parent; she can be re-graded any time from the parent view.
+  if (!done('placed_pig_ak3')) {
+    const fam = db.prepare("SELECT id FROM family WHERE icon_display = 'turtle+ice_cream'").get() as { id: string } | undefined;
+    const pig = fam && (db.prepare('SELECT id FROM player WHERE family_id = ? AND icon = ?').get(fam.id, 'pig') as { id: string } | undefined);
+    if (pig) {
+      db.prepare('UPDATE player SET school_year = 3 WHERE id = ?').run(pig.id);
+      replayOne(db, pig.id);
+      mark('placed_pig_ak3'); // mark ONLY once actually applied — never on a DB where pig isn't there yet
+    }
+  }
+}
