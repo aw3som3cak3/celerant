@@ -1134,3 +1134,20 @@ table.plain-table th {
 }
 .trophy-check { color: #e0a41f; }
 .trophy-sample { color: var(--ink-soft); white-space: nowrap; }
+/* A mastered skill you can run a victory-lap sprint on: tappable, with a soft
+   glow so the ⚡ reads as "reach for me" — ambient, never a demand. */
+.trophy.can-sprint {
+  cursor: pointer; text-decoration: none; color: inherit;
+  border-color: var(--accent); box-shadow: 0 0 0 2px rgba(200, 162, 74, 0.14);
+}
+.trophy.can-sprint:hover { box-shadow: 0 0 0 3px rgba(200, 162, 74, 0.28); }
+.trophy.can-sprint .trophy-check { color: var(--accent); }
+
+/* The done-screen victory-lap offer: a warm, self-contained card — an invitation,
+   not a gate. Sits above the ordinary again/room/home actions. */
+.sprint-offer {
+  margin: 1.4rem auto 0; max-width: 22rem;
+  padding: 1rem 1.1rem; border: 1px solid var(--accent); border-radius: 14px;
+  background: rgba(200, 162, 74, 0.08);
+}
+.sprint-offer p { margin: 0 0 0.7rem; }

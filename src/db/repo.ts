@@ -813,6 +813,32 @@ export function appendUsageEvent(playerId: string, kind: string, detail: string 
   getDb().prepare('INSERT INTO usage_event (player_id, kind, detail, at) VALUES (?, ?, ?, ?)').run(playerId, kind, detail, at);
 }
 
+// Read-back for the sprint-OFFER throttle (fluency-sprint-wiring §6). Usage events
+// are a motivational-layer signal — the ability replay never reads them, so these
+// can never move what the child is served.
+export function lastUsageEventAt(playerId: string, kind: string): number | null {
+  const r = getDb()
+    .prepare('SELECT MAX(at) m FROM usage_event WHERE player_id = ? AND kind = ?')
+    .get(playerId, kind) as { m: number | null };
+  return r.m ?? null;
+}
+
+export function usageDetailsSince(playerId: string, kind: string, sinceMs: number): string[] {
+  const rows = getDb()
+    .prepare('SELECT detail FROM usage_event WHERE player_id = ? AND kind = ? AND at >= ? AND detail IS NOT NULL')
+    .all(playerId, kind, sinceMs) as { detail: string }[];
+  return rows.map((r) => r.detail);
+}
+
+// Completed sessions started at/after sinceMs, for one player. The offer throttle
+// counts these to space proactive offers to ~1 per N sessions.
+export function completedSessionsSince(playerId: string, sinceMs: number): number {
+  const r = getDb()
+    .prepare(`SELECT COUNT(*) c FROM session_run WHERE player_id = ? AND ${DONE_SESSION} AND started_at >= ?`)
+    .get(playerId, sinceMs) as { c: number };
+  return r.c;
+}
+
 // --- the probe (evidence-and-theses.md §2) — a clean ruler, never read by the
 // --- model. These are the ONLY functions that touch the `probe` table.
 

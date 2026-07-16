@@ -48,6 +48,11 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       rate,
       aim,
       volatility: ab?.volatility,
+      // The seed's own fluency decision, recoverable from grade + skill year (the
+      // provisional rate was seeded ≥ aim iff seedGrade ≥ year — replay.ts). Lets
+      // componentFluent keep the unlock monotonic-up when a sprint later measures a
+      // real, possibly below-aim, rate.
+      seedFluent: s.mode === 'component' ? seedGradeFor(schoolYear) >= s.year : true,
     };
   });
 }

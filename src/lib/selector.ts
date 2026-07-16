@@ -39,6 +39,9 @@ export type SelState = {
   rate: RateEvidence; // child's fluency evidence for this skill
   aim: number | null; // fluency aim for this skill, or null
   volatility?: number; // Glicko-2 σ — erratic answering, the accuracy side of fluency
+  seedFluent?: boolean; // did the child's grade SEED grant this component fluency? (the
+  // provisional decision, recoverable from grade + skill year). Used to keep a
+  // measured rate monotonic-up for unlock — see componentFluent.
 };
 
 // A skill whose θ swings between mastery and misses is not yet fluent, distinct
@@ -71,8 +74,20 @@ function componentFluent(s: SelState): boolean {
   const steady = (s.volatility ?? 0) <= VOL_GATE; // not erratic on this skill
   switch (s.rate.source) {
     case 'measured':
-      // Latest sprint. A single sprint below aim drops the skill.
-      return s.aim != null && s.rate.value >= s.aim - EPS && steady;
+      // LATENT-BUG FIX (fluency-sprint-wiring, "Option B"). The unlock gate is
+      // MONOTONIC-UP under measurement: a real sprint can CONFIRM fluency (rate ≥
+      // aim) but must never REVOKE an unlock the seed already granted and the child
+      // has since built past. The old line dropped the skill on a single below-aim
+      // sprint — which re-locked everything downstream and re-created the exact
+      // fragile "accurate but slow" failure the whole design guards against. So:
+      // fluent-for-unlock = the SEED's own decision passed (seedFluent), OR the
+      // measured rate clears aim. Either way still gated on `steady` (the accuracy /
+      // volatility side is untouched, and a sprint never writes volatility). The
+      // measured value is still recorded — chart, parent view, later inspection; it
+      // simply can't retroactively lock. This changes UNLOCK only: never θ, never
+      // the selector's difficulty score (which reads θ, not rate), so a below-aim
+      // sprint is inert with respect to what gets served.
+      return steady && (s.seedFluent === true || (s.aim != null && s.rate.value >= s.aim - EPS));
     case 'provisional':
       // Seeded at (or below) the aim from the child's school year.
       return s.aim != null && s.rate.value >= s.aim - EPS && steady;

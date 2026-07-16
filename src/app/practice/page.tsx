@@ -36,6 +36,11 @@ function Practice() {
   const [word, setWord] = useState('');
   const [busy, setBusy] = useState(false);
   const [icon, setIcon] = useState<string | null>(null);
+  // The victory-lap offer (fluency-sprint-wiring §6): at most one skill, offered at
+  // the peak moment (the done screen), throttled server-side to stay rare. null =
+  // don't offer, which is the common case.
+  const [offer, setOffer] = useState<{ code: string; label: string; family: string } | null>(null);
+  const [offerDismissed, setOfferDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef(true);
   const autoStarted = useRef(false);
@@ -148,6 +153,23 @@ function Practice() {
       setBusy(false);
     }
   }
+  // Ask for a victory-lap offer once the session is done — never before (nothing
+  // stands between the child and the win). Logs 'sprint_offered' only when a card is
+  // actually returned, so the throttle counts real offers.
+  useEffect(() => {
+    if (phase !== 'done' || !playerId) return;
+    getJSON<{ offer: { code: string; label: string; family: string } | null }>(`/api/sprint/offer?playerId=${playerId}`).then((r) => {
+      if (!r.offer) return;
+      setOffer(r.offer);
+      postJSON('/api/sprint/log', { playerId, event: 'offered', skill: r.offer.code });
+    });
+  }, [phase, playerId]);
+
+  function declineOffer() {
+    if (offer) postJSON('/api/sprint/log', { playerId, event: 'declined', skill: offer.code });
+    setOfferDismissed(true);
+  }
+
   function afterReveal() {
     if (completed >= target) setPhase('done');
     else load();
@@ -196,6 +218,17 @@ function Practice() {
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         {sessionId != null && <SessionAllocation sessionId={sessionId} />}
+        {/* Victory lap — offered here, at the peak, never before and never forced.
+            A single warm invitation the child can wave off ("inte nu"), not a gate. */}
+        {offer && !offerDismissed && (
+          <div className="sprint-offer">
+            <p>{t('sprint.offerLine', { skill: offer.label })}</p>
+            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
+              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}>⚡ {t('sprint.offerGo')}</a>
+              <button className="next-btn" onClick={declineOffer}>{t('sprint.offerLater')}</button>
+            </div>
+          </div>
+        )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
           <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>

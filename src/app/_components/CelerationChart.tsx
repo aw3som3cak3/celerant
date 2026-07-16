@@ -18,7 +18,11 @@ const W = 520;
 const H = 300;
 const PAD = 40;
 
-export function CelerationChart({ data }: { data: ChartData }) {
+// showAim draws the faint aim line. It defaults OFF: the child's victory-lap chart
+// compares their rising line against nothing but their own past — no aim-as-verdict,
+// no "you must reach here" bar (fluency-sprint-wiring §4). A future parent view can
+// opt in with showAim.
+export function CelerationChart({ data, showAim = false }: { data: ChartData; showAim?: boolean }) {
   const { t } = useI18n();
   if (data.points.length === 0) {
     return <p className="muted">{t('chart.noSprints')}</p>;
@@ -55,8 +59,8 @@ export function CelerationChart({ data }: { data: ChartData }) {
             </text>
           </g>
         ))}
-        {/* aim line, faint */}
-        {data.aim != null && data.aim >= lo && (
+        {/* aim line, faint — opt-in only (never in the child's victory-lap view) */}
+        {showAim && data.aim != null && data.aim >= lo && (
           <line x1={PAD} x2={W - PAD} y1={y(data.aim)} y2={y(data.aim)} stroke="#c8a24a" strokeDasharray="4 4" />
         )}
         {/* corrects: dots + connecting line */}

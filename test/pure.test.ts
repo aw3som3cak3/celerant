@@ -117,6 +117,32 @@ describe('missing-evidence gate (addendum §7)', () => {
     ];
     expect(() => selectItem(states, opts)).toThrow(/unknown rate/);
   });
+
+  // Option B (fluency-sprint-wiring): the unlock gate is monotonic-up under
+  // measurement. A real sprint can CONFIRM fluency but must never revoke an unlock
+  // the seed already granted — one slow-but-accurate sprint used to re-lock the
+  // whole downstream chain, re-creating the fragile "accurate but slow" failure.
+  it('a below-aim MEASURED rate never revokes a seed-granted unlock', () => {
+    const states = [
+      mkState({ code: 'comp', skillId: 1, theta: 0.5, rate: { source: 'measured', value: 4 }, seedFluent: true }),
+      mkState({ code: 'eqn', skillId: 2, mode: 'compound', theta: 0, requires: ['comp'] }),
+    ];
+    expect(selectItem(states, opts).scores.find((s) => s.code === 'eqn')!.unlocked).toBe(true);
+  });
+
+  it('a measured rate the seed never granted stays locked below aim, and confirms above it', () => {
+    const locked = [
+      mkState({ code: 'comp', skillId: 1, theta: 0.5, rate: { source: 'measured', value: 4 }, seedFluent: false }),
+      mkState({ code: 'eqn', skillId: 2, mode: 'compound', theta: 0, requires: ['comp'] }),
+    ];
+    expect(selectItem(locked, opts).scores.find((s) => s.code === 'eqn')!.unlocked).toBe(false);
+
+    const confirmed = [
+      mkState({ code: 'comp', skillId: 1, theta: 0.5, rate: { source: 'measured', value: 12 }, seedFluent: false }),
+      mkState({ code: 'eqn', skillId: 2, mode: 'compound', theta: 0, requires: ['comp'] }),
+    ];
+    expect(selectItem(confirmed, opts).scores.find((s) => s.code === 'eqn')!.unlocked).toBe(true);
+  });
 });
 
 describe('seed anchor (correction: previous year at target, not below it)', () => {
