@@ -10,7 +10,7 @@ type MePlayer = { id: string; icon: string };
 type ShelfCard = { code: string; label: string; family: string; sample: string };
 type Trophy = { code: string; label: string; family: string; prompt: string; given: string | null };
 type Active = { node: ShelfCard; from: ShelfCard[]; coming: number };
-type ShelfData = { days: boolean[]; trophies: Trophy[]; active: Active[] };
+type ShelfData = { days: boolean[]; trophies: Trophy[]; active: Active[]; eligible: string[] };
 
 const show = (s: string) => (s || '').replace(/□/g, '?');
 
@@ -44,6 +44,7 @@ function Shelf() {
   const takenByOthers = new Set(players.filter((x) => x.id !== p).map((x) => x.icon));
 
   if (!data) return <div className="plain muted">…</div>;
+  const eligible = new Set(data.eligible);
 
   return (
     <div className="plain">
@@ -97,12 +98,26 @@ function Shelf() {
         <section className="shelf-section">
           <h2 className="shelf-h">{t('shelf.trophies')} · {data.trophies.length}</h2>
           <div className="trophy-shelf">
-            {data.trophies.map((tr) => (
-              <div key={tr.code} className="trophy" title={tr.label}>
-                <span className="trophy-check" aria-hidden>★</span>
-                <span className="trophy-sample">{show(tr.prompt) || tr.label}</span>
-              </div>
-            ))}
+            {data.trophies.map((tr) => {
+              // A mastered skill the child can run a victory-lap sprint on wears a ⚡
+              // and becomes tappable — their move to make, whenever they feel like it.
+              const canSprint = eligible.has(tr.code);
+              const body = (
+                <>
+                  <span className="trophy-check" aria-hidden>{canSprint ? '⚡' : '★'}</span>
+                  <span className="trophy-sample">{show(tr.prompt) || tr.label}</span>
+                </>
+              );
+              return canSprint ? (
+                <a key={tr.code} className="trophy can-sprint" href={`/sprint?p=${p}&start=${encodeURIComponent(tr.code)}`} title={t('sprint.zapHint', { skill: tr.label })}>
+                  {body}
+                </a>
+              ) : (
+                <div key={tr.code} className="trophy" title={tr.label}>
+                  {body}
+                </div>
+              );
+            })}
           </div>
         </section>
       )}
@@ -113,6 +128,9 @@ function Shelf() {
       <p className="muted" style={{ marginTop: '0.6rem' }}>
         <button className="idk" onClick={toggleStretch}>{stretch ? t('shelf.harderOn') : t('shelf.harder')}</button>{' '}
         · <button className="idk" onClick={() => setPickIcon(true)}>{t('shelf.changeIcon')}</button>{' '}
+        {/* the writing-speed game — a small, optional "how fast can you write numbers?"
+            that sharpens sprint aims. Only offered once there's a skill to sprint on. */}
+        {eligible.size > 0 && <>· <a className="idk" href={`/warmup?p=${p}`}>⌨️ {t('shelf.writeSpeed')}</a>{' '}</>}
         · <a className="idk" href="/">🏠 {t('common.home')}</a>
       </p>
 

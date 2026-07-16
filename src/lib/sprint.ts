@@ -7,6 +7,7 @@ import { computeUnlocked } from './selector';
 import { aimFor, celeration, SPRINT_ACCURACY_GATE, SPRINT_ACCURACY_WINDOW, type SprintPoint } from './fluency';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
+import { skillLabel } from './labels';
 
 const SKILL_META = new Map(SKILLS.map((s) => [s.code, s]));
 
@@ -35,6 +36,41 @@ export function eligibleSprintSkills(playerId: string): SprintEligible[] {
     out.push({ code: s.code, family: s.family, accuracy: acc, aim, rate: ab?.rate_state === 'measured' ? ab.rate : null });
   }
   return out;
+}
+
+// --- The offer (fluency-sprint-wiring §6) -----------------------------------
+// A sprint is a VICTORY LAP the app offers sparingly at a peak moment — never a
+// gate, never first-thing, never forced ("a sprint can never be failed, only
+// done"). This picks AT MOST ONE skill to offer on a just-finished session's done
+// screen, and throttles proactive offers so they stay rare. A null return means
+// "don't offer" — the common case. The shelf's ⚡ affordance is deliberately NOT
+// throttled through here: that one is the child reaching for it, not us nudging.
+const OFFER_COOLDOWN_SESSIONS = 3; // ≥ this many completed sessions between proactive offers
+const OFFER_DECLINE_COOLDOWN_MS = 7 * 24 * 3600 * 1000; // don't re-nag a skill the child waved off, for a week
+const OFFER_SESSION_WINDOW = 15; // "practised this session" ≈ the last N attempts (the done screen fires right after)
+
+export type SprintOffer = { code: string; label: string; family: string };
+
+export function sprintOffer(playerId: string, now: number): SprintOffer | null {
+  const elig = eligibleSprintSkills(playerId);
+  if (!elig.length) return null;
+
+  // Throttle: stay rare. Skip if we showed an offer within the last few completed
+  // sessions. (The client logs 'sprint_offered' when the card is actually shown.)
+  const lastOfferAt = repo.lastUsageEventAt(playerId, 'sprint_offered');
+  if (lastOfferAt != null && repo.completedSessionsSince(playerId, lastOfferAt) < OFFER_COOLDOWN_SESSIONS) return null;
+
+  // Offer only a skill the child JUST practised well (the peak moment), and never
+  // one they recently waved off. Highest accuracy wins — the surest victory lap.
+  const justPractised = new Set(repo.recentAttemptSkillCodes(playerId, OFFER_SESSION_WINDOW));
+  const declined = new Set(repo.usageDetailsSince(playerId, 'sprint_declined', now - OFFER_DECLINE_COOLDOWN_MS));
+  const cands = elig
+    .filter((e) => justPractised.has(e.code) && !declined.has(e.code))
+    .sort((a, b) => b.accuracy - a.accuracy);
+  if (!cands.length) return null;
+
+  const c = cands[0];
+  return { code: c.code, label: skillLabel(c.code), family: c.family };
 }
 
 // --- Live sprint sessions (in-process; a single-process home server) --------
@@ -101,6 +137,7 @@ function finalize(s: SprintSession, now: number): SprintResult {
   if (!s.finalized) {
     s.finalized = true;
     repo.appendSprint(s.playerId, s.skillCode, s.durationS, s.correct, s.errors, now); // ledger write → replay
+    repo.appendUsageEvent(s.playerId, 'sprint_done', s.skillCode, now); // motivational-layer only; also feeds the offer throttle
   }
   return {
     correct: s.correct,
