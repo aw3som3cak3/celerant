@@ -30,7 +30,8 @@ function completeSession(at: number, target?: { kind: 'cat' | 'family'; id: stri
 }
 
 describe('cat roster is well-formed (spec §Cat roster)', () => {
-  it('has 10 cats, unique ids, flat cost 20, and both locales', () => {
+  it('has 10 cats, unique ids, flat cost 40, and both locales', () => {
+    expect(CAT_COST).toBe(40);
     expect(CATS.length).toBe(10);
     expect(new Set(ROSTER.map((r) => r.id)).size).toBe(ROSTER.length);
     for (const c of CATS) {
@@ -44,20 +45,45 @@ describe('cat roster is well-formed (spec §Cat roster)', () => {
 });
 
 describe('reward reducer: directed sessions accumulate; a cat unlocks at cost', () => {
-  it('progress equals the directed count; unlock at 20; idempotent', () => {
+  it('progress equals the directed unit count; unlock at cost; idempotent', () => {
     let now = NOW + 1000;
+    // 10-item sessions count 1 unit each (see reward weighting).
     for (let i = 0; i < CAT_COST - 1; i++) completeSession((now += 1000), { kind: 'cat', id: 'pythagoras' });
     let st = rewardState(familyId);
-    expect(st.progress['pythagoras']).toBe(19);
+    expect(st.progress['pythagoras']).toBe(CAT_COST - 1);
     expect(st.unlockedCats).not.toContain('pythagoras'); // not yet
 
-    completeSession((now += 1000), { kind: 'cat', id: 'pythagoras' }); // the 20th
+    completeSession((now += 1000), { kind: 'cat', id: 'pythagoras' }); // the last one
     st = rewardState(familyId);
-    expect(st.progress['pythagoras']).toBe(20);
+    expect(st.progress['pythagoras']).toBe(CAT_COST);
     expect(st.unlockedCats).toContain('pythagoras');
 
     // pure count -> calling again gives the identical state
     expect(rewardState(familyId)).toEqual(st);
+  });
+});
+
+describe('session-length weighting keeps the economy net-neutral across the 20→10 halving', () => {
+  it('an old 20-item session counts 2 units, a new 10-item session 1 — so an earned cat never re-locks', () => {
+    const fam = repo.createFamily('lion+wolf', 'l:w', 'l:x', NOW);
+    const kid = repo.createPlayer(fam, 'lion', 2, NOW);
+    const complete = (at: number, target: number, id: string) => {
+      const sid = repo.createSessionRun(kid, target, at);
+      for (let i = 0; i < target; i++) repo.bumpSessionRun(sid, at);
+      repo.setAllocation(sid, kid, fam, 'cat', id, at);
+    };
+    let now = NOW + 10_000;
+    // 20 old-style 20-item sessions = 40 units = exactly one cat (the same total
+    // work the old cost of 20 sessions × 20 items represented).
+    for (let i = 0; i < 20; i++) complete((now += 1000), 20, 'newton');
+    let st = rewardState(fam);
+    expect(st.progress['newton']).toBe(40);
+    expect(st.unlockedCats).toContain('newton'); // unlocked — not re-locked by the doubled cost
+
+    // A new 10-item session adds exactly 1 unit.
+    complete((now += 1000), 10, 'gauss');
+    st = rewardState(fam);
+    expect(st.progress['gauss']).toBe(1);
   });
 });
 

@@ -45,7 +45,9 @@ export function eligibleSprintSkills(playerId: string): SprintEligible[] {
 // screen, and throttles proactive offers so they stay rare. A null return means
 // "don't offer" — the common case. The shelf's ⚡ affordance is deliberately NOT
 // throttled through here: that one is the child reaching for it, not us nudging.
-const OFFER_COOLDOWN_SESSIONS = 3; // ≥ this many completed sessions between proactive offers
+const OFFER_COOLDOWN_SESSIONS = 6; // ≥ this many completed sessions between proactive offers
+// (6, not 3: sessions are now 10 items — half the old 20 — so 6 short sessions keep
+// offers about as rare in real time as 3 long ones were.)
 const OFFER_DECLINE_COOLDOWN_MS = 7 * 24 * 3600 * 1000; // don't re-nag a skill the child waved off, for a week
 const OFFER_SESSION_WINDOW = 15; // "practised this session" ≈ the last N attempts (the done screen fires right after)
 

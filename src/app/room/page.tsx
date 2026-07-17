@@ -81,12 +81,16 @@ function Room() {
     return () => clearInterval(iv);
   }, [wanderers.length]);
 
-  function pet(id: string, e: React.MouseEvent) {
-    setPetting(id);
-    const hx = e.nativeEvent.offsetX;
-    const hy = e.nativeEvent.offsetY;
+  function pet(w: Wanderer) {
+    setPetting(w.id);
     const hid = heartId.current++;
-    setHearts((hs) => [...hs, { id: hid, x: hx, y: hy }]);
+    // The heart rises from the CAT's own position (percent coords in the stage).
+    // The old code used the click's offsetX/Y — measured inside the little sprite
+    // box, a handful of px — which placed the heart up near the ceiling instead of
+    // over the cat.
+    const x = Math.max(2, Math.min(98, w.x + (Math.random() * 6 - 3)));
+    const y = Math.max(2, w.y - 8); // a touch above the cat
+    setHearts((hs) => [...hs, { id: hid, x, y }]);
     setTimeout(() => setHearts((hs) => hs.filter((h) => h.id !== hid)), 900);
   }
 
@@ -106,7 +110,7 @@ function Room() {
       {/* The pixel room — a separate visual register from the practice UI. */}
       <div className="room-stage">
         {hearts.map((h) => (
-          <span key={h.id} className="room-heart" style={{ left: h.x, top: h.y }}>❤</span>
+          <span key={h.id} className="room-heart" style={{ left: `${h.x}%`, top: `${h.y}%` }}>❤</span>
         ))}
         {[...wanderers].sort((a, b) => a.y - b.y).map((w) => {
           const cat = ROSTER_BY_ID.get(w.id)!;
@@ -115,7 +119,7 @@ function Room() {
               key={w.id}
               className="cat-actor"
               style={{ left: `${w.x}%`, top: `${w.y}%`, zIndex: Math.round(w.y) }}
-              onClick={(e) => pet(w.id, e)}
+              onClick={() => pet(w)}
               title={cat.name[locale]}
             >
               {shared.kind === 'cat' && shared.id === w.id && <span className="cat-pill">{t('room.selected')}</span>}

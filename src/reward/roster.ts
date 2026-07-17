@@ -2,8 +2,14 @@ import type { Locale } from '@/lib/i18n';
 
 // Static reward content (celerant-cat-collection-spec.md §"Cat roster"). Lives in
 // CODE, not the ledger — locale-keyed. Ten mega-famous mathematician cats, each
-// costing a flat 20 completed sessions. `order` is a default display order, not a
+// costing a flat 40 "session-units". `order` is a default display order, not a
 // hard gate — any target can be collected at any time.
+//
+// A session-unit is one 10-item session's worth of work (see repo.ts reward
+// counts): a completed session counts ceil(items/10) units, so a 10-item session
+// = 1 and the earlier 20-item sessions = 2. Costs doubled from 20→40 alongside
+// halving sessions 20→10, leaving the per-item earn-rate unchanged and never
+// re-locking a cat that was already earned under the old counting.
 //
 // Names are LOCKED (only Euclid→Euklides and Archimedes→Arkimedes differ by
 // locale); blurbs are translations. `spriteId` names the sprite folder under
@@ -17,14 +23,14 @@ export type RosterItem = {
   id: string; // locale-independent, e.g. 'pythagoras'
   kind: 'cat' | 'prop';
   spriteId: string; // ToffeeCraft sprite / slot id (placeholder for now)
-  cost: number; // completed sessions; cats = 20
+  cost: number; // session-units (one 10-item session = 1 unit); cats = 40
   order: number; // default display order
   name: Record<Locale, string>;
   blurb: Record<Locale, string>; // one-line "who/what", shown on tap
   slot?: { x: number; y: number }; // prop only (deferred)
 };
 
-export const CAT_COST = 20;
+export const CAT_COST = 40;
 
 export const ROSTER: RosterItem[] = [
   {
