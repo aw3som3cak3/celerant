@@ -136,8 +136,17 @@ export type SprintStep = { done: false; prompt: string; endsAt: number } | { don
 function finalize(s: SprintSession, now: number): SprintResult {
   if (!s.finalized) {
     s.finalized = true;
-    repo.appendSprint(s.playerId, s.skillCode, s.durationS, s.correct, s.errors, now); // ledger write → replay
-    repo.appendUsageEvent(s.playerId, 'sprint_done', s.skillCode, now); // motivational-layer only; also feeds the offer throttle
+    // An empty run — not one answer graded right OR wrong (correct + errors == 0)
+    // — is not a measurement. It is the same non-event as an aborted sprint (see
+    // abortSprint): persisting it would mint a spurious `measured` rate of 0 on a
+    // skill the child never actually sprinted, reading in the parent view as
+    // "0/aim (mätt)" on what may be their strongest skill. So write nothing — the
+    // run simply didn't happen. (WHY a completed run captures zero answers is a
+    // separate diagnosis; this only stops the bad rate from ever being recorded.)
+    if (s.correct + s.errors > 0) {
+      repo.appendSprint(s.playerId, s.skillCode, s.durationS, s.correct, s.errors, now); // ledger write → replay
+      repo.appendUsageEvent(s.playerId, 'sprint_done', s.skillCode, now); // motivational-layer only; also feeds the offer throttle
+    }
   }
   return {
     correct: s.correct,

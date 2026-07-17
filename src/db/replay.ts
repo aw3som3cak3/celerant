@@ -236,4 +236,22 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   // mouse climbed from behind-and-struggling to 95% mastery of åk2 and is now
   // coasting on it — placed at åk3 so he gets year-2 content and stays engaged.
   place('placed_mouse_ak3', 'mouse', 3);
+
+  // Empty-run cleanup (bug-hunt-fluency follow-up). Two sprints finalized with
+  // correct=0 AND errors=0 — no answer graded either way — minting a spurious
+  // `measured` rate of 0 that read as "0/22 (mätt)" on a child's STRONGEST skill.
+  // An empty run is not a measurement; it is the same non-event as an aborted
+  // sprint (sprint.ts now refuses to write one going forward). Tombstone every
+  // empty sprint already in the ledger and replay each affected child, so the
+  // skill falls back to its provisional seed and reads "ej övad" again. Runs once
+  // (own meta flag); a no-op on any DB that has no empty sprints.
+  if (!done('voided_empty_sprints_v1')) {
+    const affected = db
+      .prepare('SELECT DISTINCT player_id FROM sprint WHERE correct = 0 AND errors = 0 AND voided_at IS NULL')
+      .all() as { player_id: string }[];
+    db.prepare("UPDATE sprint SET voided_at = ?, void_reason = 'empty_run' WHERE correct = 0 AND errors = 0 AND voided_at IS NULL")
+      .run(Date.now());
+    for (const { player_id } of affected) replayOne(db, player_id);
+    mark('voided_empty_sprints_v1');
+  }
 }
