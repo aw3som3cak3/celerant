@@ -165,6 +165,15 @@ export function sprintAnswer(playerId: string, sprintId: string, given: string, 
   return { done: false, prompt: s.current.prompt, endsAt: s.endsAt };
 }
 
+// Abort an in-flight sprint WITHOUT finalizing (#3). A sprint interrupted mid-run
+// (the pad backgrounded) would otherwise finalize a cut-short, deflated rate on
+// resume. Aborting drops the in-memory run so nothing is ever written to the
+// ledger — an interrupted sprint simply didn't happen. No rate, honest or not.
+export function abortSprint(playerId: string, sprintId: string): void {
+  const s = sprints.get(sprintId);
+  if (s && s.playerId === playerId) sprints.delete(sprintId);
+}
+
 export function finishSprint(playerId: string, sprintId: string, now: number): SprintResult | null {
   const s = sprints.get(sprintId);
   if (!s || s.playerId !== playerId) return null;

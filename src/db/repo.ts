@@ -579,6 +579,16 @@ export function createSessionRun(playerId: string, target: number, now: number):
     .run(playerId, target, now);
   return Number(info.lastInsertRowid);
 }
+// The most recent still-open session for a player, if it started within the
+// resume window (#3). Lets the client continue an interrupted session — its
+// already-completed items are banked in `completed` — instead of losing it to a
+// fresh start. Never returns a completed/early-ended run (ended_at IS NOT NULL).
+export function openSessionRun(playerId: string, sinceMs: number): { id: number; target: number; completed: number } | undefined {
+  return getDb()
+    .prepare('SELECT id, target, completed FROM session_run WHERE player_id = ? AND ended_at IS NULL AND started_at >= ? ORDER BY started_at DESC, id DESC LIMIT 1')
+    .get(playerId, sinceMs) as { id: number; target: number; completed: number } | undefined;
+}
+
 export function sessionRunById(id: number): SessionRunRow | undefined {
   return getDb().prepare('SELECT * FROM session_run WHERE id = ?').get(id) as SessionRunRow | undefined;
 }

@@ -89,6 +89,7 @@ const sv: Dict = {
   'sprint.lapReady': 'En kort fartrunda på {skill}. Bara du och klockan — det går inte att misslyckas. Redo?',
   'sprint.lapGo': 'Kör!',
   'sprint.zapHint': 'Se hur snabb du är på {skill}',
+  'sprint.aborted': 'Vi tar fartrundan en annan gång.',
 
   'chart.celeration': 'Celeration ×{x} per vecka.',
   'chart.keepGoing': 'Fyra sprintar ritar en linje. Fortsätt.',
@@ -248,6 +249,7 @@ const en: Dict = {
   'sprint.lapReady': "A quick speed lap on {skill}. Just you and the clock — you can't fail it. Ready?",
   'sprint.lapGo': "Let's go!",
   'sprint.zapHint': 'See how fast you are at {skill}',
+  'sprint.aborted': "We'll take the speed lap another time.",
 
   'chart.celeration': 'Celeration ×{x} per week.',
   'chart.keepGoing': 'Four sprints draw a line. Keep going.',
