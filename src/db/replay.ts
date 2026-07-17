@@ -230,6 +230,20 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     }
   };
 
+  // Global session shortening + goal doubling (one-time, net-neutral). Sessions go
+  // 20→10 items everywhere and every session-denominated goal doubles, so the
+  // per-item earn-rate is unchanged. The reward COUNTS weight each session by
+  // ceil(items/10), so the old 20-item sessions already count double — existing
+  // cat progress and unlocks are preserved and this migration only needs to (a)
+  // set every existing child's length to 10 and (b) double stored goal targets
+  // (e.g. the family goal 30→60). Guarded — runs exactly once; a parent shortening
+  // a child further later (e.g. dolphin→6) is not clobbered.
+  if (!done('sessions_10_goals_x2_v1')) {
+    db.prepare('UPDATE player SET session_target = 10').run();
+    db.prepare('UPDATE family_goal SET target = target * 2').run();
+    mark('sessions_10_goals_x2_v1');
+  }
+
   // pig (now turtle) mastered year-1 but her åk1 seed locked year-2 — placed at
   // åk3 so year-2 becomes her served content. (Already applied.)
   place('placed_pig_ak3', 'pig', 3);

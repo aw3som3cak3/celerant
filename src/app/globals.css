@@ -977,7 +977,18 @@ table.plain-table th {
   transition: left 2.4s ease-in-out, top 2.4s ease-in-out;
   background: none; border: none; cursor: pointer; padding: 0;
   line-height: 0;
+  /* No grey/blue tap box on Chrome Android, no text-selection or callout, no focus
+     ring — patting a cat is a toy, not a form control. */
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: manipulation;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
 }
+.cat-actor:focus, .cat-actor:focus-visible { outline: none; }
 /* a 32×32 frame window over the sprite sheet, stepped by CSS, scaled up crisp */
 .cat-sprite {
   display: block;

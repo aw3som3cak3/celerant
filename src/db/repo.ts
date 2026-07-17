@@ -160,8 +160,8 @@ export type PlayerRow = {
 export function createPlayer(familyId: string, icon: string, schoolYear: number, now: number): string {
   const id = randomUUID();
   getDb()
-    .prepare('INSERT INTO player (id, family_id, icon, school_year, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(id, familyId, icon, schoolYear, now);
+    .prepare('INSERT INTO player (id, family_id, icon, school_year, session_target, created_at) VALUES (?, ?, ?, ?, 10, ?)')
+    .run(id, familyId, icon, schoolYear, now); // sessions are 10 items globally; a parent can shorten further
   replay(id); // seed the ability cache from årskurs
   return id;
 }
@@ -760,10 +760,18 @@ export function getAllocation(sessionRunId: number): AllocationRow | undefined {
     .get(sessionRunId) as AllocationRow | undefined;
 }
 
-// Sessions directed to each cat (all-time), for the reward state's progress map.
+// Session-units directed to each cat (all-time), for the reward state's progress
+// map. Each completed session counts ceil(items/10) units — a new 10-item session
+// = 1, an old 20-item session = 2 (see roster.ts) — so doubling cat costs 20→40
+// alongside halving sessions 20→10 is net-neutral, and a cat earned under the old
+// counting can never re-lock (its 20-item sessions still count double).
 export function catAllocationCounts(familyId: string): Map<string, number> {
   const rows = getDb()
-    .prepare("SELECT target_id, COUNT(*) c FROM session_allocation WHERE family_id = ? AND target_kind = 'cat' GROUP BY target_id")
+    .prepare(
+      `SELECT a.target_id, SUM((sr.target + 9) / 10) c FROM session_allocation a
+       JOIN session_run sr ON sr.id = a.session_run_id
+       WHERE a.family_id = ? AND a.target_kind = 'cat' GROUP BY a.target_id`,
+    )
     .all(familyId) as { target_id: string; c: number }[];
   return new Map(rows.map((r) => [r.target_id, r.c]));
 }
@@ -773,7 +781,7 @@ export function catAllocationCounts(familyId: string): Map<string, number> {
 export function catPropAllocatedSessions(familyId: string, sinceMs: number): number {
   const r = getDb()
     .prepare(
-      `SELECT COUNT(*) c FROM session_allocation a JOIN session_run sr ON sr.id = a.session_run_id
+      `SELECT COALESCE(SUM((sr.target + 9) / 10), 0) c FROM session_allocation a JOIN session_run sr ON sr.id = a.session_run_id
        WHERE a.family_id = ? AND a.target_kind IN ('cat','prop')
        AND sr.started_at >= ? AND sr.ended_at IS NOT NULL AND sr.ended_early = 0 AND sr.completed >= sr.target`,
     )
@@ -785,8 +793,23 @@ export function catPropAllocatedSessions(familyId: string, sinceMs: number): num
 // a kid directed to a cat/prop, so a cat genuinely costs the goal a session (the
 // intended opportunity cost). Legacy sessions (no allocation row) always count, so
 // existing progress is preserved. Never negative.
+//
+// Counted in session-units (ceil(items/10)) like the cat costs, so a goal denomi-
+// nated in sessions is net-neutral across the 20→10 halving: an old 20-item session
+// counts 2, a new 10-item session 1. (completedSessionsForFamily stays a raw count
+// for its own callers; the weighting lives here where the goal is compared to its
+// doubled target.)
 export function familyGoalProgress(familyId: string, sinceMs: number): number {
-  return Math.max(0, completedSessionsForFamily(familyId, sinceMs) - catPropAllocatedSessions(familyId, sinceMs));
+  const completedUnits = (
+    getDb()
+      .prepare(
+        `SELECT COALESCE(SUM((sr.target + 9) / 10), 0) c FROM session_run sr JOIN player p ON p.id = sr.player_id
+         WHERE p.family_id = ? AND sr.ended_early = 0 AND sr.ended_at IS NOT NULL
+         AND sr.completed >= sr.target AND sr.started_at >= ?`,
+      )
+      .get(familyId, sinceMs) as { c: number }
+  ).c;
+  return Math.max(0, completedUnits - catPropAllocatedSessions(familyId, sinceMs));
 }
 
 export type SharedTargetRow = { target_kind: 'cat' | 'family' | 'prop'; target_id: string };
