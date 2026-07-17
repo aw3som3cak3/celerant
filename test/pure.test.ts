@@ -8,7 +8,7 @@ import { fluencyDisplay } from '@/lib/parent-fluency';
 import { reachUpProbability } from '@/lib/onboarding';
 
 const sigmoid = (t: number) => 1 / (1 + Math.exp(-t));
-const fakeSkill = (year: number): Skill => ({ code: 'x', family: 'f', year, mode: 'component', requires: [], generate: () => ({ prompt: '', answer: { kind: 'int', v: 0 }, steps: [] }) });
+const fakeSkill = (year: number): Skill => ({ code: 'x', family: 'f', year, mode: 'component', sprintable: true, requires: [], generate: () => ({ prompt: '', answer: { kind: 'int', v: 0 }, steps: [] }) });
 
 describe('parent flyt column: seeded ≠ earned (bug-hunt-fluency.md §5)', () => {
   const aim = 17;

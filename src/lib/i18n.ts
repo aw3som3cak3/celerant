@@ -90,6 +90,19 @@ const sv: Dict = {
   'sprint.lapGo': 'Kör!',
   'sprint.zapHint': 'Se hur snabb du är på {skill}',
   'sprint.aborted': 'Vi tar fartrundan en annan gång.',
+  // Sprint outcomes (celerant sprint-reward). Milestone = crossed the aim cleanly;
+  // near-miss has two opposite coachings; collapse routes gently back to practice.
+  'sprint.milestoneTitle': 'Du klarade målet! 🎉',
+  'sprint.milestoneLine': 'Du blev snabb på {skill} — det räknas på riktigt!',
+  'sprint.bonusCountsToward': 'Dina {n} bonuspoäng går till',
+  'sprint.nearBuildSpeed': 'Du har koll på {skill}. Nu bygger vi farten — nästan där!',
+  'sprint.nearKeepClean': 'Bra fart! Nu håller vi det rätt hela vägen.',
+  'sprint.collapseTitle': 'Bra kämpat!',
+  'sprint.collapseLine': 'Den var klurig mot klockan. Vi tränar {skill} lugnt utan tid ett tag till.',
+  'sprint.againZap': 'En till ⚡',
+  'sprint.toPractice': 'Öva lugnt',
+  'home.startPractice': 'Öva',
+  'home.startSprint': 'Fartrunda',
 
   'chart.celeration': 'Celeration ×{x} per vecka.',
   'chart.keepGoing': 'Fyra sprintar ritar en linje. Fortsätt.',
@@ -250,6 +263,19 @@ const en: Dict = {
   'sprint.lapGo': "Let's go!",
   'sprint.zapHint': 'See how fast you are at {skill}',
   'sprint.aborted': "We'll take the speed lap another time.",
+  // Sprint outcomes (celerant sprint-reward). Milestone = crossed the aim cleanly;
+  // near-miss has two opposite coachings; collapse routes gently back to practice.
+  'sprint.milestoneTitle': 'You hit the aim! 🎉',
+  'sprint.milestoneLine': 'You got fast at {skill} — that really counts!',
+  'sprint.bonusCountsToward': 'Your {n} bonus points go to',
+  'sprint.nearBuildSpeed': "You've got {skill}. Now let's build speed — almost there!",
+  'sprint.nearKeepClean': 'Great pace! Now keep it clean all the way.',
+  'sprint.collapseTitle': 'Good effort!',
+  'sprint.collapseLine': "That one was tricky against the clock. Let's practise {skill} calmly, no timer, a bit more.",
+  'sprint.againZap': 'Another ⚡',
+  'sprint.toPractice': 'Practise calmly',
+  'home.startPractice': 'Practise',
+  'home.startSprint': 'Speed lap',
 
   'chart.celeration': 'Celeration ×{x} per week.',
   'chart.keepGoing': 'Four sprints draw a line. Keep going.',

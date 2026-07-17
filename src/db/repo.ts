@@ -299,14 +299,15 @@ export function appendSprint(
   correct: number,
   errors: number,
   now: number,
-): void {
-  getDb()
+): number {
+  const info = getDb()
     .prepare('INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at) VALUES (?, ?, ?, ?, ?, ?)')
     .run(playerId, skillCode, durationS, correct, errors, now);
   // Fast path: the latest sprint replaces this skill's rate outright (measured).
   getDb()
     .prepare("UPDATE ability SET rate = ?, rate_state = 'measured' WHERE player_id = ? AND skill_code = ?")
     .run((correct * 60) / durationS, playerId, skillCode);
+  return Number(info.lastInsertRowid);
 }
 
 export function appendToolRate(playerId: string, digitsPerMin: number, now: number): void {
@@ -348,6 +349,18 @@ export function recentFirstTryAccuracy(playerId: string, skillCode: string, n: n
   const rows = getDb()
     .prepare('SELECT correct, tries FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL ORDER BY id DESC LIMIT ?')
     .all(playerId, skillCode, n) as { correct: number; tries: number }[];
+  if (rows.length === 0) return { acc: 0, count: 0 };
+  return { acc: rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length, count: rows.length };
+}
+
+// Same as recentFirstTryAccuracy but only over attempts AFTER `sinceAt` — the
+// state-based sprint cooldown (sprint-eligibility): a skill demoted by a collapsed
+// sprint must re-earn eligibility on FRESH untimed accuracy, so its accuracy is
+// measured only over practice since the demotion. `sinceAt = 0` ⇒ whole history.
+export function recentFirstTryAccuracySince(playerId: string, skillCode: string, n: number, sinceAt: number): { acc: number; count: number } {
+  const rows = getDb()
+    .prepare('SELECT correct, tries FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL AND at > ? ORDER BY id DESC LIMIT ?')
+    .all(playerId, skillCode, sinceAt, n) as { correct: number; tries: number }[];
   if (rows.length === 0) return { acc: 0, count: 0 };
   return { acc: rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length, count: rows.length };
 }
@@ -773,7 +786,59 @@ export function catAllocationCounts(familyId: string): Map<string, number> {
        WHERE a.family_id = ? AND a.target_kind = 'cat' GROUP BY a.target_id`,
     )
     .all(familyId) as { target_id: string; c: number }[];
-  return new Map(rows.map((r) => [r.target_id, r.c]));
+  const counts = new Map(rows.map((r) => [r.target_id, r.c]));
+  // Fold in sprint milestone bonus units (not sessions) directed to each cat.
+  for (const [id, u] of bonusCatUnits(familyId)) counts.set(id, (counts.get(id) ?? 0) + u);
+  return counts;
+}
+
+// --- Sprint milestone BONUS units (celerant sprint-reward) ------------------
+// A one-time reward for a child crossing a skill's fluency aim on a sprint. It
+// pays into the SAME cat/family/prop economy as sessions, but in raw UNITS that
+// are NOT sessions — so it advances a cat or the goal WITHOUT ever incrementing
+// the weekly "pass"/displacement wellbeing counter (which reads session_run only;
+// a sprint is never a pass). Keyed on the crossing sprint (one per skill, since
+// crossing makes the skill fluent → sprint-ineligible), so it is one-time by
+// construction and the child may REDIRECT it (upsert) but never farm it.
+export function setBonusAllocation(
+  sprintId: number,
+  playerId: string,
+  familyId: string,
+  kind: 'cat' | 'family' | 'prop',
+  targetId: string,
+  units: number,
+  at: number,
+): void {
+  getDb()
+    .prepare(
+      `INSERT INTO bonus_allocation (sprint_id, player_id, family_id, target_kind, target_id, units, at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(sprint_id) DO UPDATE SET target_kind = excluded.target_kind, target_id = excluded.target_id, at = excluded.at`,
+    )
+    .run(sprintId, playerId, familyId, kind, targetId, units, at);
+}
+
+export function bonusAllocationForSprint(sprintId: number): { player_id: string; family_id: string; target_kind: string; target_id: string; units: number } | undefined {
+  return getDb()
+    .prepare('SELECT player_id, family_id, target_kind, target_id, units FROM bonus_allocation WHERE sprint_id = ?')
+    .get(sprintId) as { player_id: string; family_id: string; target_kind: string; target_id: string; units: number } | undefined;
+}
+
+// Bonus units directed to each cat (all-time), mirroring catAllocationCounts.
+export function bonusCatUnits(familyId: string): Map<string, number> {
+  const rows = getDb()
+    .prepare("SELECT target_id, COALESCE(SUM(units),0) u FROM bonus_allocation WHERE family_id = ? AND target_kind = 'cat' GROUP BY target_id")
+    .all(familyId) as { target_id: string; u: number }[];
+  return new Map(rows.map((r) => [r.target_id, r.u]));
+}
+
+// Bonus units directed to the family goal since a cutoff (goal.created_at), added
+// to the goal residual the same way a bonus-to-cat is added to that cat's count.
+export function bonusFamilyUnits(familyId: string, sinceMs: number): number {
+  const r = getDb()
+    .prepare("SELECT COALESCE(SUM(units),0) u FROM bonus_allocation WHERE family_id = ? AND target_kind = 'family' AND at >= ?")
+    .get(familyId, sinceMs) as { u: number };
+  return r.u;
 }
 
 // Completed family sessions (since a cutoff) that were directed to a cat/prop —
@@ -809,7 +874,9 @@ export function familyGoalProgress(familyId: string, sinceMs: number): number {
       )
       .get(familyId, sinceMs) as { c: number }
   ).c;
-  return Math.max(0, completedUnits - catPropAllocatedSessions(familyId, sinceMs));
+  // Bonus units directed to the goal add on top of the session residual; a sprint
+  // milestone is a real contribution to "simhallen", but it is never a session/pass.
+  return Math.max(0, completedUnits - catPropAllocatedSessions(familyId, sinceMs)) + bonusFamilyUnits(familyId, sinceMs);
 }
 
 export type SharedTargetRow = { target_kind: 'cat' | 'family' | 'prop'; target_id: string };
@@ -861,6 +928,17 @@ export function usageDetailsSince(playerId: string, kind: string, sinceMs: numbe
     .prepare('SELECT detail FROM usage_event WHERE player_id = ? AND kind = ? AND at >= ? AND detail IS NOT NULL')
     .all(playerId, kind, sinceMs) as { detail: string }[];
   return rows.map((r) => r.detail);
+}
+
+// When a skill was last DEMOTED by a collapsed sprint (sprint-eligibility). The
+// sprint cooldown is state-based: a demoted skill re-earns eligibility only on
+// fresh untimed accuracy AFTER this instant (recentFirstTryAccuracySince). Reads a
+// usage_event, which replay never sees — so a collapse never dents θ or an unlock.
+export function lastSprintDemotionAt(playerId: string, skillCode: string): number {
+  const r = getDb()
+    .prepare("SELECT MAX(at) m FROM usage_event WHERE player_id = ? AND kind = 'sprint_demoted' AND detail = ?")
+    .get(playerId, skillCode) as { m: number | null };
+  return r.m ?? 0;
 }
 
 // Completed sessions started at/after sinceMs, for one player. The offer throttle

@@ -199,6 +199,25 @@ CREATE TABLE IF NOT EXISTS session_allocation (
 );
 CREATE INDEX IF NOT EXISTS idx_session_allocation_family ON session_allocation(family_id, target_kind, target_id);
 
+-- Sprint milestone BONUS units (celerant sprint-reward). A one-time reward for a
+-- child crossing a skill's fluency aim on a sprint, paid into the SAME cat/family/
+-- prop economy as sessions but in raw UNITS that are NOT sessions — so it advances
+-- a cat or the goal but NEVER touches the weekly "pass"/displacement wellbeing
+-- counter (which reads session_run only). Keyed on the crossing sprint (one per
+-- skill, since crossing makes the skill fluent → ineligible), so the bonus is
+-- one-time by construction; the child may REDIRECT it (upsert), never farm it.
+-- MOTIVATIONAL LAYER: replay() never reads this; dropping every row changes no θ.
+CREATE TABLE IF NOT EXISTS bonus_allocation (
+  sprint_id   INTEGER PRIMARY KEY REFERENCES sprint(id),
+  player_id   TEXT NOT NULL REFERENCES player(id),
+  family_id   TEXT NOT NULL REFERENCES family(id),
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('cat','family','prop')),
+  target_id   TEXT NOT NULL,
+  units       INTEGER NOT NULL,
+  at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_bonus_allocation_family ON bonus_allocation(family_id, target_kind, target_id);
+
 -- The family's current shared DEFAULT target ("let's all collect for Pythagoras").
 -- Latest-wins settings row (SHARED_TARGET_SET), not a ledger. A completed session
 -- auto-directs here unless the kid redirects it. Cooperative, family-wide.

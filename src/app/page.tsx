@@ -24,7 +24,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -176,6 +176,7 @@ function Players({ me }: { me: Me }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [changing, setChanging] = useState<Player | null>(null);
+  const [sprinting, setSprinting] = useState<Player | null>(null);
   return (
     <>
       <TopBar authed />
@@ -197,16 +198,20 @@ function Players({ me }: { me: Me }) {
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            // In edit mode a tap opens the icon picker for THAT child; otherwise it
-            // starts their session. No grade on the tile (fix-grade-source-of-truth §2).
+            // In edit mode a tap opens the icon picker for THAT child. Otherwise it
+            // starts their session — unless the child has a skill in the fluency-
+            // building band (canSprint), in which case a tap offers the choice of a
+            // normal session OR a ⚡ sprint (a victory lap they can reach for, never
+            // forced). No grade on the tile (fix-grade-source-of-truth §2).
             <button
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              onClick={() => (editing ? setChanging(p) : (location.href = `/practice?p=${p.id}`))}
+              onClick={() => (editing ? setChanging(p) : p.canSprint ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
               {BY_KEY.get(p.icon)?.glyph ?? '?'}
               {editing && <span className="tile-edit">✏️</span>}
+              {!editing && p.canSprint && <span className="tile-zap" aria-hidden>⚡</span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -229,7 +234,27 @@ function Players({ me }: { me: Me }) {
           onClose={() => setChanging(null)}
         />
       )}
+      {sprinting && <SprintChoiceModal player={sprinting} onClose={() => setSprinting(null)} />}
     </>
+  );
+}
+
+// A child with a sprintable skill taps their icon: offer the choice of a normal
+// session or a ⚡ sprint. The sprint is the reachable victory lap, never the default
+// — practice stays the primary, larger action. (celerant sprint-reward)
+function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () => void }) {
+  const { t } = useI18n();
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="bigpair" style={{ margin: '0.2rem 0 0.8rem' }}>{BY_KEY.get(player.icon)?.glyph ?? '?'}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+          <a className="primary" href={`/practice?p=${player.id}`}>{t('home.startPractice')}</a>
+          <a className="next-btn" href={`/sprint?p=${player.id}`}>⚡ {t('home.startSprint')}</a>
+          <button className="idk" onClick={onClose}>{t('common.close')}</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

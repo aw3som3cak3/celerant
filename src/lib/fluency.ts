@@ -3,6 +3,44 @@
 
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
+
+// --- Sprint OUTCOME classification (the reward/coaching fork) ---------------
+// A finished sprint is one of three ordered, total buckets, decided from the
+// rate (correct/min) vs the aim and the IN-SPRINT accuracy (correct/(correct+
+// errors)). The order matters: accuracy is checked FIRST, so speed bought by
+// dropping accuracy can never be paid as a milestone — we never teach rushing.
+export const MILESTONE_BONUS = 3; // one-time reward units for crossing the aim (tunable)
+export const SPRINT_ACC_FLOOR = 0.9; // "accuracy held": at/above this the run is clean
+export const SPRINT_COLLAPSE_FLOOR = 0.5; // below this accuracy the skill wasn't ready → demote
+
+export type SprintOutcome =
+  | { kind: 'milestone' } // rate ≥ aim AND accuracy held → crossed into fluent
+  | { kind: 'near_miss'; reason: 'build_speed' | 'keep_clean' } // eligible, didn't cross; two opposite coachings
+  | { kind: 'collapse' }; // accuracy fell apart under time → not ready, demote
+
+// Pure and total. `correct`/`errors` are the sprint tallies; aim is the fluency
+// aim. Empty runs (no graded answer) are handled by the caller (no outcome).
+export function classifySprint(correct: number, errors: number, correctPerMin: number, aim: number): SprintOutcome {
+  const graded = correct + errors;
+  const acc = graded > 0 ? correct / graded : 0;
+  // 1) Accuracy fell apart → readiness signal, not a speed measurement.
+  if (acc < SPRINT_COLLAPSE_FLOOR) return { kind: 'collapse' };
+  // 2) Fast AND clean → the one-time milestone.
+  if (correctPerMin >= aim && acc >= SPRINT_ACC_FLOOR) return { kind: 'milestone' };
+  // 3) Everything else is a near miss, but of two opposite kinds:
+  //    - fast-but-sloppy (rate ≥ aim, accuracy 0.5–0.9): "great pace, keep it clean"
+  //    - slow-but-accurate (rate < aim, accuracy held):  "you've got it, now build speed"
+  return { kind: 'near_miss', reason: correctPerMin >= aim ? 'keep_clean' : 'build_speed' };
+}
+
+// Whether a run's rate is clean enough to record as fluency evidence. Only a run
+// whose accuracy HELD (≥ floor) writes a rate — a collapse or a fast-but-sloppy
+// run measures unreadiness, not speed, and must never reach the celeration chart
+// or the parent view. Same principle as voiding an interrupted interval.
+export function sprintRateIsCredible(correct: number, errors: number): boolean {
+  const graded = correct + errors;
+  return graded > 0 && correct / graded >= SPRINT_ACC_FLOOR;
+}
 export const AIM_BASE_FRACTION = 0.55; // 0.55 × ceiling × aim_factor
 
 // A provisional rate for a component tier ABOVE the child's placement floor is

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as repo from '@/db/repo';
 import { sessionFromRequest, parentFamilyFromRequest } from '@/lib/auth';
+import { hasSprintAvailable } from '@/lib/sprint-eligibility';
 import { familyIcons } from '@/icons';
 import { json } from '@/lib/api';
 
@@ -23,7 +24,11 @@ export function GET(req: NextRequest) {
     // No per-child activity on this shared screen: two siblings' rows side by
     // side is a comparison surface (§4.1). The 7-day record is private, shown
     // only behind the child's own icon (the shelf).
-    players: repo.playersInFamily(s.familyId).map((p) => ({ id: p.id, icon: p.icon, schoolYear: p.school_year })),
+    // canSprint drives the ⚡ affordance when a child taps their icon: does this
+    // child have ANY skill in the fluency-building band right now? (Derived from
+    // eligibility, self-regulating — no cadence.) Per-child capability, not a
+    // per-child activity/score, so it stays off the comparison-surface rule.
+    players: repo.playersInFamily(s.familyId).map((p) => ({ id: p.id, icon: p.icon, schoolYear: p.school_year, canSprint: hasSprintAvailable(p.id) })),
     // The family goal is cooperative and family-wide, so the family may see it
     // (no per-child breakdown). Only the progress number, never who did what.
     goal: goalRow

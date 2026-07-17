@@ -7,11 +7,18 @@ import { CelerationChart, type ChartData } from '../_components/CelerationChart'
 import { useI18n } from '../_components/LocaleProvider';
 import { useWakeLock } from '../_components/useWakeLock';
 import { AnswerInput } from '../_components/AnswerInput';
+import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 
 type Eligible = { code: string; family: string; accuracy: number; aim: number; rate: number | null };
 type Started = { sprintId: string; prompt: string; durationS: number; endsAt: number; family: string };
-type Result = { correct: number; errors: number; durationS: number; correctPerMin: number; errorsPerMin: number; aim: number };
+type SprintOutcome =
+  | { kind: 'milestone' }
+  | { kind: 'near_miss'; reason: 'build_speed' | 'keep_clean' }
+  | { kind: 'collapse' };
+type Bonus = { sprintId: number; units: number };
+type Result = { correct: number; errors: number; durationS: number; correctPerMin: number; errorsPerMin: number; aim: number; outcome: SprintOutcome | null; bonus: Bonus | null };
 type Step = { done: false; prompt: string; endsAt: number } | { done: true; result: Result };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // A victory-lap sprint reached via a pre-selected skill (?start=CODE from the done
 // screen or the shelf ⚡) is fixed-length: no menu, no duration choice — one short,
@@ -218,23 +225,110 @@ function Sprint() {
     );
   }
 
-  // The victory lap's own screen: the child's speed and their own rising line —
-  // no aim, no pass/fail, no errors-as-verdict. "A sprint can never be failed, it
-  // can only be done." The chart draws showAim off (its default), so nothing on
-  // this page reads as a bar to clear.
+  // The victory lap's own screen. The primary reward is the FLUENCY result made
+  // vivid — the rising line, and on a crossing the celebration that the child made
+  // a skill fast. The +3 milestone points are garnish on that, never the pitch.
+  // "A sprint can never be failed, it can only be done": a near-miss shows progress
+  // and coaching (two opposite kinds), a collapse routes gently back to untimed
+  // practice — no failure language anywhere.
+  const outcome = result?.outcome ?? null;
+  const skillName = code.replace(/_/g, ' ');
+  const againButton = isLap ? (
+    <button className="primary" onClick={() => start(startCode, LAP_DURATION)}>{t('sprint.againZap')}</button>
+  ) : (
+    <button className="primary" onClick={() => { setPhase('pick'); loadEligible(); }}>{t('sprint.againZap')}</button>
+  );
+  const backLink = <a className="idk" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
+
+  // A collapsed sprint: no chart (no rate was recorded), no retry nudge. A calm
+  // off-ramp to untimed practice on the same skill — support, not a nag.
+  if (outcome?.kind === 'collapse') {
+    return (
+      <div className="plain">
+        <h1>{t('sprint.collapseTitle')}</h1>
+        <p className="muted" style={{ marginTop: '0.6rem' }}>{t('sprint.collapseLine', { skill: skillName })}</p>
+        <p style={{ marginTop: '1.5rem' }}>
+          <a className="primary" href={`/practice?p=${p}&start=${encodeURIComponent(code)}`}>{t('sprint.toPractice')}</a>{' '}
+          {backLink}
+        </p>
+      </div>
+    );
+  }
+
+  // A milestone crossing: celebrate that the skill is now FAST, then let the child
+  // direct the +3 bonus (auto-directed already; this just redirects it).
+  if (outcome?.kind === 'milestone') {
+    return (
+      <div className="plain">
+        <h1>{t('sprint.milestoneTitle')}</h1>
+        <p style={{ fontSize: '1.3rem', margin: '0.5rem 0' }}>{t('sprint.milestoneLine', { skill: skillName })}</p>
+        {result && <p className="muted">{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
+        {chart && <CelerationChart data={chart} />}
+        {result?.bonus && <SprintBonusAllocation sprintId={result.bonus.sprintId} units={result.bonus.units} />}
+        <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
+      </div>
+    );
+  }
+
+  // A near-miss (or a plain finish): speed + the rising line, and — since a near-miss
+  // covers two opposite failures — coaching that fits which one it was.
+  const coaching =
+    outcome?.kind === 'near_miss'
+      ? outcome.reason === 'keep_clean'
+        ? t('sprint.nearKeepClean')
+        : t('sprint.nearBuildSpeed', { skill: skillName })
+      : null;
   return (
     <div className="plain">
       <h1>{t('sprint.done')}</h1>
       {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
+      {coaching && <p className="muted">{coaching}</p>}
       {chart && <CelerationChart data={chart} />}
-      <p style={{ marginTop: '1.5rem' }}>
-        {isLap ? (
-          <button className="primary" onClick={() => start(startCode, LAP_DURATION)}>{t('common.again')}</button>
-        ) : (
-          <button className="primary" onClick={() => { setPhase('pick'); loadEligible(); }}>{t('common.again')}</button>
-        )}{' '}
-        <a className="idk" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>
-      </p>
+      <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
+    </div>
+  );
+}
+
+// Direct the sprint MILESTONE bonus (the +3 units) to a cat or the family goal —
+// the same chooser a session uses, but posting to the bonus endpoint. The bonus is
+// already auto-directed to the shared target; this only redirects it. It counts
+// toward cats/goal but is never a session/pass (celerant sprint-reward).
+function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: number }) {
+  const { t, locale } = useI18n();
+  const [data, setData] = useState<RewardData | null>(null);
+  const [chosen, setChosen] = useState<Target | null>(null);
+
+  useEffect(() => {
+    getJSON<RewardData>('/api/reward').then((d) => { setData(d); setChosen(d.sharedTarget); });
+  }, []);
+
+  async function pick(target: Target) {
+    setChosen(target);
+    const r = await postJSON<{ reward?: RewardData }>('/api/sprint/allocate-bonus', { sprintId, target });
+    if (r.reward) setData(r.reward);
+  }
+
+  if (!data || !chosen) return null;
+  const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
+  const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
+  return (
+    <div className="alloc-box">
+      <div className="alloc-head">{t('sprint.bonusCountsToward', { n: units })}</div>
+      <div className="alloc-choices">
+        {cats.map((c) => {
+          const tgt: Target = { kind: 'cat', id: c.id };
+          return (
+            <button key={c.id} className={`alloc-chip ${same(chosen, tgt) ? 'on' : ''}`} onClick={() => pick(tgt)}>
+              <span className="cat-face" style={{ width: 20, height: 20, backgroundImage: `url(/cats/${c.id}/idle.png)`, backgroundSize: '140px 20px' }} aria-hidden /> {c.name[locale]}
+            </button>
+          );
+        })}
+        {data.familyGoalOpen && (
+          <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
+            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

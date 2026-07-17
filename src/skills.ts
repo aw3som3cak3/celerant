@@ -35,10 +35,32 @@ export type Skill = {
   code: string;
   family: string;
   year: number; // Lgr22 school year
-  mode: "component" | "compound"; // only components may be sprinted
+  mode: "component" | "compound"; // compounds combine across operations
+  // Whether a 30-second fluency SPRINT belongs on this skill. `mode` alone is the
+  // wrong gate: a compound (an equation, fraction arithmetic, order-of-operations)
+  // is never sprinted, but neither should a multi-column WRITTEN algorithm be —
+  // written ×/÷ of ≥2 digits, or 3-digit add/sub with carrying/borrowing across
+  // columns. Sprints are for facts and single seams that should become AUTOMATIC;
+  // clocking a written procedure teaches rushing, and its "rate" measures pencil
+  // speed, not recall. Derived by default (a component IS sprintable) and turned
+  // off for the written procedures listed in NON_SPRINTABLE — the one judgement
+  // call here, alongside `year`. Single-carry 2-digit and 3-digit-carry-once are
+  // deliberately KEPT sprintable as still-mental; tune the set to move the line.
+  sprintable: boolean;
   requires: string[];
   generate(r: Rng): Item;
 };
+
+// Written multi-column algorithms: sprint-INELIGIBLE (see Skill.sprintable). The
+// single source of truth for the tool/procedure line — grep here to adjust it.
+const NON_SPRINTABLE: ReadonlySet<string> = new Set([
+  "mult_2d_by_1d_no_carry",
+  "mult_2d_by_1d_carry",
+  "div_2d_by_1d_exact",
+  "add_3d_carry_twice",
+  "sub_3d_borrow",
+  "sub_3d_borrow_across_zero",
+]);
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
 
@@ -105,8 +127,11 @@ const until = <T>(f: () => T, ok: (t: T) => boolean, tries = 400): T => {
   throw new Error("generator could not satisfy its constraint");
 };
 
-const S = (s: Omit<Skill, "family"> & { family?: string }): Skill => ({
+const S = (s: Omit<Skill, "family" | "sprintable"> & { family?: string }): Skill => ({
   family: s.code.split("_")[0],
+  // A component is sprintable unless it's a written multi-column algorithm; a
+  // compound is never sprintable. One derived flag, one exception set.
+  sprintable: s.mode === "component" && !NON_SPRINTABLE.has(s.code),
   ...s,
 } as Skill);
 

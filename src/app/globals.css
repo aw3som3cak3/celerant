@@ -724,6 +724,14 @@ table.plain-table th {
   background: var(--accent); color: #fff;
   border-radius: 50%;
 }
+/* A child with a skill in the fluency-building band wears a small ⚡ — a discoverable
+   invitation to a victory lap, never a demand. Corner badge, like the edit pencil. */
+.tile-zap {
+  position: absolute;
+  top: -8px; right: -8px;
+  font-size: 1rem;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+}
 
 /* family-card action row: the cat room + change-icon, as real buttons */
 .family-actions {

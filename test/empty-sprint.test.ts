@@ -72,15 +72,18 @@ describe('empty sprint — a run with no graded answers writes no rate (bug-hunt
     expect(rateState(pid, SKILL)).toBe('provisional'); // still "ej övad", not "mätt"
   });
 
-  it('a run with at least one graded answer IS a measurement and is recorded', () => {
+  it('a run whose accuracy HELD is recorded as a measurement', () => {
     const start = startSprint(pid, SKILL, 30, NOW + 1000);
     expect(start).not.toBeNull();
-    // One graded answer (wrong is still a measurement of throughput), then time out.
-    sprintAnswer(pid, start!.sprintId, 'definitely-wrong', NOW + 2000);
+    // A correct answer (accuracy holds) — a credible rate, so it IS recorded. (A
+    // wrong-only run would NOT be, by the accuracy-held write rule; that's covered
+    // in sprint-reward.test.ts.) SKILL is add_within_10 ⇒ prompt "a + b =".
+    const [a, , b] = start!.prompt.replace('=', '').trim().split(/\s+/);
+    sprintAnswer(pid, start!.sprintId, String(parseInt(a, 10) + parseInt(b, 10)), NOW + 2000);
     const result = finishSprint(pid, start!.sprintId, NOW + 31_000);
 
     expect(result).not.toBeNull();
-    expect(result!.correct + result!.errors).toBeGreaterThan(0);
+    expect(result!.correct).toBeGreaterThan(0);
     expect(sprintCount(pid)).toBe(1); // this one WAS written
     expect(rateState(pid, SKILL)).toBe('measured');
   });
