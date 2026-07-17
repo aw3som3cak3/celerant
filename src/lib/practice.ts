@@ -64,6 +64,16 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
 // counter stalls. Items self-expire; the client just fetches a fresh one.
 const PENDING_TTL_MS = 6 * 3600 * 1000;
 
+// Timing-void threshold (#3). An item still open this long after it was served
+// was almost certainly interrupted — a parent said "brush your teeth" mid-problem
+// — not genuinely being worked on (a problem at the child's level is seconds, not
+// minutes). We DISCARD it rather than record it, so an interruption-inflated
+// latency can never reach the fluency/transfer data: a 13-hour problem never
+// becomes an attempt. The child is simply served a fresh item (the client also
+// refetches proactively on resume). Completed-before items keep their real
+// timings. Generous enough not to clip a legitimately slow answer.
+export const TIMING_STALE_MS = 3 * 60 * 1000;
+
 export type NextItem = {
   itemId: string;
   prompt: string;
@@ -194,6 +204,16 @@ export function answer(
 ): AnswerResult {
   const p = repo.getPendingItem(itemId);
   if (!p || p.player_id !== playerId) return { status: 'expired' };
+
+  // Timing void (#3): an item open past the stale threshold was interrupted, not
+  // solved. Discard it — write NO attempt — so its contaminated latency never
+  // lands in the rate/transfer data, and hand the client a fresh item ('expired'
+  // is exactly what it already re-fetches on). The session counter is untouched:
+  // a discarded item never counted, so nothing double-counts on resume.
+  if (now - p.served_at > TIMING_STALE_MS) {
+    repo.deletePendingItem(itemId);
+    return { status: 'expired' };
+  }
 
   if (!idk) {
     const isCorrect = grade(given ?? '', p.answer);

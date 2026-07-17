@@ -6,6 +6,13 @@ import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
+import { useWakeLock } from '../_components/useWakeLock';
+
+// A problem left on screen while the pad is backgrounded this long counts as an
+// interruption (#3): on return we discard it and serve a fresh one, so a broken
+// interval never becomes the child's answer. The server enforces the same rule by
+// elapsed time; this is the client's snappier, proactive half.
+const CLIENT_INTERRUPT_MS = 30 * 1000;
 
 type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
 type Session = { completed: number; target: number; done: boolean };
@@ -44,6 +51,12 @@ function Practice() {
   const inputRef = useRef<HTMLInputElement>(null);
   const firstRef = useRef(true);
   const autoStarted = useRef(false);
+  const resumingRef = useRef(false); // resuming an interrupted session: skip the chooser, load straight in
+  const hiddenAtRef = useRef<number | null>(null); // when the pad was last backgrounded, for interrupt detection
+
+  // Hold the screen awake while a problem is on screen (#2) — a child looking away
+  // to count on their fingers shouldn't watch the pad sleep. Released otherwise.
+  useWakeLock(phase === 'answer' || phase === 'revealed');
 
   // Show whose session this is (their own icon) — identity, not a status badge.
   useEffect(() => {
@@ -58,6 +71,7 @@ function Practice() {
     const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again });
     if (r.error) return void (location.href = '/');
     autoStarted.current = false; // allow the ramp/start auto-load to fire for this session
+    resumingRef.current = false;
     setRamp(r.rampLen ?? 0);
     setSessionId(r.sessionId);
     setTarget(r.target);
@@ -67,13 +81,33 @@ function Practice() {
     setPhase('choose');
   }, [playerId]);
 
-  // Straight into a session. Nothing — no assessment, no measurement, no offer —
-  // stands between a child and their first winnable problem. The child's first
-  // experience belongs to the child, and it must be a win.
+  // On mount, RESUME an interrupted session if one is still open (#3) — its
+  // completed items already bank toward the goal, so a "put the pad away" mid-
+  // session isn't lost — otherwise start fresh. A resume skips the chooser and
+  // drops straight into the next problem (the auto-load effect handles it). Still:
+  // nothing — no assessment, no offer — ever stands between a child and their
+  // first winnable problem; the first experience is always a win.
+  const resumeOrStart = useCallback(async () => {
+    const cur = await getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`);
+    if (cur.session) {
+      autoStarted.current = false;
+      resumingRef.current = true;
+      setSessionId(cur.session.id);
+      setTarget(cur.session.target);
+      setCompleted(cur.session.completed);
+      setRamp(0);
+      setChoices([]);
+      firstRef.current = false;
+      setPhase('choose'); // blank; the auto-load effect loads the next item
+    } else {
+      startSession();
+    }
+  }, [playerId, startSession]);
+
   useEffect(() => {
     if (!playerId) return void (location.href = '/');
-    startSession();
-  }, [playerId, startSession]);
+    resumeOrStart();
+  }, [playerId, resumeOrStart]);
 
   const load = useCallback(
     async (chosenCode?: string) => {
@@ -99,11 +133,32 @@ function Practice() {
   // from a frontier node on the map (start=<skill>) or this session opens with a
   // warm-up ramp (onboarding-ramp §5 — the ramp is invisible, no mode, no choice).
   useEffect(() => {
-    if (phase === 'choose' && sessionId != null && !autoStarted.current && (startCode || ramp > 0)) {
+    if (phase === 'choose' && sessionId != null && !autoStarted.current && (startCode || ramp > 0 || resumingRef.current)) {
       autoStarted.current = true;
       load(startCode ?? undefined);
     }
   }, [phase, sessionId, startCode, ramp, load]);
+
+  // Interruption detection (#3): note when the pad is backgrounded, and on return,
+  // if it was away long enough while a problem was open, discard that problem and
+  // serve a fresh one — its clock is contaminated. `load()` refetches; the server
+  // also rejects the stale item ('expired') as a backstop, so nothing slips
+  // through even if this doesn't fire.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+        return;
+      }
+      const hiddenAt = hiddenAtRef.current;
+      hiddenAtRef.current = null;
+      if (hiddenAt != null && Date.now() - hiddenAt > CLIENT_INTERRUPT_MS && phase === 'answer' && item && !busy) {
+        load();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [phase, item, busy, load]);
 
   function handle(r: AnswerResp) {
     if (r.status === 'expired' || r.error) return void load();
@@ -182,7 +237,7 @@ function Practice() {
   if (phase === 'loading') return <div className="stage" />;
 
   if (phase === 'choose') {
-    if (startCode || ramp > 0) return <div className="stage" />; // auto-starting (map link or warm-up); don't flash the chooser
+    if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />; // auto-starting (map link, warm-up, or resume); don't flash the chooser
     return (
       <div className="stage">
         {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}

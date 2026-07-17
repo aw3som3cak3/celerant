@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { CelerationChart, type ChartData } from '../_components/CelerationChart';
 import { useI18n } from '../_components/LocaleProvider';
+import { useWakeLock } from '../_components/useWakeLock';
 
 type Eligible = { code: string; family: string; accuracy: number; aim: number; rate: number | null };
 type Started = { sprintId: string; prompt: string; durationS: number; endsAt: number };
@@ -32,9 +33,13 @@ function Sprint() {
   const [result, setResult] = useState<Result | null>(null);
   const [chart, setChart] = useState<ChartData | null>(null);
   const [code, setCode] = useState('');
+  const [aborted, setAborted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const finishedRef = useRef(false);
   const autoStartedRef = useRef(false); // one auto-start only (a lap creates a server session)
+
+  // Keep the screen awake during a live sprint (#2), and never sleep mid-run.
+  useWakeLock(phase === 'run');
 
   const loadEligible = useCallback(() => {
     getJSON<{ skills?: Eligible[]; error?: string }>(`/api/sprint/eligible?playerId=${p}`).then((r) => {
@@ -90,6 +95,22 @@ function Sprint() {
     return () => clearInterval(iv);
   }, [phase, run, finish]);
 
+  // Interruption during a sprint (#3): if the pad is backgrounded mid-run, ABORT
+  // — suppress the timer's finish() and drop the run server-side — so a cut-short,
+  // deflated rate is never written. An interrupted sprint simply didn't happen;
+  // the child is shown a calm "another time" beat, never a failure.
+  useEffect(() => {
+    if (phase !== 'run' || !run) return;
+    const onVisibility = () => {
+      if (document.visibilityState !== 'hidden' || finishedRef.current) return;
+      finishedRef.current = true;
+      postJSON('/api/sprint/abort', { playerId: p, sprintId: run.sprintId });
+      setAborted(true);
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [phase, run, p]);
+
   async function submit() {
     if (!run || value.trim() === '') return;
     const given = value.trim();
@@ -101,6 +122,19 @@ function Sprint() {
       setChart(await getJSON<ChartData>(`/api/sprint/chart?playerId=${p}&code=${encodeURIComponent(code)}`));
       setPhase('result');
     } else if (!step.done) setRun((r) => (r ? { ...r, prompt: step.prompt } : r));
+  }
+
+  // Interrupted mid-run: a calm off-ramp, no failure language ("a sprint can never
+  // be failed"). Nothing was recorded; the child can just wander back.
+  if (aborted) {
+    return (
+      <div className="plain">
+        <p className="muted">{t('sprint.aborted')}</p>
+        <p style={{ marginTop: '1rem' }}>
+          <a className="idk" href={`/shelf?p=${p}`}>{t('common.back')}</a>
+        </p>
+      </div>
+    );
   }
 
   // The victory-lap "ready?" beat — a warm, unhurried invitation, never a countdown
