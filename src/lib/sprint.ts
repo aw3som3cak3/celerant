@@ -98,7 +98,11 @@ function genItem(code: string): { prompt: string; answer: string } {
   return { prompt: it.prompt, answer: it.answer };
 }
 
-export type SprintStart = { sprintId: string; prompt: string; durationS: number; endsAt: number };
+// `family` travels to the client so the answer input renders the right mobile
+// keypad (numeric vs the full keyboard for fractions/negatives) — the same
+// AnswerInput component practice uses, so the sprint can never again ship an input
+// a child can't submit on a tablet.
+export type SprintStart = { sprintId: string; prompt: string; durationS: number; endsAt: number; family: string };
 
 export function startSprint(playerId: string, code: string, durationS: number, now: number): SprintStart | null {
   const meta = SKILL_META.get(code);
@@ -120,7 +124,7 @@ export function startSprint(playerId: string, code: string, durationS: number, n
     current: first,
     finalized: false,
   });
-  return { sprintId: id, prompt: first.prompt, durationS, endsAt };
+  return { sprintId: id, prompt: first.prompt, durationS, endsAt, family: meta.family };
 }
 
 export type SprintResult = {

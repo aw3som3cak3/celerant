@@ -7,6 +7,7 @@ import { BY_KEY } from '@/icons';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { useWakeLock } from '../_components/useWakeLock';
+import { AnswerInput } from '../_components/AnswerInput';
 
 // A problem left on screen while the pad is backgrounded this long counts as an
 // interruption (#3): on return we discard it and serve a fresh one, so a broken
@@ -304,8 +305,8 @@ function Practice() {
       {/* reserved space so the equation never shifts when this appears */}
       <div className="novelty fade">{item.novel && phase === 'answer' ? t('practice.somethingNew') : ''}</div>
 
-      <Problem
-        prompt={item.prompt}
+      <div className="prompt">{renderPrompt(item.prompt)}</div>
+      <AnswerInput
         family={item.family}
         show={phase !== 'revealed'}
         value={value}
@@ -365,79 +366,6 @@ function renderPrompt(prompt: string): React.ReactNode {
   return prompt
     .split('□')
     .flatMap((part, i, arr) => (i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part]));
-}
-
-// Families whose answers can be negative or a fraction need the full keyboard
-// (for "-" and "/"); the rest get a digit-only numeric keypad on mobile.
-function inputModeFor(family: string): 'numeric' | 'text' {
-  return family === 'fractions' || family === 'negatives' || family === 'linear' ? 'text' : 'numeric';
-}
-
-// Every problem renders the same way — the equation on one line, one answer row
-// beneath it — so nothing jumps between problems. A "□" prompt keeps the box in
-// the equation as the blank; the child types the missing number in the row.
-function Problem({
-  prompt,
-  family,
-  show,
-  value,
-  inputRef,
-  onChange,
-  onSubmit,
-  canSubmit,
-  showSubmit,
-  submitLabel,
-}: {
-  prompt: string;
-  family: string;
-  show: boolean;
-  value: string;
-  inputRef: React.RefObject<HTMLInputElement | null>;
-  onChange: (v: string) => void;
-  onSubmit: () => void;
-  canSubmit: boolean;
-  showSubmit: boolean;
-  submitLabel: string;
-}) {
-  const mode = inputModeFor(family);
-  return (
-    <>
-      <div className="prompt">{renderPrompt(prompt)}</div>
-      <div className="answer-row" style={{ visibility: show ? 'visible' : 'hidden' }}>
-        {family === 'linear' && <span>x =</span>}
-        {/* Never `disabled` between items: disabling dismisses the mobile keyboard,
-            and the OS then re-opens the DEFAULT keyboard on the programmatic
-            refocus, ignoring inputMode. Keeping it enabled holds the numeric pad
-            across the whole session. Typing during the 800ms reveal is harmless —
-            submit is guarded by phase and the value resets on the next item. */}
-        <input
-          ref={inputRef}
-          className="answer-input"
-          type="text"
-          inputMode={mode}
-          pattern={mode === 'numeric' ? '[0-9]*' : undefined}
-          autoComplete="off"
-          spellCheck={false}
-          value={value}
-          // Only digits, and "-"/"/" for negatives and fractions — never letters.
-          onChange={(e) => onChange(e.target.value.replace(/[^0-9/-]/g, ''))}
-          onKeyDown={(e) => e.key === 'Enter' && onSubmit()}
-          aria-label="svar"
-        />
-        {/* Inline with the input so it's always above the keyboard — a numeric
-            keypad has no Enter key, so the child taps ✓ (onboarding/mobile fix). */}
-        <button
-          className="submit-btn"
-          onClick={onSubmit}
-          disabled={!canSubmit}
-          aria-label={submitLabel}
-          style={{ visibility: showSubmit ? 'visible' : 'hidden' }}
-        >
-          ✓
-        </button>
-      </div>
-    </>
-  );
 }
 
 // End-of-session allocation (celerant-cat-collection-spec.md §UI). The session was

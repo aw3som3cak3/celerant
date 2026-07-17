@@ -6,9 +6,10 @@ import { getJSON, postJSON } from '@/lib/client';
 import { CelerationChart, type ChartData } from '../_components/CelerationChart';
 import { useI18n } from '../_components/LocaleProvider';
 import { useWakeLock } from '../_components/useWakeLock';
+import { AnswerInput } from '../_components/AnswerInput';
 
 type Eligible = { code: string; family: string; accuracy: number; aim: number; rate: number | null };
-type Started = { sprintId: string; prompt: string; durationS: number; endsAt: number };
+type Started = { sprintId: string; prompt: string; durationS: number; endsAt: number; family: string };
 type Result = { correct: number; errors: number; durationS: number; correctPerMin: number; errorsPerMin: number; aim: number };
 type Step = { done: false; prompt: string; endsAt: number } | { done: true; result: Result };
 
@@ -27,7 +28,7 @@ function Sprint() {
   const [phase, setPhase] = useState<'pick' | 'lap' | 'run' | 'result'>(isLap ? 'lap' : 'pick');
   const [eligible, setEligible] = useState<Eligible[] | null>(null);
   const [duration, setDuration] = useState<20 | 30 | 60>(30);
-  const [run, setRun] = useState<{ sprintId: string; prompt: string; endsAt: number } | null>(null);
+  const [run, setRun] = useState<{ sprintId: string; prompt: string; endsAt: number; family: string } | null>(null);
   const [value, setValue] = useState('');
   const [remaining, setRemaining] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
@@ -57,7 +58,7 @@ function Sprint() {
       if (isLap) { location.href = `/shelf?p=${p}`; return; }
       return loadEligible();
     }
-    setRun({ sprintId: s.sprintId, prompt: s.prompt, endsAt: s.endsAt });
+    setRun({ sprintId: s.sprintId, prompt: s.prompt, endsAt: s.endsAt, family: s.family });
     setRemaining(s.durationS);
     setValue('');
     setPhase('run');
@@ -199,9 +200,20 @@ function Sprint() {
       <div className="stage">
         <div className="muted" style={{ position: 'fixed', top: '1rem' }}>{remaining}s</div>
         <div className="prompt">{run.prompt}</div>
-        <div className="answer-row">
-          <input ref={inputRef} className="answer-input" autoComplete="off" spellCheck={false} value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} aria-label="svar" />
-        </div>
+        {/* The SAME answer row practice uses — numeric keypad + a ✓ submit button —
+            so a child can actually submit on a tablet (the sprint's old inline
+            input was Enter-only and un-submittable on a soft keypad). */}
+        <AnswerInput
+          family={run.family}
+          show
+          value={value}
+          inputRef={inputRef}
+          onChange={setValue}
+          onSubmit={submit}
+          canSubmit={value.trim() !== ''}
+          showSubmit
+          submitLabel={t('pin.submit')}
+        />
       </div>
     );
   }
