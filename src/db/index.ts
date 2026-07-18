@@ -55,6 +55,13 @@ const MIGRATIONS = [
   // the reduced-weight update and the clean analyses can exclude them.
   'ALTER TABLE attempt ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE pending_item ADD COLUMN warmup INTEGER NOT NULL DEFAULT 0',
+  // Two children in a family can never share an icon. The CREATE TABLE carries a
+  // UNIQUE (family_id, icon), but a player table that predates that clause wouldn't
+  // have it — this index guarantees it at the DB layer regardless, as a backstop to
+  // the app-level checks in /api/player and /api/player/icon. Idempotent; a no-op
+  // where the constraint already holds. (Throws only if a duplicate already exists,
+  // which the try/catch swallows — there are none today.)
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_player_family_icon ON player(family_id, icon)',
 ];
 
 export function getDb(): Database.Database {
