@@ -3,7 +3,6 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
-import { CelerationChart, type ChartData } from '../_components/CelerationChart';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
 import { CATS, type Target } from '@/reward/roster';
@@ -35,7 +34,6 @@ function Sprint() {
   const [batch, setBatch] = useState<Batch | null>(null);
   const [index, setIndex] = useState(0);
   const [result, setResult] = useState<Result | null>(null);
-  const [chart, setChart] = useState<ChartData | null>(null);
   const [code, setCode] = useState('');
   const [aborted, setAborted] = useState(false);
   const resultsRef = useRef<{ seed: number; given: string; intervalMs: number }[]>([]);
@@ -80,12 +78,20 @@ function Sprint() {
     }
   }, [p, isLap, autoGo, startCode, start, loadEligible]);
 
+  // Skip the "which speed run?" menu — kids don't know what they're picking. As soon
+  // as the eligible list loads, start a RANDOM eligible skill; only the empty state
+  // shows a screen.
+  useEffect(() => {
+    if (isLap || startedRef.current || phase !== 'pick' || !eligible || eligible.length === 0) return;
+    startedRef.current = true;
+    start(eligible[Math.floor(Math.random() * eligible.length)].code);
+  }, [isLap, phase, eligible, start]);
+
   const ingest = useCallback(async () => {
     if (ingestingRef.current) return;
     ingestingRef.current = true;
     const r = await postJSON<Result>('/api/sprint/ingest', { playerId: p, code, sprintKey: sprintKeyRef.current, results: resultsRef.current });
     setResult(r);
-    setChart(await getJSON<ChartData>(`/api/sprint/chart?playerId=${p}&code=${encodeURIComponent(code)}`));
     setPhase('result');
   }, [p, code]);
 
@@ -148,23 +154,18 @@ function Sprint() {
   if (!isLap && eligible == null) return <div className="plain muted">…</div>;
 
   if (phase === 'pick' && eligible) {
-    return (
-      <div className="plain">
-        <h1>{t('sprint.title')}</h1>
-        {eligible.length === 0 ? (
+    if (eligible.length === 0) {
+      return (
+        <div className="plain">
+          <h1>{t('sprint.title')}</h1>
           <p className="muted">{t('sprint.noneReady')}</p>
-        ) : (
-          eligible.map((s) => (
-            <button key={s.code} className="namebtn" onClick={() => start(s.code)}>
-              {s.family} · {s.code.replace(/_/g, ' ')}
-            </button>
-          ))
-        )}
-        <p style={{ marginTop: '2rem' }}>
-          <a className="idk" href="/">{t('common.back')}</a>
-        </p>
-      </div>
-    );
+          <p style={{ marginTop: '2rem' }}>
+            <a className="idk" href="/">{t('common.back')}</a>
+          </p>
+        </div>
+      );
+    }
+    return <div className="plain muted">…</div>; // auto-starting a random eligible skill
   }
 
   if (phase === 'run' && batch) {
@@ -187,7 +188,7 @@ function Sprint() {
   const againButton = isLap ? (
     <button className="primary" onClick={() => start(startCode)}>{t('sprint.againZap')}</button>
   ) : (
-    <button className="primary" onClick={() => { setPhase('pick'); loadEligible(); }}>{t('sprint.againZap')}</button>
+    <button className="primary" onClick={() => { startedRef.current = false; setResult(null); setPhase('pick'); loadEligible(); }}>{t('sprint.againZap')}</button>
   );
   const backLink = <a className="idk" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
 
@@ -206,11 +207,11 @@ function Sprint() {
 
   if (outcome?.kind === 'milestone') {
     return (
-      <div className="plain">
+      <div className="plain" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '3.5rem' }}>🏅</div>
         <h1>{t('sprint.milestoneTitle')}</h1>
         <p style={{ fontSize: '1.3rem', margin: '0.5rem 0' }}>{t('sprint.milestoneLine', { skill: skillName })}</p>
         {result && <p className="muted">{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
-        {chart && <CelerationChart data={chart} />}
         {result?.bonus && <SprintBonusAllocation sprintId={result.bonus.sprintId} units={result.bonus.units} />}
         <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
       </div>
@@ -224,11 +225,11 @@ function Sprint() {
         : t('sprint.nearBuildSpeed', { skill: skillName })
       : null;
   return (
-    <div className="plain">
+    <div className="plain" style={{ textAlign: 'center' }}>
+      <div style={{ fontSize: '3rem' }}>🎉</div>
       <h1>{t('sprint.done')}</h1>
       {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
       {coaching && <p className="muted">{coaching}</p>}
-      {chart && <CelerationChart data={chart} />}
       <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
     </div>
   );

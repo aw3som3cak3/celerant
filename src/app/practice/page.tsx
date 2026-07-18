@@ -266,6 +266,7 @@ function Practice() {
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
+          <a className="next-btn" href={`/shelf?p=${playerId}`}>🏅 {t('home.diplomas')}</a>
           <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
           <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
         </div>

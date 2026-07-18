@@ -247,10 +247,11 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="bigpair" style={{ margin: '0.2rem 0 0.8rem' }}>{BY_KEY.get(player.icon)?.glyph ?? '?'}</div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
-          <a className="primary" href={`/practice?p=${player.id}`}>{t('home.startPractice')}</a>
-          <a className="next-btn" href={`/sprint?p=${player.id}`}>⚡ {t('home.startSprint')}</a>
+        <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}>{BY_KEY.get(player.icon)?.glyph ?? '?'}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+          <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
+          <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>⚡ {t('home.startSprint')}</a>
+          <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}>🏅 {t('home.diplomas')}</a>
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>

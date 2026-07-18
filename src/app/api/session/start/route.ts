@@ -22,9 +22,9 @@ export async function POST(req: NextRequest) {
 
   const target = player.session_target;
   const sessionId = repo.createSessionRun(player.id, target, now);
-  // §4.3: a plain session start, and 'en_till' when it followed a finished one
-  // (the "en till?" button) — the signal for whether the child came back for more.
-  repo.appendUsageEvent(player.id, 'session_started', null, now);
+  // 'session_started' is logged on the FIRST answered item (advanceSession), not
+  // here — a session with no answered question doesn't count as started (a wrong
+  // icon + "tillbaka"). 'en_till' (the "en till?" button) still marks a return.
   if (parsed.data.again) repo.appendUsageEvent(player.id, 'en_till', null, now);
   const choices = sessionChoices(player.id, player.school_year, player.stretch === 1, now);
   // Warm-up ramp length for this session (onboarding-ramp §3): the client skips

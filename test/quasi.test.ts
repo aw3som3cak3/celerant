@@ -87,7 +87,13 @@ describe('the displacement safeguard (§5)', () => {
     expect(displacement(calm, NOW).alarm).toBe(false);
 
     const binge = repo.createPlayer(familyId, 'cat', 3, NOW);
-    for (let i = 0; i < 16; i++) repo.createSessionRun(binge, 12, NOW - (i % 7) * 3600 * 1000);
+    // Real sessions (≥1 answered), not accidental opens: an empty open run no longer
+    // counts as a session (createSessionRun clears prior empties), so bump each.
+    for (let i = 0; i < 16; i++) {
+      const at = NOW - (i % 7) * 3600 * 1000;
+      const sid = repo.createSessionRun(binge, 12, at);
+      repo.bumpSessionRun(sid, at);
+    }
     const d = displacement(binge, NOW);
     expect(d.sessionsLast7).toBeGreaterThan(14);
     expect(d.alarm).toBe(true); // > 2/day averaged over a week

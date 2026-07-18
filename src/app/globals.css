@@ -253,6 +253,10 @@ input {
   border-radius: 6px;
   background: #fff;
   color: var(--ink);
+  text-decoration: none; /* also used on <a>: render as a button, never an underlined link */
+  display: inline-block;
+  text-align: center;
+  cursor: pointer;
 }
 .next-btn:hover {
   border-color: var(--accent);
@@ -353,6 +357,10 @@ input {
   background: var(--accent);
   color: #fff;
   margin-top: 0.6rem;
+  text-decoration: none; /* also used on <a>: a button, never an underlined link */
+  display: inline-block;
+  text-align: center;
+  cursor: pointer;
 }
 .pin-input {
   letter-spacing: 0.6em;
@@ -1143,6 +1151,18 @@ table.plain-table th {
   font-size: 1.3rem; font-weight: 700;
 }
 .focus-arrow { flex: none; color: var(--faint); font-size: 1.1rem; }
+
+/* The kids' diploma wall — a plaque per skill made fluent in a speed run. */
+.diploma-wall { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; margin: 0.5rem 0; }
+.diploma {
+  display: flex; flex-direction: column; align-items: center; gap: 0.2rem;
+  width: 8rem; padding: 0.9rem 0.6rem;
+  border: 2px solid var(--accent); border-radius: 14px;
+  background: rgba(200, 162, 74, 0.08);
+}
+.diploma-medal { font-size: 2rem; }
+.diploma-skill { font-size: 0.95rem; font-weight: 600; }
+.diploma-tag { font-size: 0.8rem; color: var(--accent); }
 
 .trophy-shelf { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .trophy {
