@@ -62,6 +62,17 @@ const MIGRATIONS = [
   // where the constraint already holds. (Throws only if a duplicate already exists,
   // which the try/catch swallows — there are none today.)
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_player_family_icon ON player(family_id, icon)',
+  // input-timing Phase A. Client-issued idempotency key on each recorded attempt, so
+  // a retried answer batch never double-records (partial unique — legacy rows are
+  // NULL and unconstrained). latency_ms now carries the CLIENT-measured interval.
+  'ALTER TABLE attempt ADD COLUMN idem_key TEXT',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_attempt_idem ON attempt(idem_key) WHERE idem_key IS NOT NULL',
+  // Sprint rate goes interval-based: interval_ms is the summed valid client intervals
+  // (rate = correct×60000/interval_ms); legacy rows keep NULL and fall back to the old
+  // duration_s basis in replay — never mixed. sprint_key makes ingest idempotent.
+  'ALTER TABLE sprint ADD COLUMN interval_ms INTEGER',
+  'ALTER TABLE sprint ADD COLUMN sprint_key TEXT',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_sprint_key ON sprint(sprint_key) WHERE sprint_key IS NOT NULL',
 ];
 
 export function getDb(): Database.Database {

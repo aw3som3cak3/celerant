@@ -57,8 +57,9 @@ CREATE TABLE IF NOT EXISTS attempt (
   tries        INTEGER NOT NULL,
   dont_know    INTEGER NOT NULL DEFAULT 0,
   warmup       INTEGER NOT NULL DEFAULT 0,  -- onboarding-ramp §4: warm-up item; θ updates weakly on success
-  latency_ms   INTEGER NOT NULL,
+  latency_ms   INTEGER NOT NULL,            -- CLIENT-measured per-item interval (input-timing Phase A)
   at           INTEGER NOT NULL,
+  idem_key     TEXT,                        -- client idempotency key; NULL on legacy/server-generated rows
   voided_at    INTEGER,
   void_reason  TEXT
 );
@@ -74,6 +75,8 @@ CREATE TABLE IF NOT EXISTS sprint (
   correct     INTEGER NOT NULL,
   errors      INTEGER NOT NULL,
   at          INTEGER NOT NULL,
+  interval_ms INTEGER,                       -- summed valid client intervals (input-timing Phase A); NULL = legacy wall-clock row
+  sprint_key  TEXT,                          -- client idempotency key for the run; NULL on legacy rows
   voided_at   INTEGER,
   void_reason TEXT
 );

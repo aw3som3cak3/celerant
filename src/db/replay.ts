@@ -39,7 +39,7 @@ export function computeAbility(
   chosenYear: number,
   toolRate: number | null,
   attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; at: number }[],
-  sprints: { skill_code: string; correct: number; errors: number; duration_s: number; at: number }[],
+  sprints: { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
   const seedGrade = seedGradeFor(chosenYear);
@@ -81,7 +81,13 @@ export function computeAbility(
   for (const sp of sprints) {
     const c = cache.get(sp.skill_code);
     if (!c) continue;
-    c.rate = (sp.correct * 60) / sp.duration_s;
+    // Interval-based rate (input-timing Phase A): correct × 60000 / Σvalid intervals.
+    // Legacy wall-clock rows (interval_ms NULL) fall back to the old duration_s basis
+    // — never mixed, since each row derives its own rate from its own basis.
+    c.rate =
+      sp.interval_ms != null && sp.interval_ms > 0
+        ? (sp.correct * 60000) / sp.interval_ms
+        : (sp.correct * 60) / sp.duration_s;
     c.rate_state = 'measured';
   }
 
@@ -124,9 +130,9 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
 
   const sprints = db
     .prepare(
-      'SELECT skill_code, correct, errors, duration_s, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
+      'SELECT skill_code, correct, errors, duration_s, interval_ms, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
     )
-    .all(playerId) as { skill_code: string; correct: number; errors: number; duration_s: number; at: number }[];
+    .all(playerId) as { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[];
 
   const cache = computeAbility(schoolYear, toolRate, attempts, sprints);
 

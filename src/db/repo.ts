@@ -249,6 +249,7 @@ export type AppendAttempt = {
   warmup?: boolean;
   latencyMs: number;
   at: number;
+  idemKey?: string | null; // client idempotency key (input-timing Phase A); NULL server-generated
 };
 
 // Append to the ledger, then rebuild the cache. Item generation itself writes
@@ -257,12 +258,19 @@ export function appendAttempt(a: AppendAttempt): number {
   const warmup = a.warmup ? 1 : 0;
   const info = getDb()
     .prepare(
-      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at);
+    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null);
   applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at); // fast path, not full replay
   return Number(info.lastInsertRowid);
+}
+
+// Idempotency check for the client-driven answer path: has this exact captured
+// answer already been recorded? A retried POST must not double-record or double-bump
+// the session.
+export function attemptExistsByIdemKey(idemKey: string): boolean {
+  return getDb().prepare('SELECT 1 FROM attempt WHERE idem_key = ?').get(idemKey) != null;
 }
 
 export function voidAttempt(id: number, reason: string, now: number): string | null {
@@ -308,6 +316,33 @@ export function appendSprint(
     .prepare("UPDATE ability SET rate = ?, rate_state = 'measured' WHERE player_id = ? AND skill_code = ?")
     .run((correct * 60) / durationS, playerId, skillCode);
   return Number(info.lastInsertRowid);
+}
+
+// Interval-based sprint record (input-timing Phase A). Stores the summed VALID
+// client intervals; rate = correct×60000/intervalMs. Idempotent on sprintKey — a
+// retried ingest returns false and writes nothing. duration_s is left 0 (the legacy
+// wall-clock field is unused on interval rows; replay reads interval_ms first).
+export function appendSprintIngest(
+  playerId: string,
+  skillCode: string,
+  correct: number,
+  errors: number,
+  intervalMs: number,
+  sprintKey: string,
+  now: number,
+): boolean {
+  if (getDb().prepare('SELECT 1 FROM sprint WHERE sprint_key = ?').get(sprintKey) != null) return false;
+  getDb()
+    .prepare(
+      'INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at, interval_ms, sprint_key) VALUES (?, ?, 0, ?, ?, ?, ?, ?)',
+    )
+    .run(playerId, skillCode, correct, errors, now, intervalMs, sprintKey);
+  if (intervalMs > 0) {
+    getDb()
+      .prepare("UPDATE ability SET rate = ?, rate_state = 'measured' WHERE player_id = ? AND skill_code = ?")
+      .run((correct * 60000) / intervalMs, playerId, skillCode);
+  }
+  return true;
 }
 
 export function appendToolRate(playerId: string, digitsPerMin: number, now: number): void {
