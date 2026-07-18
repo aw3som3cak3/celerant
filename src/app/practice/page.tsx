@@ -42,6 +42,7 @@ function Practice() {
   const [armKey, setArmKey] = useState(0); // bump to re-arm InputStage for a retry
   const [busy, setBusy] = useState(false);
   const [icon, setIcon] = useState<string | null>(null);
+  const [hasDiplomas, setHasDiplomas] = useState(false);
   const [offer, setOffer] = useState<{ code: string; label: string; family: string } | null>(null);
   const [offerDismissed, setOfferDismissed] = useState(false);
   const triesRef = useRef(1); // client-tracked try count for the CURRENT item (1, then 2 on a retry)
@@ -51,9 +52,12 @@ function Practice() {
   // Show whose session this is (their own icon).
   useEffect(() => {
     if (!playerId) return;
-    getJSON<{ players?: { id: string; icon: string }[] }>('/api/me').then((me) => {
+    getJSON<{ players?: { id: string; icon: string; hasDiplomas?: boolean }[] }>('/api/me').then((me) => {
       const p = me.players?.find((x) => x.id === playerId);
-      if (p) setIcon(BY_KEY.get(p.icon)?.glyph ?? null);
+      if (p) {
+        setIcon(BY_KEY.get(p.icon)?.glyph ?? null);
+        setHasDiplomas(!!p.hasDiplomas);
+      }
     });
   }, [playerId]);
 
@@ -266,7 +270,7 @@ function Practice() {
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          <a className="next-btn" href={`/shelf?p=${playerId}`}>🏅 {t('home.diplomas')}</a>
+          {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}>🏅 {t('home.diplomas')}</a>}
           <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
           <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
         </div>

@@ -92,8 +92,9 @@ function Sprint() {
     ingestingRef.current = true;
     const r = await postJSON<Result>('/api/sprint/ingest', { playerId: p, code, sprintKey: sprintKeyRef.current, results: resultsRef.current });
     setResult(r);
+    loadEligible(); // refresh which skills are still sprintable → whether "En till" makes sense
     setPhase('result');
-  }, [p, code]);
+  }, [p, code, loadEligible]);
 
   // Each captured item is recorded locally with its CLEAN interval and the run
   // auto-advances instantly (the batch is already on the client). The last item
@@ -185,12 +186,23 @@ function Sprint() {
   // collapse routes gently to untimed practice — no failure language anywhere.
   const outcome = result?.outcome ?? null;
   const skillName = code.replace(/_/g, ' ');
-  const againButton = isLap ? (
-    <button className="primary" onClick={() => start(startCode)}>{t('sprint.againZap')}</button>
-  ) : (
-    <button className="primary" onClick={() => { startedRef.current = false; setResult(null); setPhase('pick'); loadEligible(); }}>{t('sprint.againZap')}</button>
-  );
-  const backLink = <a className="idk" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
+  // "En till ⚡" only when there is ANOTHER eligible skill to run — after a crossing
+  // the skill becomes fluent, so if it was the last one, offer no dead button.
+  const remaining = eligible ?? [];
+  const againButton =
+    remaining.length > 0 ? (
+      <button
+        className="primary"
+        onClick={() => {
+          startedRef.current = false;
+          setResult(null);
+          start(remaining[Math.floor(Math.random() * remaining.length)].code);
+        }}
+      >
+        {t('sprint.againZap')}
+      </button>
+    ) : null;
+  const backLink = <a className="next-btn" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
 
   if (outcome?.kind === 'collapse') {
     return (

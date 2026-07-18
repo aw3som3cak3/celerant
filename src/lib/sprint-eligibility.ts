@@ -83,6 +83,13 @@ export function hasSprintAvailable(playerId: string): boolean {
   return eligibleSprintSkills(playerId).length > 0;
 }
 
+// Does this child have ANY diploma yet (a skill made fluent by crossing a speed-run
+// aim)? Gates the diploma-room links: the room isn't shown until it has something in
+// it — a first diploma is the reward for a first crossing.
+export function hasDiplomas(playerId: string): boolean {
+  return skillEligibility(playerId).some((e) => e.band === 'fluent');
+}
+
 // --- The end-of-session offer -----------------------------------------------
 // A sprint is a VICTORY LAP offered at the peak moment (the just-finished done
 // screen), never a gate, never forced. NO hardcoded cadence: availability is the
