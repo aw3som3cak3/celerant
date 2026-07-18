@@ -1151,6 +1151,30 @@ table.plain-table th {
   border: 1px solid var(--line); border-radius: 999px;
   background: var(--bg); font-size: 0.95rem;
 }
+/* The shared input stage (input-timing work): our own big-target numpad, never the
+   OS keyboard, so nothing covers the screen and there's no appear-latency. */
+.input-stage { display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; }
+.answer-display {
+  min-height: 2.6rem; font-size: 2rem; font-variant-numeric: tabular-nums;
+  display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+}
+.answer-value { min-width: 3ch; padding: 0 0.35rem; border-bottom: 3px solid var(--line); }
+.answer-x { color: var(--ink-soft); }
+.numpad {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.6rem;
+  width: min(92vw, 360px);
+}
+.numpad-key {
+  font-size: 1.8rem; min-height: 62px; padding: 0.9rem 0;
+  border: 1px solid var(--line); border-radius: 14px; background: var(--bg);
+  cursor: pointer; user-select: none; -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.numpad-key:active { background: var(--line); }
+.numpad-key:disabled { opacity: 0.4; }
+.numpad-gap { visibility: hidden; }
+.numpad-ok { grid-column: span 2; border-color: var(--accent); color: var(--accent); }
+
 .trophy-check { color: #e0a41f; }
 .trophy-sample { color: var(--ink-soft); white-space: nowrap; }
 /* A mastered skill you can run a victory-lap sprint on: tappable, with a soft
