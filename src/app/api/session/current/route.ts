@@ -19,6 +19,8 @@ export function GET(req: NextRequest) {
   if (!player) return json({ error: 'unauthorized' }, 401);
 
   const open = repo.openSessionRun(player.id, now - RESUME_WINDOW_MS);
-  const session = open && open.completed < open.target ? open : null;
+  // Only resume a session with real progress (≥1 answered) — an empty accidental
+  // open is not a session to resume.
+  const session = open && open.completed >= 1 && open.completed < open.target ? open : null;
   return json({ session });
 }

@@ -281,6 +281,9 @@ export function answer(
 function advanceSession(playerId: string, sessionId: number, now: number): SessionProgress {
   const run = repo.bumpSessionRun(sessionId, now);
   const session = { completed: run.completed, target: run.target, done: run.ended_at != null };
+  // The session counts as STARTED only now, on its first answered item (§4.3) — not
+  // when it was merely opened — so an accidental open never registers as a session.
+  if (run.completed === 1) repo.appendUsageEvent(playerId, 'session_started', null, now);
   if (session.done) {
     repo.appendUsageEvent(playerId, 'session_ended', 'completed', now);
     const player = repo.playerById(playerId);

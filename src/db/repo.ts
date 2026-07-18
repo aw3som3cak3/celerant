@@ -627,6 +627,10 @@ export type SessionRunRow = {
 };
 
 export function createSessionRun(playerId: string, target: number, now: number): number {
+  // An accidental open with no answered question is NOT a session (a wrong icon +
+  // "tillbaka"). Clear the player's prior empty, still-open runs so they never
+  // linger or get counted as a started/abandoned session.
+  getDb().prepare('DELETE FROM session_run WHERE player_id = ? AND completed = 0 AND ended_at IS NULL').run(playerId);
   const info = getDb()
     .prepare('INSERT INTO session_run (player_id, target, started_at) VALUES (?, ?, ?)')
     .run(playerId, target, now);
@@ -655,7 +659,12 @@ export function bumpSessionRun(id: number, now: number): SessionRunRow {
   return sessionRunById(id)!;
 }
 export function endSessionRunEarly(id: number, now: number): void {
-  getDb().prepare('UPDATE session_run SET ended_at = ?, ended_early = 1 WHERE id = ? AND ended_at IS NULL').run(now, id);
+  const run = getDb().prepare('SELECT completed FROM session_run WHERE id = ? AND ended_at IS NULL').get(id) as { completed: number } | undefined;
+  if (!run) return;
+  // Ended with zero answers → it never started; remove it entirely so it's not an
+  // abandoned session. Otherwise it's a real early-end (recorded, never a failure).
+  if (run.completed === 0) getDb().prepare('DELETE FROM session_run WHERE id = ?').run(id);
+  else getDb().prepare('UPDATE session_run SET ended_at = ?, ended_early = 1 WHERE id = ?').run(now, id);
 }
 
 // The day boundary is the CHILD's day, not the server's. A session at 22:30 on a
