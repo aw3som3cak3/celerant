@@ -6,18 +6,16 @@ import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
-import { useWakeLock } from '../_components/useWakeLock';
-import { AnswerInput } from '../_components/AnswerInput';
+import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
+import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
+import { buildItem } from '@/lib/item';
 
-// A problem left on screen while the pad is backgrounded this long counts as an
-// interruption (#3): on return we discard it and serve a fresh one, so a broken
-// interval never becomes the child's answer. The server enforces the same rule by
-// elapsed time; this is the client's snappier, proactive half.
-const CLIENT_INTERRUPT_MS = 30 * 1000;
-
-type Item = { itemId: string; prompt: string; family: string; mode: string; level: number; novel: boolean };
+// The item the SERVER issues for the client to build locally (input-timing A4).
+type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
 type Session = { completed: number; target: number; done: boolean };
-type AnswerResp = { status: 'retry' | 'correct' | 'revealed' | 'expired'; steps?: string[]; session?: Session; error?: string };
+type AnswerResp =
+  | { status: 'retry' }
+  | { status: 'correct' | 'revealed'; steps?: string[]; session?: Session; next: Item | null };
 type Choice = { code: string; label: string; sample: string };
 
 const QUIET_WORDS: Record<string, string[]> = {
@@ -33,33 +31,24 @@ function Practice() {
   const startCode = sp.get('start'); // arrive here from a frontier node on the map
   const [phase, setPhase] = useState<'loading' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
-  const [target, setTarget] = useState(20);
+  const [target, setTarget] = useState(10);
   const [completed, setCompleted] = useState(0);
   const [choices, setChoices] = useState<Choice[]>([]);
-  const [ramp, setRamp] = useState(0); // warm-up items this session (onboarding-ramp)
+  const [ramp, setRamp] = useState(0);
   const [item, setItem] = useState<Item | null>(null);
-  const [value, setValue] = useState('');
-  const [retry, setRetry] = useState(false);
   const [steps, setSteps] = useState<string[]>([]);
   const [word, setWord] = useState('');
+  const [retry, setRetry] = useState(false);
+  const [armKey, setArmKey] = useState(0); // bump to re-arm InputStage for a retry
   const [busy, setBusy] = useState(false);
   const [icon, setIcon] = useState<string | null>(null);
-  // The victory-lap offer (fluency-sprint-wiring §6): at most one skill, offered at
-  // the peak moment (the done screen), throttled server-side to stay rare. null =
-  // don't offer, which is the common case.
   const [offer, setOffer] = useState<{ code: string; label: string; family: string } | null>(null);
   const [offerDismissed, setOfferDismissed] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const firstRef = useRef(true);
+  const triesRef = useRef(1); // client-tracked try count for the CURRENT item (1, then 2 on a retry)
   const autoStarted = useRef(false);
-  const resumingRef = useRef(false); // resuming an interrupted session: skip the chooser, load straight in
-  const hiddenAtRef = useRef<number | null>(null); // when the pad was last backgrounded, for interrupt detection
+  const resumingRef = useRef(false);
 
-  // Hold the screen awake while a problem is on screen (#2) — a child looking away
-  // to count on their fingers shouldn't watch the pad sleep. Released otherwise.
-  useWakeLock(phase === 'answer' || phase === 'revealed');
-
-  // Show whose session this is (their own icon) — identity, not a status badge.
+  // Show whose session this is (their own icon).
   useEffect(() => {
     if (!playerId) return;
     getJSON<{ players?: { id: string; icon: string }[] }>('/api/me').then((me) => {
@@ -68,26 +57,47 @@ function Practice() {
     });
   }, [playerId]);
 
+  // Flush any answers a previous tab close left in the durable queue (idempotent on
+  // the server via idemKey), so an interrupted session's last answer is never lost.
+  useEffect(() => {
+    if (!playerId) return;
+    const stuck = pendingAnswers('session').filter((a) => a.playerId === playerId);
+    for (const a of stuck) {
+      postJSON('/api/session/answer', { playerId, sessionId: Number(a.context), code: a.code, seed: a.seed, given: a.given, idk: a.given === null, tries: a.tries, intervalMs: a.intervalMs, idemKey: a.idemKey })
+        .then(() => ackAnswers([a.idemKey]))
+        .catch(() => {});
+    }
+  }, [playerId]);
+
+  const revealNextRef = useRef<Item | null>(null);
+
+  const firstItem = useCallback(
+    async (chosenCode?: string) => {
+      setSteps([]);
+      setWord('');
+      setRetry(false);
+      triesRef.current = 1;
+      const r = await postJSON<{ item?: Item; error?: string }>('/api/session/item', { playerId, sessionId, chosenCode });
+      if (r.error || !r.item) return void (location.href = '/');
+      setItem(r.item);
+      setPhase('answer');
+    },
+    [playerId, sessionId],
+  );
+
   const startSession = useCallback(async (again = false) => {
     const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again });
     if (r.error) return void (location.href = '/');
-    autoStarted.current = false; // allow the ramp/start auto-load to fire for this session
+    autoStarted.current = false;
     resumingRef.current = false;
     setRamp(r.rampLen ?? 0);
     setSessionId(r.sessionId);
     setTarget(r.target);
     setCompleted(0);
     setChoices(r.choices);
-    firstRef.current = true;
     setPhase('choose');
   }, [playerId]);
 
-  // On mount, RESUME an interrupted session if one is still open (#3) — its
-  // completed items already bank toward the goal, so a "put the pad away" mid-
-  // session isn't lost — otherwise start fresh. A resume skips the chooser and
-  // drops straight into the next problem (the auto-load effect handles it). Still:
-  // nothing — no assessment, no offer — ever stands between a child and their
-  // first winnable problem; the first experience is always a win.
   const resumeOrStart = useCallback(async () => {
     const cur = await getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`);
     if (cur.session) {
@@ -98,7 +108,6 @@ function Practice() {
       setCompleted(cur.session.completed);
       setRamp(0);
       setChoices([]);
-      firstRef.current = false;
       setPhase('choose'); // blank; the auto-load effect loads the next item
     } else {
       startSession();
@@ -110,41 +119,21 @@ function Practice() {
     resumeOrStart();
   }, [playerId, resumeOrStart]);
 
-  const load = useCallback(
-    async (chosenCode?: string) => {
-      setValue('');
-      setRetry(false);
-      setSteps([]);
-      setWord('');
-      const body: Record<string, unknown> = { playerId, sessionId };
-      if (chosenCode) body.chosenCode = chosenCode;
-      const next = await postJSON<Item & { error?: string }>('/api/next', body);
-      if (next.error) return void (location.href = '/');
-      setItem(next);
-      setPhase('answer');
-    },
-    [playerId, sessionId],
-  );
-
-  useEffect(() => {
-    if (phase === 'answer') inputRef.current?.focus();
-  }, [phase, item]);
-
-  // Skip the chooser and go straight into problems when either the child arrived
-  // from a frontier node on the map (start=<skill>) or this session opens with a
-  // warm-up ramp (onboarding-ramp §5 — the ramp is invisible, no mode, no choice).
+  // Auto-load the first problem (map link, warm-up ramp, or resume) without flashing
+  // the chooser.
   useEffect(() => {
     if (phase === 'choose' && sessionId != null && !autoStarted.current && (startCode || ramp > 0 || resumingRef.current)) {
       autoStarted.current = true;
-      load(startCode ?? undefined);
+      firstItem(startCode ?? undefined);
     }
-  }, [phase, sessionId, startCode, ramp, load]);
+  }, [phase, sessionId, startCode, ramp, firstItem]);
 
-  // Interruption detection (#3): note when the pad is backgrounded, and on return,
-  // if it was away long enough while a problem was open, discard that problem and
-  // serve a fresh one — its clock is contaminated. `load()` refetches; the server
-  // also rejects the stale item ('expired') as a backstop, so nothing slips
-  // through even if this doesn't fire.
+  // Interruption guard (input-timing #3): if the pad was backgrounded long enough
+  // while a problem was open, its client-measured interval is contaminated — discard
+  // it and serve a fresh item (the selector picks the next), so a broken interval
+  // never becomes the child's recorded latency. rate.ts also excludes >60s intervals
+  // as a backstop.
+  const hiddenAtRef = useRef<number | null>(null);
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
@@ -153,65 +142,66 @@ function Practice() {
       }
       const hiddenAt = hiddenAtRef.current;
       hiddenAtRef.current = null;
-      if (hiddenAt != null && Date.now() - hiddenAt > CLIENT_INTERRUPT_MS && phase === 'answer' && item && !busy) {
-        load();
-      }
+      if (hiddenAt != null && Date.now() - hiddenAt > 30_000 && phase === 'answer' && item && !busy) firstItem();
     };
     document.addEventListener('visibilitychange', onVisibility);
     return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, [phase, item, busy, load]);
+  }, [phase, item, busy, firstItem]);
 
-  function handle(r: AnswerResp) {
-    if (r.status === 'expired' || r.error) return void load();
-    if (r.status === 'retry') {
-      setRetry(true);
-      setValue('');
-      inputRef.current?.focus();
-      return;
+  const advance = useCallback((next: Item | null) => {
+    setSteps([]);
+    setWord('');
+    setRetry(false);
+    triesRef.current = 1;
+    if (next) {
+      setItem(next);
+      setPhase('answer');
+    } else {
+      setPhase('done');
     }
-    if (r.session) setCompleted(r.session.completed);
-    const done = r.session?.done ?? false;
-    if (r.status === 'correct') {
-      setWord(QUIET[Math.floor(Math.random() * QUIET.length)]);
-      setPhase('correct');
-      setTimeout(() => (done ? setPhase('done') : load()), 800);
-      return;
-    }
-    setSteps(r.steps ?? []);
-    setPhase('revealed');
-    if (done) {
-      // reveal stays; the "Nästa" button will show the done screen
-    }
-  }
+  }, []);
 
-  async function submit() {
-    if (!item || busy || phase !== 'answer' || value.trim() === '') return;
-    setBusy(true);
-    try {
-      const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, given: value.trim() });
-      handle(r);
-    } catch {
-      // A network blip must not silently drop the answer or wedge the session:
-      // keep the typed value and let them tap ✓ again. finally clears `busy`.
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function idk() {
-    if (!item || busy || phase !== 'answer') return;
-    setBusy(true);
-    try {
-      const r = await postJSON<AnswerResp>('/api/answer', { playerId, sessionId, itemId: item.itemId, idk: true });
-      handle(r);
-    } catch {
-      /* keep state; user can retry */
-    } finally {
-      setBusy(false);
-    }
-  }
-  // Ask for a victory-lap offer once the session is done — never before (nothing
-  // stands between the child and the win). Logs 'sprint_offered' only when a card is
-  // actually returned, so the throttle counts real offers.
+  const onCapture = useCallback(
+    async (c: Captured) => {
+      if (busy || !item || sessionId == null) return;
+      setBusy(true);
+      const given = c.idk ? null : c.given;
+      // Durable-first: persist before the network so a tab close can't lose it; the
+      // server dedups on idemKey, so a later re-send never double-counts.
+      enqueueAnswer({ idemKey: c.idemKey, playerId, kind: 'session', context: String(sessionId), code: c.code, seed: c.seed, given, tries: triesRef.current, intervalMs: c.intervalMs, ts: Date.now() });
+      try {
+        const r = await postJSON<AnswerResp>('/api/session/answer', {
+          playerId, sessionId, code: c.code, seed: c.seed, given, idk: c.idk, tries: triesRef.current, warmup: item.warmup, intervalMs: c.intervalMs, idemKey: c.idemKey,
+        });
+        ackAnswers([c.idemKey]); // the server processed it (recorded or a retry) — clear it
+        if (r.status === 'retry') {
+          triesRef.current = 2;
+          setRetry(true);
+          setArmKey((k) => k + 1); // re-arm InputStage for the second try (same item, clock kept)
+        } else if (r.status === 'correct') {
+          if (r.session) setCompleted(r.session.completed);
+          setWord(QUIET[Math.floor(Math.random() * QUIET.length)]);
+          setPhase('correct');
+          const done = r.session?.done ?? false;
+          setTimeout(() => (done ? setPhase('done') : advance(r.next)), 800);
+        } else {
+          if (r.session) setCompleted(r.session.completed);
+          setSteps(r.steps ?? []);
+          setPhase('revealed');
+          // the "Nästa" button advances to r.next (or the done screen)
+          revealNextRef.current = r.session?.done ? null : r.next;
+        }
+      } catch {
+        // Network blip: the answer is durably queued (flushed on next mount). Re-arm
+        // so the child can re-submit; idempotency makes a double never double-count.
+        setArmKey((k) => k + 1);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [busy, item, sessionId, playerId, QUIET, advance],
+  );
+
   useEffect(() => {
     if (phase !== 'done' || !playerId) return;
     getJSON<{ offer: { code: string; label: string; family: string } | null }>(`/api/sprint/offer?playerId=${playerId}`).then((r) => {
@@ -226,10 +216,6 @@ function Practice() {
     setOfferDismissed(true);
   }
 
-  function afterReveal() {
-    if (completed >= target) setPhase('done');
-    else load();
-  }
   async function endEarly() {
     await postJSON('/api/session/end', { playerId, sessionId });
     location.href = '/';
@@ -238,22 +224,19 @@ function Practice() {
   if (phase === 'loading') return <div className="stage" />;
 
   if (phase === 'choose') {
-    if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />; // auto-starting (map link, warm-up, or resume); don't flash the chooser
+    if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />;
     return (
       <div className="stage">
         {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
         <p className="muted" style={{ marginBottom: '2rem' }}>{t('practice.choosePrompt')}</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
-            <button key={c.code} className="choice-btn" onClick={() => load(c.code)}>
+            <button key={c.code} className="choice-btn" onClick={() => firstItem(c.code)}>
               <span className="choice-sample">{renderPrompt(c.sample)}</span>
               <span className="choice-label">{c.label}</span>
             </button>
           ))}
         </div>
-        {/* The map/cards, reachable any time — not only just after a session ends
-            (add-map-icon-title §1). A quiet secondary link: the choice buttons
-            above are the primary action, this is a look-back/look-ahead glance. */}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
           <a className="quit-btn" href={`/shelf?p=${playerId}`}>🗺️ {t('practice.cards')}</a>
           <a className="quit-btn" href="/">🏠 {t('common.home')}</a>
@@ -266,16 +249,12 @@ function Practice() {
     return (
       <div className="stage">
         <div className="prompt" style={{ fontSize: '2rem' }}>{t('practice.done')}</div>
-        {/* completion-in-the-moment: today counts, said on the child's own end
-            screen where no sibling stands — not a badge carried on the menu */}
         <div className="done-today">
           <span className="day-dot on today" />
           {t('practice.doneToday')}
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         {sessionId != null && <SessionAllocation sessionId={sessionId} />}
-        {/* Victory lap — offered here, at the peak, never before and never forced.
-            A single warm invitation the child can wave off ("inte nu"), not a gate. */}
         {offer && !offerDismissed && (
           <div className="sprint-offer">
             <p>{t('sprint.offerLine', { skill: offer.label })}</p>
@@ -288,7 +267,6 @@ function Practice() {
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
           <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
-          {/* back to the family screen — where the kids see their icons again */}
           <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
         </div>
       </div>
@@ -302,49 +280,44 @@ function Practice() {
       {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
       <SessionBar completed={completed} target={target} />
 
-      {/* reserved space so the equation never shifts when this appears */}
       <div className="novelty fade">{item.novel && phase === 'answer' ? t('practice.somethingNew') : ''}</div>
-
-      <div className="prompt">{renderPrompt(item.prompt)}</div>
-      <AnswerInput
-        family={item.family}
-        show={phase !== 'revealed'}
-        value={value}
-        inputRef={inputRef}
-        onChange={setValue}
-        onSubmit={submit}
-        canSubmit={value.trim() !== ''}
-        showSubmit={phase === 'answer'}
-        submitLabel={t('pin.submit')}
-      />
-
-      <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
 
       {phase === 'revealed' ? (
         <>
+          <div className="prompt">{renderPrompt(buildItemPrompt(item))}</div>
           <div className="solution">
             {steps.map((s, i) => (
               <div key={i} className="step" style={{ animationDelay: `${i * 320}ms` }}>{s}</div>
             ))}
           </div>
-          <button className="next-btn" onClick={afterReveal}>{t('practice.next')}</button>
+          <button className="next-btn" onClick={() => advance(revealNextRef.current)}>{t('practice.next')}</button>
         </>
-      ) : phase === 'answer' ? (
+      ) : (
         <>
-          {/* "vet inte" sits right under the input row (which the keyboard scrolls
-              into view), so it stays reachable above the keyboard on mobile. */}
-          <button className="softbtn" onClick={idk}>{t('practice.dontKnow')}</button>
-          {/* leaving mid-session ends it and returns to the family screen */}
+          <InputStage
+            mode="session"
+            item={{ code: item.code, seed: item.seed, family: item.family, answerLength: item.answerLength } as StageItem}
+            playerId={playerId}
+            onCapture={onCapture}
+            disabled={busy || phase === 'correct'}
+            showIdk
+            idkLabel={t('practice.dontKnow')}
+            armKey={armKey}
+          />
+          <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
           <button className="quit-btn" onClick={endEarly}>🏠 {t('common.home')}</button>
         </>
-      ) : null}
+      )}
     </div>
   );
 }
 
-// The one counter permitted on the practice screen (§3.1): a quiet grey bar that
-// fills over the session's items. The label counts DOWN — how many are left — so
-// a child reads "3" (almost done), not "17/20" (arithmetic on the ceiling).
+// Build the prompt for the reveal screen (the numpad is gone there), from the same
+// shared generator the server graded against.
+function buildItemPrompt(item: { code: string; seed: number }): string {
+  return buildItem(item.code, item.seed).prompt;
+}
+
 function SessionBar({ completed, target }: { completed: number; target: number }) {
   const { t } = useI18n();
   const pct = Math.min(100, Math.round((completed / target) * 100));
@@ -359,8 +332,6 @@ function SessionBar({ completed, target }: { completed: number; target: number }
   );
 }
 
-// Render "□" as a clear, digit-sized blank ("?") rather than a tiny box. Shared
-// by the problem prompt and the session-start choice samples so both read alike.
 function renderPrompt(prompt: string): React.ReactNode {
   if (!prompt.includes('□')) return prompt;
   return prompt
@@ -368,10 +339,6 @@ function renderPrompt(prompt: string): React.ReactNode {
     .flatMap((part, i, arr) => (i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part]));
 }
 
-// End-of-session allocation (celerant-cat-collection-spec.md §UI). The session was
-// already auto-directed to the family's shared target; this is the one-tap confirm
-// (pre-selected) with the option to redirect it — to another cat or the family
-// goal. Frictionless for the youngest: doing nothing keeps the default.
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 function SessionAllocation({ sessionId }: { sessionId: number }) {
   const { t, locale } = useI18n();
@@ -392,11 +359,10 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
   }
 
   if (!data || !chosen) return null;
-  // offer: the unresolved cats (a few, in order) + the family goal
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
   const label = (target: Target) => (target.kind === 'family' ? data.familyGoalLabel ?? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
-  const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 20}` : `${data.progress['family'] ?? 0}`;
+  const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 40}` : `${data.progress['family'] ?? 0}`;
 
   return (
     <div className="alloc-box">
@@ -410,8 +376,6 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
             </button>
           );
         })}
-        {/* the family goal is a spend option ONLY while it exists and is unreached,
-            and it wears the goal's OWN name (e.g. "simhallen"), not a generic label */}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
             🎯 {data.familyGoalLabel ?? t('room.familyGoal')}

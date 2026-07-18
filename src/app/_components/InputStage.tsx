@@ -39,6 +39,7 @@ export type Captured = {
   seed: number;
   given: string;
   intervalMs: number;
+  idk: boolean; // "vet inte" — resolves the item without an answer (session only)
 };
 
 function renderPrompt(prompt: string): React.ReactNode {
@@ -54,12 +55,18 @@ export function InputStage({
   playerId,
   onCapture,
   disabled = false,
+  showIdk = false,
+  idkLabel,
+  armKey,
 }: {
   mode: 'session' | 'sprint';
   item: StageItem | null;
   playerId: string; // for the idemKey
   onCapture: (c: Captured) => void;
   disabled?: boolean;
+  showIdk?: boolean; // session: render a "vet inte" button
+  idkLabel?: string;
+  armKey?: number; // bump to RE-ARM the same item for a retry (clears the entry, KEEPS the clock)
 }) {
   const [value, setValue] = useState('');
   const valueRef = useRef(''); // authoritative current value (avoids stale-closure on fast taps)
@@ -90,12 +97,26 @@ export function InputStage({
     };
   }, [item?.code, item?.seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Re-arm the SAME item for a retry: clear the entry and accept input again, but
+  // DON'T reset the clock — a retried item's interval spans the whole render→final
+  // capture (the wrong attempt + the rethink), as decided (it's excluded from the
+  // fluency rate anyway when tries>1). Guarded so it never fires on the first mount.
+  const armedRef = useRef(armKey);
+  useEffect(() => {
+    if (armKey === armedRef.current) return;
+    armedRef.current = armKey;
+    capturedRef.current = false;
+    valueRef.current = '';
+    setValue('');
+  }, [armKey]);
+
   const capture = useCallback(
-    (given: string) => {
-      if (!item || capturedRef.current || given.trim() === '' || disabled) return;
+    (given: string, idk = false) => {
+      if (!item || capturedRef.current || disabled) return;
+      if (!idk && given.trim() === '') return;
       capturedRef.current = true;
       const intervalMs = Math.max(0, Math.round(performance.now() - startRef.current));
-      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: given.trim(), intervalMs });
+      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: given.trim(), intervalMs, idk });
     },
     [item, disabled, playerId, onCapture],
   );
@@ -177,6 +198,13 @@ export function InputStage({
           ✓
         </button>
       </div>
+      {showIdk && (
+        // "vet inte" resolves the item without an answer — honesty costs nothing
+        // (§3.1). Captured like any resolution so its clock still stops cleanly.
+        <button className="softbtn" onClick={() => capture('', true)} disabled={disabled || !item} type="button">
+          {idkLabel ?? 'vet inte'}
+        </button>
+      )}
     </div>
   );
 }
