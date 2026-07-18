@@ -24,7 +24,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -207,7 +207,7 @@ function Players({ me }: { me: Me }) {
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              onClick={() => (editing ? setChanging(p) : p.canSprint ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
+              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
               {BY_KEY.get(p.icon)?.glyph ?? '?'}
               {editing && <span className="tile-edit">✏️</span>}
@@ -250,8 +250,12 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
         <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}>{BY_KEY.get(player.icon)?.glyph ?? '?'}</div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
-          <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>⚡ {t('home.startSprint')}</a>
-          <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}>🏅 {t('home.diplomas')}</a>
+          {player.canSprint && (
+            <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>⚡ {t('home.startSprint')}</a>
+          )}
+          {player.hasDiplomas && (
+            <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}>🏅 {t('home.diplomas')}</a>
+          )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
       </div>

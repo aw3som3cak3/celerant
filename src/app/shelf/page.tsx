@@ -26,15 +26,6 @@ function Shelf() {
     <div className="plain" style={{ textAlign: 'center' }}>
       <h1>{t('shelf.diplomasTitle')}</h1>
 
-      {/* the child's own last-7-days record — private, no sibling to compare */}
-      {data.days.length > 0 && (
-        <div className="day-row" style={{ justifyContent: 'center', margin: '0.2rem auto 1.4rem' }}>
-          {data.days.map((on, i) => (
-            <span key={i} className={`day-dot ${on ? 'on' : ''} ${i === 6 ? 'today' : ''}`} />
-          ))}
-        </div>
-      )}
-
       {data.diplomas.length === 0 ? (
         <p className="muted">{t('shelf.diplomasEmpty')}</p>
       ) : (
@@ -49,9 +40,8 @@ function Shelf() {
         </div>
       )}
 
-      <p style={{ marginTop: '1.8rem' }}>
-        <a className="primary" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>{' '}
-        <a className="idk" href="/">🏠 {t('common.home')}</a>
+      <p style={{ marginTop: '2rem' }}>
+        <a className="next-btn" href="/" style={{ marginTop: 0 }}>🏠 {t('common.home')}</a>
       </p>
     </div>
   );
