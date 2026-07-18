@@ -4,12 +4,13 @@ import * as repo from '@/db/repo';
 import { SKILLS, generateCanon } from '@/skills';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimFor } from './fluency';
-import { seedGradeFor } from './onboarding';
+import { seedGradeFor, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
 import { rewardState, resolveSharedTarget } from './reward';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
 import { extractFeatures, FEATURES_VERSION } from './features';
+import { answerLengthOf, buildItem } from './item';
 
 const STRETCH_TARGET = 0.65; // "svårare" toggle (motivation §3.2)
 
@@ -119,19 +120,21 @@ export function sessionChoices(playerId: string, schoolYear: number, stretch: bo
     .map(({ code, label, sample }) => ({ code, label, sample }));
 }
 
-export function nextItem(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): NextItem {
+type Picked = { pick: SelState; novel: boolean; level: number; scores: unknown; introduced: boolean };
+
+// The selection core — buildStates → selectItem → the chosen skill and display
+// flags — shared by the server-generated path (nextItem) and the client-generated
+// path (issueNext), so the ADAPTIVE SELECTOR behaves identically on both and there
+// is no second implementation to drift (input-timing Phase A invariant).
+function pickNext(playerId: string, schoolYear: number, now: number, opts: NextOpts): Picked {
   const states = buildStates(playerId, schoolYear);
   const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
   const recentCodes = repo.recentAttemptSkillCodes(playerId, 8);
   const previousCode = recentCodes[0] ?? null;
-  // Warm-up (onboarding-ramp §2): serve near a high predicted success, climbing to
-  // the edge. It overrides the target, suppresses the chooser and the introduce
-  // slot, and still interleaves (recency term varies the skill). The θ reduction
-  // is applied later, on the attempt — the ramp only moves what she sees.
+  // Warm-up (onboarding-ramp §2) overrides the target and suppresses the chooser;
+  // otherwise stretch (0.65) or the player's honest base target (start-from-below).
   const warmup = opts.warmupTarget != null;
-  // Warm-up climbs to its target; otherwise stretch (0.65) or the player's honest
-  // base target (0.90 for a new/fragile player, easing to 0.80 — start-from-below).
   const target = warmup ? opts.warmupTarget : opts.stretch ? STRETCH_TARGET : opts.baseTarget;
 
   // The child's session-start choice serves as the first item, if still eligible.
@@ -158,9 +161,17 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
     pick = r.chosen ?? states.find((s) => s.requires.length === 0)!;
   }
 
-  // "Något nytt" marks a genuinely new unlock, not the session-1 flood where
-  // every skill is new. Only cue it once the player is past their first burst.
+  // "Något nytt" marks a genuinely new unlock, not the session-1 flood where every
+  // skill is new. Only cue it once the player is past their first burst.
   const novel = (ability.get(pick.code)?.last_seen_at ?? null) === null && repo.totalAttempts(playerId) >= 15;
+  const unlockedCount = states.filter((s) => unlocked.get(s.code)).length;
+  const level = Math.max(1, Math.min(8, Math.round((unlockedCount / states.length) * 8)));
+  return { pick, novel, level, scores, introduced };
+}
+
+export function nextItem(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): NextItem {
+  const { pick, novel, level, scores, introduced } = pickNext(playerId, schoolYear, now, opts);
+  const warmup = opts.warmupTarget != null;
   const seed = randomSeed();
   const item = generateCanon(pick.code, makeRng(seed));
   const itemId = randomUUID();
@@ -178,9 +189,6 @@ export function nextItem(playerId: string, schoolYear: number, now: number, opts
     warmup,
   });
   repo.cleanupPendingItems(now - PENDING_TTL_MS);
-
-  const unlockedCount = states.filter((s) => unlocked.get(s.code)).length;
-  const level = Math.max(1, Math.min(8, Math.round((unlockedCount / states.length) * 8)));
   return { itemId, prompt: item.prompt, family: pick.family, mode: pick.mode, level, novel };
 }
 
@@ -260,27 +268,29 @@ export function answer(
   }
 
   // The session counter advances on every resolved item, "vet inte" included.
-  let session: SessionProgress | undefined;
-  if (sessionId != null) {
-    const run = repo.bumpSessionRun(sessionId, now);
-    session = { completed: run.completed, target: run.target, done: run.ended_at != null };
-    if (session.done) {
-      repo.appendUsageEvent(playerId, 'session_ended', 'completed', now); // §4.3
-      // Cat collection: auto-direct this completed session to the family's shared
-      // target as a starting point; the child picks/confirms on the done screen.
-      // Set BEFORE the goal check, since the goal is the residual — a session going
-      // to a cat must not also count toward it (the intended opportunity cost).
-      const player = repo.playerById(playerId);
-      if (player) {
-        const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
-        repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
-      }
-      checkFamilyGoal(playerId, now);
-    }
-  }
+  const session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
 
   if (finalCorrect === 1) return { status: 'correct', session };
   return { status: 'revealed', steps: JSON.parse(p.steps_json) as string[], session };
+}
+
+// Advance the session counter and, on completion, fire the completion side effects
+// (usage event, cat allocation set BEFORE the goal check so a cat genuinely costs
+// the residual goal a session, family-goal check). Shared by the pending-item path
+// (answer) and the client-generated path (sessionAnswer) so both are identical.
+function advanceSession(playerId: string, sessionId: number, now: number): SessionProgress {
+  const run = repo.bumpSessionRun(sessionId, now);
+  const session = { completed: run.completed, target: run.target, done: run.ended_at != null };
+  if (session.done) {
+    repo.appendUsageEvent(playerId, 'session_ended', 'completed', now);
+    const player = repo.playerById(playerId);
+    if (player) {
+      const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
+      repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
+    }
+    checkFamilyGoal(playerId, now);
+  }
+  return session;
 }
 
 // When a session completes, a family goal may be reached — cooperative, in
@@ -296,6 +306,124 @@ function checkFamilyGoal(playerId: string, now: number): void {
   const count = repo.familyGoalProgress(player.family_id, goal.created_at);
   repo.appendGoalEvent(player.family_id, goal.label, goal.target, 'progressed', count, now);
   if (count >= goal.target) repo.markGoalReached(player.family_id, now);
+}
+
+// ── Client-generated path (input-timing Phase A) ────────────────────────────
+// The server issues (code, seed); the client builds the SAME item via the shared
+// buildItem and measures the interval locally; the server re-generates from the
+// seed to grade authoritatively and stores the client interval verbatim. No prompt
+// is generated or stored server-side, no per-item pending_item write.
+
+export type IssuedItem = {
+  code: string;
+  seed: number; // server-issued (no client fishing)
+  family: string;
+  answerLength: number; // digit count, for sprint auto-submit
+  novel: boolean;
+  level: number;
+  warmup: boolean; // was this served under the warm-up ramp (client echoes it back on answer)
+};
+
+export function issueNext(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): IssuedItem {
+  const { pick, novel, level } = pickNext(playerId, schoolYear, now, opts);
+  const seed = randomSeed();
+  return { code: pick.code, seed, family: pick.family, answerLength: answerLengthOf(pick.code, seed), novel, level, warmup: opts.warmupTarget != null };
+}
+
+// The per-item selection options (target, reach-up, peak-end, warm-up ramp/retreat)
+// for a session — the exact logic /api/next used, extracted so the issue and answer
+// endpoints share ONE implementation and the selector can't diverge between paths.
+export type SessionPlayer = { id: string; school_year: number; stretch: number };
+
+export function sessionSelectOpts(player: SessionPlayer, sessionId: number | undefined, now: number, chosenCode?: string): NextOpts {
+  const completed = repo.completedSessionCount(player.id);
+  const maxVol = repo.maxVolatility(player.id);
+  const baseTarget = playerTarget(completed, maxVol);
+  const recentAcc = repo.recentOverallFirstTryAccuracy(player.id, 12);
+  const trivialProp = repo.recentTrivialProportion(player.id, 12);
+  const reachUpProb = reachUpProbability(recentAcc, maxVol, trivialProp, repo.lastTwoMissed(player.id));
+  const coasting = reachUpProb > 0;
+  const reachUp = Math.random() < reachUpProb;
+
+  let peakEnd = false;
+  let warmupTarget: number | undefined;
+  if (sessionId != null) {
+    const run = repo.sessionRunById(sessionId);
+    if (run && run.player_id === player.id && run.ended_at == null) {
+      peakEnd = run.completed === run.target - 1;
+      const ramp = rampLen(completed, run.target);
+      if (run.completed < ramp) {
+        warmupTarget = repo.lastTwoMissed(player.id) ? RAMP_FLOOR_P : rampTargetP(run.completed, ramp, baseTarget);
+      } else if (repo.lastTwoMissed(player.id) && !coasting) {
+        warmupTarget = RAMP_FLOOR_P;
+      }
+    }
+  }
+  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp };
+}
+
+export type SessionAnswerResult =
+  | { status: 'retry' }
+  | { status: 'correct' | 'revealed'; steps: string[]; session?: SessionProgress; next: IssuedItem | null };
+
+// A1: idempotent on idemKey; grades authoritatively by re-generating from the seed;
+// first-try-wrong returns retry and records NOTHING (identical to the pending flow);
+// else records ONE attempt with the CLIENT interval and the client-tracked tries;
+// then RECORDS-THEN-SELECTS (the attempt is already in the cache via the fast path)
+// so the unchanged selector reacts to this very answer; returns the next (code, seed).
+export function sessionAnswer(
+  player: SessionPlayer,
+  sessionId: number | undefined,
+  code: string,
+  seed: number,
+  given: string | null,
+  idk: boolean,
+  tries: number,
+  warmup: boolean,
+  intervalMs: number,
+  idemKey: string,
+  now: number,
+): SessionAnswerResult {
+  const playerId = player.id;
+  const it = buildItem(code, seed);
+  const correct = !idk && grade(given ?? '', it.answer);
+  const already = repo.attemptExistsByIdemKey(idemKey);
+
+  // First-try wrong (not "vet inte"): one retry, record nothing — exactly today's
+  // pending-flow semantics, so the ability model still sees a single resolved attempt.
+  if (!already && !idk && !correct && tries <= 1) {
+    return { status: 'retry' };
+  }
+
+  let session: SessionProgress | undefined;
+  if (!already) {
+    const features = extractFeatures(code, it.prompt, it.answer);
+    const itemJson = JSON.stringify({ prompt: it.prompt, seed, features, features_version: FEATURES_VERSION, warmup, tries });
+    const attemptId = repo.appendAttempt({
+      playerId,
+      skillCode: code,
+      itemJson,
+      given: idk ? null : given,
+      correct: correct ? 1 : 0,
+      tries: idk ? 0 : tries,
+      dontKnow: idk,
+      warmup,
+      latencyMs: intervalMs, // CLIENT-measured render→capture; never a server round-trip
+      at: now,
+      idemKey,
+    });
+    if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
+      repo.appendUsageEvent(playerId, 'card_earned', code, now);
+    }
+    session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
+  } else if (sessionId != null) {
+    const run = repo.sessionRunById(sessionId);
+    if (run) session = { completed: run.completed, target: run.target, done: run.ended_at != null };
+  }
+
+  const done = session?.done ?? false;
+  const next = done ? null : issueNext(playerId, player.school_year, now, sessionSelectOpts(player, sessionId, now));
+  return { status: correct ? 'correct' : 'revealed', steps: it.steps, session, next };
 }
 
 // Test-only: read the stashed answer for a pending item (the client never can).
