@@ -320,29 +320,34 @@ export function appendSprint(
 
 // Interval-based sprint record (input-timing Phase A). Stores the summed VALID
 // client intervals; rate = correct×60000/intervalMs. Idempotent on sprintKey — a
-// retried ingest returns false and writes nothing. duration_s is left 0 (the legacy
-// wall-clock field is unused on interval rows; replay reads interval_ms first).
+// retried ingest returns null and writes nothing, so the milestone bonus / demote
+// side effects can fire exactly once. duration_s is left 0 (the legacy wall-clock
+// field is unused on interval rows; replay reads interval_ms first). A non-credible
+// run (accuracy didn't hold) is written but VOIDED, so replay skips it (no rate) yet
+// sprint_key still dedups it — same as the empty-run tombstone. Returns the new
+// sprint id, or null if this key was already ingested.
 export function appendSprintIngest(
   playerId: string,
   skillCode: string,
   correct: number,
   errors: number,
   intervalMs: number,
+  credible: boolean,
   sprintKey: string,
   now: number,
-): boolean {
-  if (getDb().prepare('SELECT 1 FROM sprint WHERE sprint_key = ?').get(sprintKey) != null) return false;
-  getDb()
+): number | null {
+  if (getDb().prepare('SELECT 1 FROM sprint WHERE sprint_key = ?').get(sprintKey) != null) return null;
+  const info = getDb()
     .prepare(
-      'INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at, interval_ms, sprint_key) VALUES (?, ?, 0, ?, ?, ?, ?, ?)',
+      'INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at, interval_ms, sprint_key, voided_at, void_reason) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(playerId, skillCode, correct, errors, now, intervalMs, sprintKey);
-  if (intervalMs > 0) {
+    .run(playerId, skillCode, correct, errors, now, intervalMs, sprintKey, credible ? null : now, credible ? null : 'not_credible');
+  if (credible && intervalMs > 0) {
     getDb()
       .prepare("UPDATE ability SET rate = ?, rate_state = 'measured' WHERE player_id = ? AND skill_code = ?")
       .run((correct * 60000) / intervalMs, playerId, skillCode);
   }
-  return true;
+  return Number(info.lastInsertRowid);
 }
 
 export function appendToolRate(playerId: string, digitsPerMin: number, now: number): void {

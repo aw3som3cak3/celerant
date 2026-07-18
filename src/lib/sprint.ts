@@ -7,6 +7,8 @@ import { isSprintEligible } from './sprint-eligibility';
 import { rewardState } from './reward';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
+import { answerLengthOf, gradeBySeed } from './item';
+import { isValidInterval } from './rate';
 
 const SKILL_META = new Map(SKILLS.map((s) => [s.code, s]));
 
@@ -175,6 +177,89 @@ export function finishSprint(playerId: string, sprintId: string, now: number): S
   const result = finalize(s, now);
   sprints.delete(sprintId);
   return result;
+}
+
+// --- Interval-based sprint (input-timing Phase A2) --------------------------
+// The InputStage path: the server issues a batch of seeds, the client builds each
+// item locally (shared buildItem), auto-submits, and measures a CLEAN per-item
+// interval; ingest re-grades from the seeds and RE-BASES the rate onto those
+// intervals (correct×60000/Σvalid) — feeding the SAME Phase B outcome/reward
+// (classifySprint, milestone bonus, demote), which is untouched. This is the switch
+// that turns the milestone on: it had been comparing a wall-clock rate polluted by
+// keyboard-appear + load + round-trips, so it was effectively unreachable.
+
+export const SPRINT_ITEMS = 20; // items per interval-based sprint (client auto-advances the batch)
+export type SprintBatchItem = { seed: number; answerLength: number };
+export type SprintBatchStart = { skillCode: string; family: string; items: SprintBatchItem[] };
+
+export function sprintBatch(playerId: string, code: string, now: number): SprintBatchStart | null {
+  const meta = SKILL_META.get(code);
+  if (!meta || !meta.sprintable) return null; // never a compound or a written procedure
+  if (!isSprintEligible(playerId, code)) return null; // must be in the fluency-building band
+  const items = Array.from({ length: SPRINT_ITEMS }, () => {
+    const seed = randomSeed(); // seeds are server-issued — no client fishing
+    return { seed, answerLength: answerLengthOf(code, seed) };
+  });
+  return { skillCode: code, family: meta.family, items };
+}
+
+export type SprintIngestResult = {
+  correct: number;
+  errors: number;
+  correctPerMin: number;
+  errorsPerMin: number;
+  aim: number;
+  outcome: SprintOutcome | null;
+  bonus: SprintBonus | null;
+};
+
+// Idempotent on sprintKey. Grades each result by re-generating from its seed; counts
+// and times only VALID intervals (an interrupted item is not a clean point); derives
+// the rate the interval way; then runs the UNCHANGED Phase B outcome/reward.
+export function ingestSprint(
+  playerId: string,
+  code: string,
+  sprintKey: string,
+  results: { seed: number; given: string; intervalMs: number }[],
+  now: number,
+): SprintIngestResult {
+  let correct = 0;
+  let errors = 0;
+  let intervalMs = 0;
+  for (const r of results) {
+    if (!isValidInterval(r.intervalMs)) continue; // interrupted → excluded from BOTH accuracy and time
+    if (gradeBySeed(code, r.seed, r.given).correct) correct++;
+    else errors++;
+    intervalMs += r.intervalMs;
+  }
+  const aim = aimFor(repo.latestToolRate(playerId), schoolYearOf(playerId));
+  const graded = correct + errors;
+  const correctPerMin = intervalMs > 0 ? (correct * 60000) / intervalMs : 0;
+  const errorsPerMin = intervalMs > 0 ? (errors * 60000) / intervalMs : 0;
+  const outcome: SprintOutcome | null = graded > 0 ? classifySprint(correct, errors, correctPerMin, aim) : null;
+  let bonus: SprintBonus | null = null;
+
+  if (graded > 0 && outcome) {
+    const credible = sprintRateIsCredible(correct, errors);
+    const sprintId = repo.appendSprintIngest(playerId, code, correct, errors, intervalMs, credible, sprintKey, now);
+    if (sprintId != null) {
+      // Newly ingested (a retried batch returns null → these side effects fire once).
+      if (credible) repo.appendUsageEvent(playerId, 'sprint_done', code, now);
+      if (outcome.kind === 'milestone' && credible) {
+        const player = repo.playerById(playerId);
+        if (player) {
+          const target = rewardState(player.family_id).sharedTarget;
+          repo.setBonusAllocation(sprintId, playerId, player.family_id, target.kind, target.id, MILESTONE_BONUS, now);
+          repo.appendUsageEvent(playerId, 'sprint_milestone', code, now);
+          bonus = { sprintId, units: MILESTONE_BONUS };
+        }
+      } else if (outcome.kind === 'collapse') {
+        repo.appendUsageEvent(playerId, 'sprint_demoted', code, now);
+      }
+    }
+  }
+
+  return { correct, errors, correctPerMin, errorsPerMin, aim, outcome, bonus };
 }
 
 // --- Tool-skill (writing-speed) measurement (addendum §4, ui-lifecycle §4.5) -
