@@ -257,6 +257,26 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   // coasting on it — placed at åk3 so he gets year-2 content and stays engaged.
   place('placed_mouse_ak3', 'mouse', 3);
 
+  // Make the TEST family (fox+hotdog) sprint-eligible for on-device testing: seed
+  // each of their kids with a run of first-try-correct attempts on add_within_10 (a
+  // sprintable, always-unlocked åk1 skill), so it lands in the fluency-building band
+  // (≥20 recent first-try at ≥95%, no measured rate). Guarded — runs once.
+  if (!done('seed_foxhotdog_sprint_eligible_v1')) {
+    const fam = db.prepare("SELECT id FROM family WHERE icon_display = 'fox+hotdog'").get() as { id: string } | undefined;
+    if (fam) {
+      const kids = db.prepare('SELECT id FROM player WHERE family_id = ?').all(fam.id) as { id: string }[];
+      const ins = db.prepare(
+        "INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at) VALUES (?, 'add_within_10', '{}', '', 1, 1, 0, 0, 2000, ?)",
+      );
+      const base = Date.now() - 22 * 60_000;
+      for (const kid of kids) {
+        for (let i = 0; i < 22; i++) ins.run(kid.id, base + i * 60_000);
+        replayOne(db, kid.id);
+      }
+      mark('seed_foxhotdog_sprint_eligible_v1');
+    }
+  }
+
   // Empty-run cleanup (bug-hunt-fluency follow-up). Two sprints finalized with
   // correct=0 AND errors=0 — no answer graded either way — minting a spurious
   // `measured` rate of 0 that read as "0/22 (mätt)" on a child's STRONGEST skill.
