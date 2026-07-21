@@ -1052,6 +1052,17 @@ table.plain-table th {
 @keyframes heartfloat { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); } 30% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -160%) scale(1.2); } }
 .room-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #6b5b4a; }
 
+/* A placed piece of furniture: fixed floor spot, center-anchored, crisp pixel art.
+   Sits behind the cats (they paint after it in the DOM). */
+.room-prop {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  image-rendering: pixelated;
+  width: auto;
+  pointer-events: none;
+  user-select: none;
+}
+
 .cat-carrier {
   position: absolute;
   left: 50%; bottom: 12%;
@@ -1089,6 +1100,12 @@ table.plain-table th {
 }
 .target-row.done { opacity: 0.7; }
 .target-face { font-size: 1.4rem; }
+.target-subhead { font-size: 1rem !important; margin-top: 1rem !important; color: #6b5b4a; }
+.prop-thumb {
+  width: 30px; height: 30px; flex: none;
+  background-size: contain; background-repeat: no-repeat; background-position: center bottom;
+  image-rendering: pixelated;
+}
 .target-name { min-width: 6rem; font-weight: 600; }
 .target-meter { flex: 1; max-width: 160px; }
 .target-count { min-width: 3rem; text-align: right; font-variant-numeric: tabular-nums; }

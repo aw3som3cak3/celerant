@@ -7,6 +7,7 @@ import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
 import { TopBar } from './_components/TopBar';
 import { EmojiIcon } from './_components/Icon';
+import { Emoji } from './_components/Emoji';
 import { useI18n } from './_components/LocaleProvider';
 
 const CACHE_KEY = 'celerant.family';
@@ -187,7 +188,7 @@ function Players({ me }: { me: Me }) {
         {me.goal && (
           <div className="goal-chip">
             <div>
-              🎯 {me.goal.label} · {me.goal.progress}/{me.goal.target}{me.goal.reached ? ' 🎉' : ''}
+              <Emoji e="🎯" /> {me.goal.label} · {me.goal.progress}/{me.goal.target}{me.goal.reached ? <> <Emoji e="🎉" /></> : ''}
             </div>
             <div className="sessionbar">
               <span style={{ width: `${Math.min(100, Math.round((me.goal.progress / me.goal.target) * 100))}%` }} />
@@ -211,9 +212,9 @@ function Players({ me }: { me: Me }) {
               onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas || p.needsToolTest ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
               <EmojiIcon iconKey={p.icon} />
-              {editing && <span className="tile-edit">✏️</span>}
-              {!editing && p.canSprint && <span className="tile-zap" aria-hidden>⚡</span>}
-              {!editing && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden>⌨️</span>}
+              {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
+              {!editing && p.canSprint && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
+              {!editing && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden><Emoji e="⌨️" /></span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -222,10 +223,10 @@ function Players({ me }: { me: Me }) {
 
         <div className="family-actions">
           {/* The shared cat room — a real button, not a faint link. */}
-          <a className="room-btn" href="/room">🐱 {t('room.title')}</a>
+          <a className="room-btn" href="/room"><Emoji e="🐱" /> {t('room.title')}</a>
           {/* Kids change their own icon right here, where they see them. */}
           <button className="pill-btn" onClick={() => setEditing((e) => !e)}>
-            {editing ? t('common.done') : `✏️ ${t('players.changeIcon')}`}
+            {editing ? t('common.done') : <><Emoji e="✏️" /> {t('players.changeIcon')}</>}
           </button>
         </div>
       </div>
@@ -256,13 +257,13 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
           {player.canSprint && (
-            <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>⚡ {t('home.startSprint')}</a>
+            <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="⚡" /> {t('home.startSprint')}</a>
           )}
           {player.hasDiplomas && (
-            <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}>🏅 {t('home.diplomas')}</a>
+            <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🏅" /> {t('home.diplomas')}</a>
           )}
           {player.needsToolTest && (
-            <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}>⌨️ {t('home.toolTest')}</a>
+            <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}><Emoji e="⌨️" /> {t('home.toolTest')}</a>
           )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>

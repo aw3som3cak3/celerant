@@ -1,13 +1,14 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { CATS, type Target } from '@/reward/roster';
+import { CATS, PROPS, type Target } from '@/reward/roster';
 
 // The reward state (celerant-cat-collection-spec.md §"Derived cache"). A PURE
 // count over the append-only allocations, so it is idempotent — no stored cache to
 // drift. progress[targetId] = directed session count; a cat unlocks at its cost.
 export type RewardState = {
-  progress: Record<string, number>; // targetId -> completed session count (cats + 'family')
+  progress: Record<string, number>; // targetId -> completed session count (cats + props + 'family')
   unlockedCats: string[]; // cat ids where progress >= cost, in display order
+  unlockedProps: string[]; // prop ids where progress >= cost, in display order
   sharedTarget: Target; // the resolved current default target
   familyGoalOpen: boolean; // a family goal exists and is not yet reached — the only time it's a spend option
   familyGoalLabel: string | null; // the goal's own name (e.g. "simhallen"), shown as the target's label
@@ -29,21 +30,26 @@ export function resolveSharedTarget(familyId: string, unlockedIds: string[]): Ta
 }
 
 export function rewardState(familyId: string): RewardState {
-  const catCounts = repo.catAllocationCounts(familyId);
+  const counts = repo.targetAllocationCounts(familyId); // cats + props, sessions + bonus units
   const progress: Record<string, number> = {};
-  const unlocked: { id: string; order: number }[] = [];
-  for (const cat of CATS) {
-    const n = catCounts.get(cat.id) ?? 0;
-    progress[cat.id] = n;
-    if (n >= cat.cost) unlocked.push({ id: cat.id, order: cat.order });
-  }
-  unlocked.sort((a, b) => a.order - b.order);
-  const unlockedIds = unlocked.map((u) => u.id);
+
+  // Cats and props unlock the same way — accumulated count reaches the item's cost.
+  const collect = (items: typeof CATS) => {
+    const unlocked: { id: string; order: number }[] = [];
+    for (const it of items) {
+      const n = counts.get(it.id) ?? 0;
+      progress[it.id] = n;
+      if (n >= it.cost) unlocked.push({ id: it.id, order: it.order });
+    }
+    return unlocked.sort((a, b) => a.order - b.order).map((u) => u.id);
+  };
+  const unlockedCats = collect(CATS);
+  const unlockedProps = collect(PROPS);
 
   // The family goal is the residual: completed sessions not directed to a cat/prop.
   const goal = repo.getGoal(familyId);
   progress['family'] = goal ? repo.familyGoalProgress(familyId, goal.created_at) : 0;
   const familyGoalOpen = goal != null && goal.reached_at == null;
 
-  return { progress, unlockedCats: unlockedIds, sharedTarget: resolveSharedTarget(familyId, unlockedIds), familyGoalOpen, familyGoalLabel: goal?.label ?? null };
+  return { progress, unlockedCats, unlockedProps, sharedTarget: resolveSharedTarget(familyId, unlockedCats), familyGoalOpen, familyGoalLabel: goal?.label ?? null };
 }

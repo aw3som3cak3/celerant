@@ -68,10 +68,17 @@ export function defaultCeiling(schoolYear: number): number {
   return 25 + 5 * Math.max(0, Math.min(9, schoolYear));
 }
 
-// The aim that always exists: measured ceiling if we have one, else the
-// årskurs default. aimFactor is fixed at 1.0 (the delivered graph sets none).
+// The aim that always exists: the årskurs default, personalised DOWNWARD by a
+// measured writing speed but never raised above it. The default ceilings are modest
+// and already reachable (milestones fire at them); a measurement's job is to protect
+// a child whose hand can't keep up with the grade default, giving them a fairer,
+// lower bar — not to demand more of a fast one. This matters now that the probe runs
+// on the fast numpad rather than the old OS keyboard: an un-capped 0.55×rate would
+// ask for more digits per minute than a child can physically enter, and the sprint
+// (measured on that same numpad) could never cross it. aimFactor is fixed at 1.0.
 export function aimFor(latestToolRate: number | null, schoolYear: number): number {
-  const ceiling = latestToolRate ?? defaultCeiling(schoolYear);
+  const def = defaultCeiling(schoolYear);
+  const ceiling = latestToolRate == null ? def : Math.min(latestToolRate, def);
   return AIM_BASE_FRACTION * ceiling;
 }
 

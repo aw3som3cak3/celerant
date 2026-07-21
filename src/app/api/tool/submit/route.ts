@@ -7,7 +7,11 @@ import { json } from '@/lib/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const Body = z.object({ playerId: z.string().min(1), toolId: z.string().min(1), typed: z.string().max(4000) });
+const Body = z.object({
+  playerId: z.string().min(1),
+  toolId: z.string().min(1),
+  copies: z.array(z.object({ i: z.number().int().min(0), given: z.string().max(12), intervalMs: z.number().min(0) })).max(64),
+});
 
 export async function POST(req: NextRequest) {
   const now = Date.now();
@@ -16,7 +20,7 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  const result = submitToolMeasure(player.id, parsed.data.toolId, parsed.data.typed, now);
+  const result = submitToolMeasure(player.id, parsed.data.toolId, parsed.data.copies, now);
   if (!result) return json({ error: 'no_measure' }, 410);
   return json(result);
 }

@@ -9,7 +9,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { rewardState, resolveSharedTarget } from '@/lib/reward';
-import { ROSTER, CATS, CAT_COST } from '@/reward/roster';
+import { ROSTER, CATS, PROPS, CAT_COST } from '@/reward/roster';
 import { LOCALES } from '@/lib/i18n';
 
 const NOW = Date.UTC(2026, 6, 14);
@@ -22,7 +22,7 @@ beforeAll(() => {
 });
 
 // Complete a session and (optionally) direct it to a target.
-function completeSession(at: number, target?: { kind: 'cat' | 'family'; id: string }): number {
+function completeSession(at: number, target?: { kind: 'cat' | 'family' | 'prop'; id: string }): number {
   const sid = repo.createSessionRun(pig, 5, at);
   for (let i = 0; i < 5; i++) repo.bumpSessionRun(sid, at);
   if (target) repo.setAllocation(sid, pig, familyId, target.kind, target.id, at);
@@ -30,15 +30,29 @@ function completeSession(at: number, target?: { kind: 'cat' | 'family'; id: stri
 }
 
 describe('cat roster is well-formed (spec Â§Cat roster)', () => {
-  it('has 10 cats, unique ids, flat cost 40, and both locales', () => {
+  it('has 12 cats, unique ids, flat cost 40, and both locales', () => {
     expect(CAT_COST).toBe(40);
-    expect(CATS.length).toBe(10);
+    expect(CATS.length).toBe(12); // 10 mega-famous + Cardano (pirate) + Turing (masked)
     expect(new Set(ROSTER.map((r) => r.id)).size).toBe(ROSTER.length);
     for (const c of CATS) {
       expect(c.cost).toBe(CAT_COST);
       for (const l of LOCALES) {
         expect(c.name[l].length).toBeGreaterThan(0);
         expect(c.blurb[l].length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('furniture props are well-formed: a fixed slot, a render size, a positive cost, both locales', () => {
+    expect(PROPS.length).toBeGreaterThan(0);
+    for (const p of PROPS) {
+      expect(p.kind).toBe('prop');
+      expect(p.cost).toBeGreaterThan(0);
+      expect(p.slot).toBeTruthy();
+      expect(p.size).toBeGreaterThan(0);
+      for (const l of LOCALES) {
+        expect(p.name[l].length).toBeGreaterThan(0);
+        expect(p.blurb[l].length).toBeGreaterThan(0);
       }
     }
   });
@@ -84,6 +98,29 @@ describe('session-length weighting keeps the economy net-neutral across the 20â†
     complete((now += 1000), 10, 'gauss');
     st = rewardState(fam);
     expect(st.progress['gauss']).toBe(1);
+  });
+});
+
+describe('furniture (props) collect on the same directed-session model as cats', () => {
+  it('a prop accumulates directed sessions and unlocks at its own cost', () => {
+    const fam = repo.createFamily('duck+crab', 'd:c', 'd:x', NOW);
+    const kid = repo.createPlayer(fam, 'duck', 2, NOW);
+    const prop = PROPS[0];
+    const complete = (at: number) => {
+      const sid = repo.createSessionRun(kid, 10, at); // 10-item session = 1 unit
+      for (let i = 0; i < 10; i++) repo.bumpSessionRun(sid, at);
+      repo.setAllocation(sid, kid, fam, 'prop', prop.id, at);
+    };
+    let now = NOW + 20_000;
+    for (let i = 0; i < prop.cost - 1; i++) complete((now += 1000));
+    let st = rewardState(fam);
+    expect(st.progress[prop.id]).toBe(prop.cost - 1);
+    expect(st.unlockedProps).not.toContain(prop.id);
+
+    complete((now += 1000)); // the last unit
+    st = rewardState(fam);
+    expect(st.unlockedProps).toContain(prop.id);
+    expect(st.unlockedCats).not.toContain(prop.id); // props stay out of the cat list
   });
 });
 

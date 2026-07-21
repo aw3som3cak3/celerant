@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const Body = z.object({
   sessionId: z.number().int(),
-  target: z.object({ kind: z.enum(['cat', 'family']), id: z.string().min(1) }),
+  target: z.object({ kind: z.enum(['cat', 'family', 'prop']), id: z.string().min(1) }),
 });
 
 // Redirect a completed session's allocation (celerant-cat-collection-spec.md
@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return json({ error: 'bad_request' }, 400);
   const { sessionId, target } = parsed.data;
 
-  // Validate the target exists (a real cat, or the family goal).
+  // Validate the target exists (a real cat/prop, or the family goal).
   if (target.kind === 'cat' && ROSTER_BY_ID.get(target.id)?.kind !== 'cat') return json({ error: 'bad_target' }, 400);
+  if (target.kind === 'prop' && ROSTER_BY_ID.get(target.id)?.kind !== 'prop') return json({ error: 'bad_target' }, 400);
   if (target.kind === 'family' && target.id !== 'family') return json({ error: 'bad_target' }, 400);
 
   const run = repo.sessionRunById(sessionId);

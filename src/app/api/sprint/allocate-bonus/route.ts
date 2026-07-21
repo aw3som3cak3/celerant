@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 // Idempotent: one bonus_allocation row per crossing sprint, upserted.
 const Body = z.object({
   sprintId: z.number().int(),
-  target: z.object({ kind: z.enum(['cat', 'family']), id: z.string().min(1) }),
+  target: z.object({ kind: z.enum(['cat', 'family', 'prop']), id: z.string().min(1) }),
 });
 
 export async function POST(req: NextRequest) {
@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   const { sprintId, target } = parsed.data;
 
   if (target.kind === 'cat' && ROSTER_BY_ID.get(target.id)?.kind !== 'cat') return json({ error: 'bad_target' }, 400);
+  if (target.kind === 'prop' && ROSTER_BY_ID.get(target.id)?.kind !== 'prop') return json({ error: 'bad_target' }, 400);
   if (target.kind === 'family' && target.id !== 'family') return json({ error: 'bad_target' }, 400);
 
   // Only an EXISTING milestone bonus can be redirected — never conjured. It carries

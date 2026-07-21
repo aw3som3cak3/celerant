@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { EmojiIcon } from '../_components/Icon';
+import { Emoji } from '../_components/Emoji';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
@@ -242,8 +243,8 @@ function Practice() {
           ))}
         </div>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <a className="quit-btn" href={`/shelf?p=${playerId}`}>🗺️ {t('practice.cards')}</a>
-          <a className="quit-btn" href="/">🏠 {t('common.home')}</a>
+          <a className="quit-btn" href={`/shelf?p=${playerId}`}><Emoji e="🗺️" /> {t('practice.cards')}</a>
+          <a className="quit-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
         </div>
       </div>
     );
@@ -263,16 +264,16 @@ function Practice() {
           <div className="sprint-offer">
             <p>{t('sprint.offerLine', { skill: offer.label })}</p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
-              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}>⚡ {t('sprint.offerGo')}</a>
+              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}><Emoji e="⚡" /> {t('sprint.offerGo')}</a>
               <button className="next-btn" onClick={declineOffer}>{t('sprint.offerLater')}</button>
             </div>
           </div>
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}>🏅 {t('home.diplomas')}</a>}
-          <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
-          <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
+          {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}><Emoji e="🏅" /> {t('home.diplomas')}</a>}
+          <a className="next-btn" href={`/room?p=${playerId}`}><Emoji e="🐱" /> {t('room.title')}</a>
+          <a className="next-btn primary" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
         </div>
       </div>
     );
@@ -310,7 +311,7 @@ function Practice() {
             armKey={armKey}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
-          <button className="quit-btn" onClick={endEarly}>🏠 {t('common.home')}</button>
+          <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>
         </>
       )}
     </div>
@@ -344,7 +345,7 @@ function renderPrompt(prompt: string): React.ReactNode {
     .flatMap((part, i, arr) => (i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part]));
 }
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 function SessionAllocation({ sessionId }: { sessionId: number }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<RewardData | null>(null);
@@ -367,12 +368,20 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
   const label = (target: Target) => (target.kind === 'family' ? data.familyGoalLabel ?? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
-  const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 40}` : `${data.progress['family'] ?? 0}`;
+  const chosenCount = chosen.kind === 'family' ? `${data.progress['family'] ?? 0}` : `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 40}`;
+  // If the family is collecting a piece of FURNITURE, keep it selectable here (the
+  // cat chips are only the cats) so a kid who redirects can flow back to it.
+  const sharedProp = data.sharedTarget.kind === 'prop' ? ROSTER_BY_ID.get(data.sharedTarget.id) : undefined;
 
   return (
     <div className="alloc-box">
       <div className="alloc-head">{t('reward.countsToward')} <span className="alloc-current">{label(chosen)}</span> — {chosenCount}</div>
       <div className="alloc-choices">
+        {sharedProp && (
+          <button className={`alloc-chip ${same(chosen, data.sharedTarget) ? 'on' : ''}`} onClick={() => pick(data.sharedTarget)}>
+            <span className="prop-thumb" style={{ width: 20, height: 20, backgroundImage: `url(/props/${sharedProp.id}.png)` }} aria-hidden /> {sharedProp.name[locale]}
+          </button>
+        )}
         {cats.map((c) => {
           const tgt: Target = { kind: 'cat', id: c.id };
           return (
@@ -383,7 +392,7 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
         })}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
+            <Emoji e="🎯" /> {data.familyGoalLabel ?? t('room.familyGoal')}
           </button>
         )}
       </div>

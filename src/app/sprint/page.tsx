@@ -4,8 +4,9 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji, emojify } from '../_components/Emoji';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
-import { CATS, type Target } from '@/reward/roster';
+import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 
 type Eligible = { code: string; family: string };
 type BatchItem = { seed: number; answerLength: number };
@@ -16,7 +17,7 @@ type SprintOutcome =
   | { kind: 'collapse' };
 type Bonus = { sprintId: number; units: number };
 type Result = { correct: number; errors: number; correctPerMin: number; errorsPerMin: number; aim: number; outcome: SprintOutcome | null; bonus: Bonus | null };
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // Interval-based sprint (input-timing A4): a fixed batch of items the client builds
 // locally and auto-advances through — no wall-clock timer, no per-item fetch. The
@@ -199,7 +200,7 @@ function Sprint() {
           start(remaining[Math.floor(Math.random() * remaining.length)].code);
         }}
       >
-        {t('sprint.againZap')}
+        {emojify(t('sprint.againZap'))}
       </button>
     ) : null;
   const backLink = <a className="next-btn" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
@@ -220,10 +221,10 @@ function Sprint() {
   if (outcome?.kind === 'milestone') {
     return (
       <div className="plain" style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '3.5rem' }}>🏅</div>
-        <h1>{t('sprint.milestoneTitle')}</h1>
+        <div style={{ fontSize: '3.5rem' }}><Emoji e="🏅" /></div>
+        <h1>{emojify(t('sprint.milestoneTitle'))}</h1>
         <p style={{ fontSize: '1.3rem', margin: '0.5rem 0' }}>{t('sprint.milestoneLine', { skill: skillName })}</p>
-        {result && <p className="muted">{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
+        {result && <p className="muted">{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
         {result?.bonus && <SprintBonusAllocation sprintId={result.bonus.sprintId} units={result.bonus.units} />}
         <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
       </div>
@@ -238,10 +239,10 @@ function Sprint() {
       : null;
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '3rem' }}>🎉</div>
+      <div style={{ fontSize: '3rem' }}><Emoji e="🎉" /></div>
       <h1>{t('sprint.done')}</h1>
-      {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
-      {coaching && <p className="muted">{coaching}</p>}
+      {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
+      {coaching && <p className="muted">{emojify(coaching)}</p>}
       <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
     </div>
   );
@@ -267,10 +268,16 @@ function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: n
   if (!data || !chosen) return null;
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
+  const sharedProp = data.sharedTarget.kind === 'prop' ? ROSTER_BY_ID.get(data.sharedTarget.id) : undefined;
   return (
     <div className="alloc-box">
       <div className="alloc-head">{t('sprint.bonusCountsToward', { n: units })}</div>
       <div className="alloc-choices">
+        {sharedProp && (
+          <button className={`alloc-chip ${same(chosen, data.sharedTarget) ? 'on' : ''}`} onClick={() => pick(data.sharedTarget)}>
+            <span className="prop-thumb" style={{ width: 20, height: 20, backgroundImage: `url(/props/${sharedProp.id}.png)` }} aria-hidden /> {sharedProp.name[locale]}
+          </button>
+        )}
         {cats.map((c) => {
           const tgt: Target = { kind: 'cat', id: c.id };
           return (
@@ -281,7 +288,7 @@ function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: n
         })}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
+            <Emoji e="🎯" /> {data.familyGoalLabel ?? t('room.familyGoal')}
           </button>
         )}
       </div>
