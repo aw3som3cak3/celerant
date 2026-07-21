@@ -24,6 +24,7 @@ const BASENAME: Record<string, string> = {
   '🗺': 'world_map',
   '❤': 'red_heart',
   '📦': 'package',
+  '🌱': 'seedling',
 };
 
 // U+FE0F (emoji variation selector) and U+FE0E (text) don't change identity here.

@@ -26,7 +26,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean; canGround?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -209,7 +209,7 @@ function Players({ me }: { me: Me }) {
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas || p.needsToolTest ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
+              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas || p.needsToolTest || p.canGround ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
@@ -264,6 +264,11 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
           )}
           {player.needsToolTest && (
             <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}><Emoji e="⌨️" /> {t('home.toolTest')}</a>
+          )}
+          {/* The quiet GROUND door — an optional "explore" scene, never pushed, never
+              a gate (GROUND-phase spec §4). Kept below practice so it never competes. */}
+          {player.canGround && (
+            <a className="next-btn" href={`/ground?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🌱" /> {t('home.ground')}</a>
           )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
