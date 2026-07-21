@@ -1152,6 +1152,18 @@ table.plain-table th {
 }
 .focus-arrow { flex: none; color: var(--faint); font-size: 1.1rem; }
 
+/* Identity icons as bundled 3D images — sized in em so they scale with the
+   surrounding font-size just like the text glyph they replace. */
+.emoji-icon {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  object-fit: contain;
+  vertical-align: -0.15em;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 /* The kids' diploma wall — a plaque per skill made fluent in a speed run. */
 .diploma-wall { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; margin: 0.5rem 0; }
 .diploma {

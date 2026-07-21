@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { ICONS, CATEGORIES, search, type Icon } from '@/icons';
+import { EmojiIcon } from './Icon';
 
 const CAT_LABEL: Record<string, string> = {
   djur: 'djur',
@@ -63,7 +64,7 @@ export function IconGrid({
             aria-label={i.name}
             onClick={() => onPick(i.key)}
           >
-            {i.glyph}
+            <EmojiIcon iconKey={i.key} />
           </button>
         ))}
       </div>

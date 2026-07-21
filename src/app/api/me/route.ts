@@ -15,12 +15,12 @@ export function GET(req: NextRequest) {
   const s = sessionFromRequest(req, now);
   if (!s) return json({ authenticated: false });
   const family = repo.familyById(s.familyId)!;
-  const [a, b] = familyIcons(family.icon_display || family.icon_pair); // entered order
+  const [a, b] = familyIcons(family.icon_display || family.icon_pair); // entered order (icon objects)
   const goalRow = repo.getGoal(s.familyId);
   return json({
     authenticated: true,
     parent: parentFamilyFromRequest(req, now) === s.familyId,
-    icons: [a.glyph, b.glyph],
+    icons: [a.key, b.key], // KEYS, so the client renders the bundled 3D image
     // No per-child activity on this shared screen: two siblings' rows side by
     // side is a comparison surface (§4.1). The 7-day record is private, shown
     // only behind the child's own icon (the shelf).
