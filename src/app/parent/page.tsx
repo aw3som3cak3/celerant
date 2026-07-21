@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
 import { BY_KEY } from '@/icons';
+import { EmojiIcon } from '../_components/Icon';
 import { PinPad } from '../_components/PinPad';
 import { SkillMap, type MapData } from '../_components/SkillMap';
 import { IconGrid } from '../_components/IconGrid';
@@ -98,7 +99,7 @@ export default function Parent() {
       <div style={{ margin: '1rem 0' }}>
         {players?.filter((p) => !p.archived).map((p) => (
           <button key={p.id} className="idk" style={{ fontSize: '1.6rem', color: sel === p.id ? 'var(--accent)' : undefined }} title={BY_KEY.get(p.icon)?.name} onClick={() => setSel(p.id)}>
-            {BY_KEY.get(p.icon)?.glyph}
+            <EmojiIcon iconKey={p.icon} />
           </button>
         ))}
       </div>

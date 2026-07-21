@@ -6,6 +6,7 @@ import { familyIcons, BY_KEY } from '@/icons';
 import { IconGrid } from './_components/IconGrid';
 import { PinPad } from './_components/PinPad';
 import { TopBar } from './_components/TopBar';
+import { EmojiIcon } from './_components/Icon';
 import { useI18n } from './_components/LocaleProvider';
 
 const CACHE_KEY = 'celerant.family';
@@ -125,7 +126,7 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
           <div className="cached-row">
             {chips.map((p) => (
               <button key={p} className="family-chip" onClick={() => chooseCached(p)} title={t('nav.login')}>
-                {familyIcons(p).map((i) => i.glyph).join(' ')}
+                {familyIcons(p).map((i) => <EmojiIcon key={i.key} iconKey={i.key} />)}
               </button>
             ))}
           </div>
@@ -150,7 +151,7 @@ function Slot({ value, onClick }: { value: string | null; onClick: () => void })
   const { t } = useI18n();
   return (
     <button className={`slot ${value ? 'filled' : ''}`} onClick={onClick} aria-label={value ? t('slot.change') : t('slot.choose')}>
-      {value ? BY_KEY.get(value)?.glyph : '+'}
+      {value ? <EmojiIcon iconKey={value} /> : '+'}
     </button>
   );
 }
@@ -182,7 +183,7 @@ function Players({ me }: { me: Me }) {
       <TopBar authed />
       <div className="family-card">
         <h2>{t('family.heading')}</h2>
-        <div className="bigpair" style={{ margin: '0.4rem 0' }}>{me.icons!.join(' ')}</div>
+        <div className="bigpair" style={{ margin: '0.4rem 0' }}>{me.icons!.map((k) => <EmojiIcon key={k} iconKey={k} />)}</div>
         {me.goal && (
           <div className="goal-chip">
             <div>
@@ -209,7 +210,7 @@ function Players({ me }: { me: Me }) {
               title={BY_KEY.get(p.icon)?.name}
               onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
-              {BY_KEY.get(p.icon)?.glyph ?? '?'}
+              <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit">✏️</span>}
               {!editing && p.canSprint && <span className="tile-zap" aria-hidden>⚡</span>}
             </button>
@@ -247,7 +248,7 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}>{BY_KEY.get(player.icon)?.glyph ?? '?'}</div>
+        <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}><EmojiIcon iconKey={player.icon} /></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
           <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
           {player.canSprint && (
@@ -280,7 +281,7 @@ function ChangeIconModal({ player, used, onClose }: { player: Player; used: stri
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
-          <strong>{BY_KEY.get(player.icon)?.glyph} {t('players.changeIcon')}</strong>
+          <strong><EmojiIcon iconKey={player.icon} /> {t('players.changeIcon')}</strong>
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>
         <IconGrid allowSearch exclude={new Set(used)} onPick={change} />
@@ -308,7 +309,7 @@ function CreateFamily({ onDone, onBack }: { onDone: () => void; onBack: () => vo
           {t('create.familyIsTwo')}{' '}
           <button className="idk" onClick={a ? () => setA(null) : onBack}>{t('common.back')}</button>
         </p>
-        {a && <div className="bigpair">{BY_KEY.get(a)?.glyph}</div>}
+        {a && <div className="bigpair"><EmojiIcon iconKey={a} /></div>}
         <IconGrid allowSearch exclude={a ? new Set([a]) : undefined} onPick={(k) => (a ? setB(k) : setA(k))} selected={a ? [a] : []} />
       </div>
     );

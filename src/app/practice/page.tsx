@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
-import { BY_KEY } from '@/icons';
+import { EmojiIcon } from '../_components/Icon';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
@@ -55,7 +55,7 @@ function Practice() {
     getJSON<{ players?: { id: string; icon: string; hasDiplomas?: boolean }[] }>('/api/me').then((me) => {
       const p = me.players?.find((x) => x.id === playerId);
       if (p) {
-        setIcon(BY_KEY.get(p.icon)?.glyph ?? null);
+        setIcon(p.icon); // store the KEY; the 3D image is rendered by EmojiIcon
         setHasDiplomas(!!p.hasDiplomas);
       }
     });
@@ -231,7 +231,7 @@ function Practice() {
     if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />;
     return (
       <div className="stage">
-        {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
+        {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
         <p className="muted" style={{ marginBottom: '2rem' }}>{t('practice.choosePrompt')}</p>
         <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           {choices.map((c) => (
@@ -282,7 +282,7 @@ function Practice() {
 
   return (
     <div className="stage">
-      {icon && <div className="whoami" title={t('practice.you')}>{icon}</div>}
+      {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
       <SessionBar completed={completed} target={target} />
 
       <div className="novelty fade">{item.novel && phase === 'answer' ? t('practice.somethingNew') : ''}</div>
