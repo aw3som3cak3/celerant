@@ -740,6 +740,20 @@ table.plain-table th {
   font-size: 1rem;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
 }
+/* The one-off writing-test invitation badge — a small ⌨️ top-left, distinct from
+   the ⚡ sprint badge, shown only when a child is asked (≤ once/day, a few times). */
+.tile-test {
+  position: absolute;
+  top: -8px; left: -8px;
+  font-size: 0.9rem;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
+}
+/* The invite in the child's action modal: a gentle accented outline so it reads as
+   the "help out" ask, never louder than practice. */
+.tool-test-invite {
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 /* family-card action row: the cat room + change-icon, as real buttons */
 .family-actions {

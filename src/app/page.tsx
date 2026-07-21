@@ -25,7 +25,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -208,11 +208,12 @@ function Players({ me }: { me: Me }) {
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
+              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas || p.needsToolTest ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
             >
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit">✏️</span>}
               {!editing && p.canSprint && <span className="tile-zap" aria-hidden>⚡</span>}
+              {!editing && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden>⌨️</span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -240,9 +241,12 @@ function Players({ me }: { me: Me }) {
   );
 }
 
-// A child with a sprintable skill taps their icon: offer the choice of a normal
-// session or a ⚡ sprint. The sprint is the reachable victory lap, never the default
-// — practice stays the primary, larger action. (celerant sprint-reward)
+// A child taps their icon and gets their own little screen of choices: always
+// practice (the primary, larger action); a ⚡ sprint if a skill is in the fluency-
+// building band; their diplomas if any; and — at most once a day, until a few are
+// gathered — a warm one-off invitation to run the writing-speed test, which grounds
+// their fluency aims in a real hand speed. None is ever forced. (celerant sprint-
+// reward / tool-test wiring)
 function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () => void }) {
   const { t } = useI18n();
   return (
@@ -256,6 +260,9 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
           )}
           {player.hasDiplomas && (
             <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}>🏅 {t('home.diplomas')}</a>
+          )}
+          {player.needsToolTest && (
+            <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}>⌨️ {t('home.toolTest')}</a>
           )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
         </div>

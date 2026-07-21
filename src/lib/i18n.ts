@@ -103,6 +103,7 @@ const sv: Dict = {
   'sprint.toPractice': 'Öva lugnt',
   'home.startPractice': 'Öva',
   'home.startSprint': 'Speed run',
+  'home.toolTest': 'Gör ett test för att hjälpa till att göra appen bättre',
 
   'chart.celeration': 'Celeration ×{x} per vecka.',
   'chart.keepGoing': 'Fyra sprintar ritar en linje. Fortsätt.',
@@ -175,14 +176,15 @@ const sv: Dict = {
   'parent.map': 'visa karta',
   'parent.mapHide': 'dölj karta',
 
-  'warmup.title': 'Skrivhastighet',
-  'warmup.intro': 'Skriv av siffrorna så snabbt du bekvämt kan i en minut. Det finns inget rätt eller fel här.',
+  'warmup.title': 'Ett litet skrivtest',
+  'warmup.intro': 'Skriv av siffrorna så snabbt du bekvämt kan. Det finns inget rätt eller fel — det hjälper bara appen att förstå din fart.',
   'warmup.start': 'Börja',
   'warmup.later': 'senare',
   'warmup.type': 'skriv siffrorna här',
   'warmup.doneEarly': 'klar',
-  'warmup.done': 'Klart.',
+  'warmup.done': 'Klart!',
   'warmup.result': 'Skrivhastighet: {n} siffror per minut.',
+  'warmup.thanks': 'Tack! Det hjälper appen att bli bättre för dig.',
   'warmup.toSprint': 'Till sprint',
 };
 
@@ -280,6 +282,7 @@ const en: Dict = {
   'sprint.toPractice': 'Practise calmly',
   'home.startPractice': 'Practise',
   'home.startSprint': 'Speed run',
+  'home.toolTest': 'Do a quick test to help make the app better',
 
   'chart.celeration': 'Celeration ×{x} per week.',
   'chart.keepGoing': 'Four sprints draw a line. Keep going.',
@@ -352,14 +355,15 @@ const en: Dict = {
   'parent.map': 'show map',
   'parent.mapHide': 'hide map',
 
-  'warmup.title': 'Writing speed',
-  'warmup.intro': "Copy the digits as fast as you comfortably can for a minute. There's no right or wrong here.",
+  'warmup.title': 'A quick writing test',
+  'warmup.intro': "Copy the digits as fast as you comfortably can. There's no right or wrong — it just helps the app learn your speed.",
   'warmup.start': 'Start',
   'warmup.later': 'later',
   'warmup.type': 'type the digits here',
   'warmup.doneEarly': 'done',
-  'warmup.done': 'Done.',
+  'warmup.done': 'Done!',
   'warmup.result': 'Writing speed: {n} digits per minute.',
+  'warmup.thanks': 'Thanks! This helps the app get better for you.',
   'warmup.toSprint': 'To sprint',
 };
 

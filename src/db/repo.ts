@@ -366,6 +366,22 @@ export function latestToolRate(playerId: string): number | null {
   return r ? r.digits_per_min : null;
 }
 
+// The writing-speed test invitation (celerant tool-test wiring). We ask a child to
+// run the copy-speed game AT MOST once per day and stop after TOOL_TEST_TARGET real
+// measurements — enough to ground the aim, never a chore. These two reads drive the
+// per-child `needsToolTest` flag on /api/me.
+export function toolRateCount(playerId: string): number {
+  return (getDb().prepare('SELECT COUNT(*) c FROM tool_rate WHERE player_id = ? AND voided_at IS NULL').get(playerId) as { c: number }).c;
+}
+// Did this child already record a measurement on their CURRENT local day (Europe/
+// Stockholm, like the session record)? If so, the invitation is gone until tomorrow.
+export function measuredToolRateToday(playerId: string, now: number): boolean {
+  const r = getDb()
+    .prepare('SELECT MAX(at) m FROM tool_rate WHERE player_id = ? AND voided_at IS NULL')
+    .get(playerId) as { m: number | null };
+  return r.m != null && localDayKey(r.m) === localDayKey(now);
+}
+
 export type SprintRow = { duration_s: number; correct: number; errors: number; at: number };
 export function sprintsForSkill(playerId: string, skillCode: string, limit: number): SprintRow[] {
   return getDb()
