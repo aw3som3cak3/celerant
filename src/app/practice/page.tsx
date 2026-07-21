@@ -345,7 +345,7 @@ function renderPrompt(prompt: string): React.ReactNode {
     .flatMap((part, i, arr) => (i < arr.length - 1 ? [part, <span key={i} className="blank-box">?</span>] : [part]));
 }
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 function SessionAllocation({ sessionId }: { sessionId: number }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<RewardData | null>(null);
@@ -368,12 +368,20 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
   const label = (target: Target) => (target.kind === 'family' ? data.familyGoalLabel ?? t('room.familyGoal') : ROSTER_BY_ID.get(target.id)?.name[locale] ?? target.id);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
-  const chosenCount = chosen.kind === 'cat' ? `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 40}` : `${data.progress['family'] ?? 0}`;
+  const chosenCount = chosen.kind === 'family' ? `${data.progress['family'] ?? 0}` : `${data.progress[chosen.id] ?? 0}/${ROSTER_BY_ID.get(chosen.id)?.cost ?? 40}`;
+  // If the family is collecting a piece of FURNITURE, keep it selectable here (the
+  // cat chips are only the cats) so a kid who redirects can flow back to it.
+  const sharedProp = data.sharedTarget.kind === 'prop' ? ROSTER_BY_ID.get(data.sharedTarget.id) : undefined;
 
   return (
     <div className="alloc-box">
       <div className="alloc-head">{t('reward.countsToward')} <span className="alloc-current">{label(chosen)}</span> — {chosenCount}</div>
       <div className="alloc-choices">
+        {sharedProp && (
+          <button className={`alloc-chip ${same(chosen, data.sharedTarget) ? 'on' : ''}`} onClick={() => pick(data.sharedTarget)}>
+            <span className="prop-thumb" style={{ width: 20, height: 20, backgroundImage: `url(/props/${sharedProp.id}.png)` }} aria-hidden /> {sharedProp.name[locale]}
+          </button>
+        )}
         {cats.map((c) => {
           const tgt: Target = { kind: 'cat', id: c.id };
           return (

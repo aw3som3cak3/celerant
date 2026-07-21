@@ -9,7 +9,7 @@ import { json } from '@/lib/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const Body = z.object({ target: z.object({ kind: z.enum(['cat', 'family']), id: z.string().min(1) }) });
+const Body = z.object({ target: z.object({ kind: z.enum(['cat', 'family', 'prop']), id: z.string().min(1) }) });
 
 // Set the family's shared DEFAULT target ("let's all collect for Pythagoras").
 // Cooperative and family-wide, so any family-session member may set it — it's just
@@ -23,6 +23,7 @@ export async function POST(req: NextRequest) {
   const { target } = parsed.data;
 
   if (target.kind === 'cat' && ROSTER_BY_ID.get(target.id)?.kind !== 'cat') return json({ error: 'bad_target' }, 400);
+  if (target.kind === 'prop' && ROSTER_BY_ID.get(target.id)?.kind !== 'prop') return json({ error: 'bad_target' }, 400);
   if (target.kind === 'family' && target.id !== 'family') return json({ error: 'bad_target' }, 400);
 
   repo.setSharedTarget(s.familyId, target.kind, target.id, now);

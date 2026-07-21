@@ -6,7 +6,7 @@ import { getJSON, postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji, emojify } from '../_components/Emoji';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
-import { CATS, type Target } from '@/reward/roster';
+import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 
 type Eligible = { code: string; family: string };
 type BatchItem = { seed: number; answerLength: number };
@@ -17,7 +17,7 @@ type SprintOutcome =
   | { kind: 'collapse' };
 type Bonus = { sprintId: number; units: number };
 type Result = { correct: number; errors: number; correctPerMin: number; errorsPerMin: number; aim: number; outcome: SprintOutcome | null; bonus: Bonus | null };
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // Interval-based sprint (input-timing A4): a fixed batch of items the client builds
 // locally and auto-advances through — no wall-clock timer, no per-item fetch. The
@@ -268,10 +268,16 @@ function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: n
   if (!data || !chosen) return null;
   const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
   const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
+  const sharedProp = data.sharedTarget.kind === 'prop' ? ROSTER_BY_ID.get(data.sharedTarget.id) : undefined;
   return (
     <div className="alloc-box">
       <div className="alloc-head">{t('sprint.bonusCountsToward', { n: units })}</div>
       <div className="alloc-choices">
+        {sharedProp && (
+          <button className={`alloc-chip ${same(chosen, data.sharedTarget) ? 'on' : ''}`} onClick={() => pick(data.sharedTarget)}>
+            <span className="prop-thumb" style={{ width: 20, height: 20, backgroundImage: `url(/props/${sharedProp.id}.png)` }} aria-hidden /> {sharedProp.name[locale]}
+          </button>
+        )}
         {cats.map((c) => {
           const tgt: Target = { kind: 'cat', id: c.id };
           return (

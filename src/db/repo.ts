@@ -843,17 +843,20 @@ export function getAllocation(sessionRunId: number): AllocationRow | undefined {
 // = 1, an old 20-item session = 2 (see roster.ts) — so doubling cat costs 20→40
 // alongside halving sessions 20→10 is net-neutral, and a cat earned under the old
 // counting can never re-lock (its 20-item sessions still count double).
-export function catAllocationCounts(familyId: string): Map<string, number> {
+// Directed-session counts per collectable TARGET (cats and props alike — both
+// accumulate toward a cost the same way). The family goal is the residual and is
+// counted separately (familyGoalProgress).
+export function targetAllocationCounts(familyId: string): Map<string, number> {
   const rows = getDb()
     .prepare(
       `SELECT a.target_id, SUM((sr.target + 9) / 10) c FROM session_allocation a
        JOIN session_run sr ON sr.id = a.session_run_id
-       WHERE a.family_id = ? AND a.target_kind = 'cat' GROUP BY a.target_id`,
+       WHERE a.family_id = ? AND a.target_kind IN ('cat','prop') GROUP BY a.target_id`,
     )
     .all(familyId) as { target_id: string; c: number }[];
   const counts = new Map(rows.map((r) => [r.target_id, r.c]));
-  // Fold in sprint milestone bonus units (not sessions) directed to each cat.
-  for (const [id, u] of bonusCatUnits(familyId)) counts.set(id, (counts.get(id) ?? 0) + u);
+  // Fold in sprint milestone bonus units (not sessions) directed to each target.
+  for (const [id, u] of bonusTargetUnits(familyId)) counts.set(id, (counts.get(id) ?? 0) + u);
   return counts;
 }
 
@@ -889,10 +892,10 @@ export function bonusAllocationForSprint(sprintId: number): { player_id: string;
     .get(sprintId) as { player_id: string; family_id: string; target_kind: string; target_id: string; units: number } | undefined;
 }
 
-// Bonus units directed to each cat (all-time), mirroring catAllocationCounts.
-export function bonusCatUnits(familyId: string): Map<string, number> {
+// Bonus units directed to each cat/prop (all-time), mirroring targetAllocationCounts.
+export function bonusTargetUnits(familyId: string): Map<string, number> {
   const rows = getDb()
-    .prepare("SELECT target_id, COALESCE(SUM(units),0) u FROM bonus_allocation WHERE family_id = ? AND target_kind = 'cat' GROUP BY target_id")
+    .prepare("SELECT target_id, COALESCE(SUM(units),0) u FROM bonus_allocation WHERE family_id = ? AND target_kind IN ('cat','prop') GROUP BY target_id")
     .all(familyId) as { target_id: string; u: number }[];
   return new Map(rows.map((r) => [r.target_id, r.u]));
 }

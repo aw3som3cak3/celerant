@@ -3,11 +3,11 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
-import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
+import { CATS, PROPS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji } from '../_components/Emoji';
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // The cat, from the ToffeeCraft sprite sheets (src/reward/sprites.ts). A 32×32
 // frame window over /cats/<spriteId>/<anim>.png, stepped by CSS; scaled up with
@@ -110,6 +110,23 @@ function Room() {
     <div className="room-wrap">
       {/* The pixel room — a separate visual register from the practice UI. */}
       <div className="room-stage">
+        {/* Furniture: unlocked props sit at their fixed floor spots, behind the cats
+            (rendered first, so a wandering cat paints in front of them). */}
+        {data.unlockedProps.map((id) => {
+          const it = ROSTER_BY_ID.get(id);
+          if (!it?.slot) return null;
+          return (
+            <img
+              key={id}
+              className="room-prop"
+              src={`/props/${id}.png`}
+              alt=""
+              title={it.name[locale]}
+              draggable={false}
+              style={{ left: `${it.slot.x}%`, top: `${it.slot.y}%`, height: it.size ?? 40 }}
+            />
+          );
+        })}
         {hearts.map((h) => (
           <span key={h.id} className="room-heart" style={{ left: `${h.x}%`, top: `${h.y}%` }}><Emoji e="❤" /></span>
         ))}
@@ -187,6 +204,25 @@ function Room() {
             )}
           </div>
         )}
+
+        {/* Furniture — the same directed-session collection as cats, placed in the
+            room once earned. */}
+        <h2 className="target-subhead">{t('room.furniture')}</h2>
+        {PROPS.map((pr) => {
+          const n = data.progress[pr.id] ?? 0;
+          const done = data.unlockedProps.includes(pr.id);
+          const isShared = shared.kind === 'prop' && shared.id === pr.id;
+          return (
+            <div key={pr.id} className={`target-row ${done ? 'done' : ''}`}>
+              <span className="prop-thumb" style={{ backgroundImage: `url(/props/${pr.id}.png)` }} aria-hidden />
+              <span className="target-name">{pr.name[locale]}</span>
+              <span className="target-meter"><span style={{ width: `${Math.min(100, (n / pr.cost) * 100)}%` }} /></span>
+              <span className="target-count">{done ? '✓' : `${n}/${pr.cost}`}</span>
+              {!done && !isShared && <button className="idk" onClick={() => setSharedTarget({ kind: 'prop', id: pr.id })}>{t('room.collectThis')}</button>}
+              {isShared && <span className="pill-selected">{t('room.selected')}</span>}
+            </div>
+          );
+        })}
       </div>
 
       <div className="room-nav">
