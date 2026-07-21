@@ -129,7 +129,15 @@ function recency(code: string, recentCodes: string[]): number {
 // requires check would let a two-levels-up compound slip past the component-
 // fluency gate that the addendum (§7) intends to bite. It also prevents the
 // nonsense of a harder variant unlocking before its simpler prerequisite.
-export function computeUnlocked(states: SelState[]): Map<string, boolean> {
+// `isGrounded` is the GROUND Level-3 seam (GROUND-phase spec §5), and it is DISABLED
+// by default: it defaults to always-true, so the gate is byte-for-byte the pre-GROUND
+// gate. GROUND runs in shadow — no caller passes a real predicate. To enforce, a
+// caller would pass `(code) => grounded(playerId, code)` from ground-gate.ts; that is
+// the single, deliberate flip, documented there.
+export function computeUnlocked(
+  states: SelState[],
+  isGrounded: (code: string) => boolean = () => true,
+): Map<string, boolean> {
   const byCode = new Map(states.map((s) => [s.code, s]));
   const memo = new Map<string, boolean>();
   const visiting = new Set<string>();
@@ -142,6 +150,7 @@ export function computeUnlocked(states: SelState[]): Map<string, boolean> {
     const s = byCode.get(code);
     const u =
       !!s &&
+      isGrounded(code) && // shadow: always true (see the seam note above)
       s.requires.every((r) => {
         const req = byCode.get(r);
         if (!req) return false;

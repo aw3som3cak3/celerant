@@ -998,6 +998,37 @@ export function usageDetailsSince(playerId: string, kind: string, sinceMs: numbe
   return rows.map((r) => r.detail);
 }
 
+// --- GROUND / acquisition (SHADOW mode) ------------------------------------
+// Append-only structure-choice events. Never read by replay/selector/θ/gate; the
+// grounded criterion (lib/ground.ts) reads them on demand, and that criterion is
+// itself computed-but-not-enforced. Writing or reading these can never change what
+// a child is served in drill.
+export function appendGroundEvent(
+  playerId: string,
+  structure: string,
+  sceneJson: string,
+  chosen: string,
+  correct: boolean,
+  at: number,
+): void {
+  getDb()
+    .prepare('INSERT INTO ground_event (player_id, structure, scene_json, chosen, correct, at) VALUES (?, ?, ?, ?, ?, ?)')
+    .run(playerId, structure, sceneJson, chosen, correct ? 1 : 0, at);
+}
+
+// The child's most recent choices on one structure, newest first — the window the
+// grounded criterion looks at.
+export function recentGroundChoices(playerId: string, structure: string, limit: number): { correct: number }[] {
+  return getDb()
+    .prepare('SELECT correct FROM ground_event WHERE player_id = ? AND structure = ? ORDER BY id DESC LIMIT ?')
+    .all(playerId, structure, limit) as { correct: number }[];
+}
+
+export function groundEventCount(playerId: string): number {
+  const r = getDb().prepare('SELECT COUNT(*) c FROM ground_event WHERE player_id = ?').get(playerId) as { c: number };
+  return r.c;
+}
+
 // When a skill was last DEMOTED by a collapsed sprint (sprint-eligibility). The
 // sprint cooldown is state-based: a demoted skill re-earns eligibility only on
 // fresh untimed accuracy AFTER this instant (recentFirstTryAccuracySince). Reads a

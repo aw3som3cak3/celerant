@@ -279,4 +279,21 @@ CREATE TABLE IF NOT EXISTS prereg (
   outcome       TEXT,                  -- 'confirmed' | 'refuted' | 'inconclusive'
   resolved_at   INTEGER
 );
+
+-- GROUND / acquisition phase (GROUND-phase spec, SHADOW mode). A child interprets a
+-- concrete pictorial situation as combine vs separate — the MEANING behind add/sub,
+-- before drilling the symbol. Append-only, additive, REVERSIBLE: never folded into
+-- computeAbility, and the ground->drill criterion derived from it is computed but not
+-- enforced (the drill loop reads it through an always-satisfied seam). If GROUND
+-- proves unnecessary these rows sit inert and the derived state is simply never read.
+CREATE TABLE IF NOT EXISTS ground_event (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id   TEXT NOT NULL REFERENCES player(id),
+  structure   TEXT NOT NULL,       -- the CORRECT structure: 'combine' | 'separate'
+  scene_json  TEXT NOT NULL,       -- {kind, a, b} the concrete situation shown
+  chosen      TEXT NOT NULL,       -- what the child picked: 'combine' | 'separate'
+  correct     INTEGER NOT NULL,    -- chosen === structure
+  at          INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ground_event_player ON ground_event(player_id, structure, at);
 `;
