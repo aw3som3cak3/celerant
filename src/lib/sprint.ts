@@ -36,7 +36,7 @@ type SprintSession = {
   current: { prompt: string; answer: string } | null;
   finalized: boolean;
 };
-type ToolSession = { id: string; playerId: string; target: string; durationS: number; endsAt: number };
+type ToolSession = { id: string; playerId: string; numbers: string[] };
 
 const g = globalThis as unknown as { __sprints?: Map<string, SprintSession>; __tools?: Map<string, ToolSession> };
 const sprints = (g.__sprints ??= new Map());
@@ -264,29 +264,53 @@ export function ingestSprint(
 }
 
 // --- Tool-skill (writing-speed) measurement (addendum §4, ui-lifecycle §4.5) -
-// Opt-in; runs the first time a child opens sprint mode. A measurement
-// overwrites the provisional default outright on the next replay.
+// Opt-in; a warm one-off invitation on the icon tap. A measurement overwrites the
+// provisional default outright on the next replay.
+//
+// The probe runs on the SAME numpad the child answers real problems with (not the
+// OS keyboard it used to): the server issues a handful of numbers, the child copies
+// each on the pad, and the client measures the per-item interval exactly as a sprint
+// does. That makes the input floor comparable to the sprint rate it grounds — a rate
+// measured on one surface can't calibrate an aim reached on another. digitsPerMin is
+// the summed digits over the summed valid intervals (interruptions excluded), the
+// same interval-rate shape used everywhere else.
 
-export type ToolStart = { toolId: string; target: string; durationS: number; endsAt: number };
+const TOOL_ITEMS = 12; // enough copies for a stable digit rate without tiring a child
+const TOOL_LENGTHS = [2, 3, 4]; // digit counts cycled across the items
 
-export function startToolMeasure(playerId: string, durationS: number, now: number): ToolStart {
+export type ToolStart = { toolId: string; numbers: string[] };
+export type ToolCopy = { i: number; given: string; intervalMs: number };
+
+export function startToolMeasure(playerId: string, now: number): ToolStart {
   const rng = makeRng(randomSeed());
-  let target = '';
-  for (let i = 0; i < 600; i++) target += rng.int(0, 9);
+  const numbers: string[] = [];
+  for (let i = 0; i < TOOL_ITEMS; i++) {
+    const len = TOOL_LENGTHS[i % TOOL_LENGTHS.length];
+    const lo = 10 ** (len - 1); // no leading zeros: the shown number is a real number
+    numbers.push(String(rng.int(lo, 10 ** len - 1)));
+  }
   const id = randomUUID();
-  const endsAt = now + durationS * 1000;
-  tools.set(id, { id, playerId, target, durationS, endsAt });
-  return { toolId: id, target, durationS, endsAt };
+  tools.set(id, { id, playerId, numbers });
+  return { toolId: id, numbers };
 }
 
-export function submitToolMeasure(playerId: string, toolId: string, typed: string, now: number): { digitsPerMin: number } | null {
+export function submitToolMeasure(playerId: string, toolId: string, copies: ToolCopy[], now: number): { digitsPerMin: number } | null {
   const t = tools.get(toolId);
   if (!t || t.playerId !== playerId) return null;
   tools.delete(toolId);
-  const clean = typed.replace(/\D/g, '');
-  let matches = 0;
-  for (let i = 0; i < clean.length && i < t.target.length; i++) if (clean[i] === t.target[i]) matches++;
-  const digitsPerMin = (matches * 60) / t.durationS;
+  let digits = 0;
+  let sumMs = 0;
+  for (const c of copies) {
+    const target = t.numbers[c.i];
+    // Count only a cleanly-copied number timed within the valid window; a wrong copy
+    // or an interrupted item measures something other than hand speed.
+    if (target && c.given === target && isValidInterval(c.intervalMs)) {
+      digits += target.length;
+      sumMs += c.intervalMs;
+    }
+  }
+  if (digits === 0 || sumMs <= 0) return null;
+  const digitsPerMin = (digits * 60000) / sumMs;
   repo.appendToolRate(playerId, digitsPerMin, now); // ledger write → replay
   return { digitsPerMin };
 }

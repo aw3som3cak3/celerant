@@ -58,6 +58,7 @@ export function InputStage({
   showIdk = false,
   idkLabel,
   armKey,
+  promptOverride,
 }: {
   mode: 'session' | 'sprint';
   item: StageItem | null;
@@ -67,6 +68,10 @@ export function InputStage({
   showIdk?: boolean; // session: render a "vet inte" button
   idkLabel?: string;
   armKey?: number; // bump to RE-ARM the same item for a retry (clears the entry, KEEPS the clock)
+  // The writing-speed probe drives a "copy this number" task through this same
+  // numpad + clock (so the input floor is measured on the surface the child actually
+  // answers with): it passes the number to show here instead of a generated problem.
+  promptOverride?: string;
 }) {
   const [value, setValue] = useState('');
   const valueRef = useRef(''); // authoritative current value (avoids stale-closure on fast taps)
@@ -74,7 +79,7 @@ export function InputStage({
   const capturedRef = useRef(false);
 
   const allowSign = item ? inputModeFor(item.family) === 'text' : false; // −,/ only for fractions/negatives/linear (session only)
-  const prompt = item ? buildItem(item.code, item.seed).prompt : '';
+  const prompt = promptOverride ?? (item ? buildItem(item.code, item.seed).prompt : '');
 
   useWakeLock(!!item && !disabled);
 
