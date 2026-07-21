@@ -1063,14 +1063,20 @@ table.plain-table th {
   user-select: none;
 }
 
+/* The approach cue, now a banner UNDER the room (not an overlay) so it never covers
+   a cat or blocks a pet-tap. */
 .cat-carrier {
-  position: absolute;
-  left: 50%; bottom: 12%;
-  transform: translateX(-50%);
-  text-align: center;
-  z-index: 500;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin: 0.6rem auto 0;
+  max-width: 340px;
+  padding: 0.5rem 0.8rem;
+  border: 3px solid #3a2f28; border-radius: 10px;
+  background: #fff7e6;
 }
-.carrier-box { font-size: 2.6rem; }
+.carrier-box { font-size: 2.6rem; flex: none; line-height: 1; }
+.carrier-info { flex: 1; text-align: left; }
 .carrier-label { font-weight: 700; color: #4a3b2c; font-size: 0.9rem; }
 .carrier-meter, .target-meter {
   display: inline-block;
