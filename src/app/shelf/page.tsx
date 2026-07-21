@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji, emojify } from '../_components/Emoji';
 
 type Diploma = { code: string; label: string; family: string };
 type ShelfData = { days: boolean[]; diplomas: Diploma[] };
@@ -24,7 +25,7 @@ function Shelf() {
 
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
-      <h1>{t('shelf.diplomasTitle')}</h1>
+      <h1>{emojify(t('shelf.diplomasTitle'))}</h1>
 
       {data.diplomas.length === 0 ? (
         <p className="muted">{t('shelf.diplomasEmpty')}</p>
@@ -32,7 +33,7 @@ function Shelf() {
         <div className="diploma-wall">
           {data.diplomas.map((d) => (
             <div key={d.code} className="diploma" title={d.label}>
-              <span className="diploma-medal" aria-hidden>🏅</span>
+              <span className="diploma-medal" aria-hidden><Emoji e="🏅" /></span>
               <span className="diploma-skill">{d.label}</span>
               <span className="diploma-tag">{t('shelf.diplomaFast')}</span>
             </div>
@@ -41,7 +42,7 @@ function Shelf() {
       )}
 
       <p style={{ marginTop: '2rem' }}>
-        <a className="next-btn" href="/" style={{ marginTop: 0 }}>🏠 {t('common.home')}</a>
+        <a className="next-btn" href="/" style={{ marginTop: 0 }}><Emoji e="🏠" /> {t('common.home')}</a>
       </p>
     </div>
   );

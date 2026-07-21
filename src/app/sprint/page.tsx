@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji, emojify } from '../_components/Emoji';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
 import { CATS, type Target } from '@/reward/roster';
 
@@ -199,7 +200,7 @@ function Sprint() {
           start(remaining[Math.floor(Math.random() * remaining.length)].code);
         }}
       >
-        {t('sprint.againZap')}
+        {emojify(t('sprint.againZap'))}
       </button>
     ) : null;
   const backLink = <a className="next-btn" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
@@ -220,10 +221,10 @@ function Sprint() {
   if (outcome?.kind === 'milestone') {
     return (
       <div className="plain" style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '3.5rem' }}>🏅</div>
-        <h1>{t('sprint.milestoneTitle')}</h1>
+        <div style={{ fontSize: '3.5rem' }}><Emoji e="🏅" /></div>
+        <h1>{emojify(t('sprint.milestoneTitle'))}</h1>
         <p style={{ fontSize: '1.3rem', margin: '0.5rem 0' }}>{t('sprint.milestoneLine', { skill: skillName })}</p>
-        {result && <p className="muted">{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
+        {result && <p className="muted">{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
         {result?.bonus && <SprintBonusAllocation sprintId={result.bonus.sprintId} units={result.bonus.units} />}
         <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
       </div>
@@ -238,10 +239,10 @@ function Sprint() {
       : null;
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
-      <div style={{ fontSize: '3rem' }}>🎉</div>
+      <div style={{ fontSize: '3rem' }}><Emoji e="🎉" /></div>
       <h1>{t('sprint.done')}</h1>
-      {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) })}</p>}
-      {coaching && <p className="muted">{coaching}</p>}
+      {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
+      {coaching && <p className="muted">{emojify(coaching)}</p>}
       <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
     </div>
   );
@@ -281,7 +282,7 @@ function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: n
         })}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
+            <Emoji e="🎯" /> {data.familyGoalLabel ?? t('room.familyGoal')}
           </button>
         )}
       </div>

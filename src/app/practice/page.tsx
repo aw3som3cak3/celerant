@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { EmojiIcon } from '../_components/Icon';
+import { Emoji } from '../_components/Emoji';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
@@ -242,8 +243,8 @@ function Practice() {
           ))}
         </div>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <a className="quit-btn" href={`/shelf?p=${playerId}`}>🗺️ {t('practice.cards')}</a>
-          <a className="quit-btn" href="/">🏠 {t('common.home')}</a>
+          <a className="quit-btn" href={`/shelf?p=${playerId}`}><Emoji e="🗺️" /> {t('practice.cards')}</a>
+          <a className="quit-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
         </div>
       </div>
     );
@@ -263,16 +264,16 @@ function Practice() {
           <div className="sprint-offer">
             <p>{t('sprint.offerLine', { skill: offer.label })}</p>
             <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
-              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}>⚡ {t('sprint.offerGo')}</a>
+              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}><Emoji e="⚡" /> {t('sprint.offerGo')}</a>
               <button className="next-btn" onClick={declineOffer}>{t('sprint.offerLater')}</button>
             </div>
           </div>
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
           <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
-          {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}>🏅 {t('home.diplomas')}</a>}
-          <a className="next-btn" href={`/room?p=${playerId}`}>🐱 {t('room.title')}</a>
-          <a className="next-btn primary" href="/">🏠 {t('common.home')}</a>
+          {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}><Emoji e="🏅" /> {t('home.diplomas')}</a>}
+          <a className="next-btn" href={`/room?p=${playerId}`}><Emoji e="🐱" /> {t('room.title')}</a>
+          <a className="next-btn primary" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
         </div>
       </div>
     );
@@ -310,7 +311,7 @@ function Practice() {
             armKey={armKey}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
-          <button className="quit-btn" onClick={endEarly}>🏠 {t('common.home')}</button>
+          <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>
         </>
       )}
     </div>
@@ -383,7 +384,7 @@ function SessionAllocation({ sessionId }: { sessionId: number }) {
         })}
         {data.familyGoalOpen && (
           <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            🎯 {data.familyGoalLabel ?? t('room.familyGoal')}
+            <Emoji e="🎯" /> {data.familyGoalLabel ?? t('room.familyGoal')}
           </button>
         )}
       </div>

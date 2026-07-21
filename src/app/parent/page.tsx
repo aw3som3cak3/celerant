@@ -8,6 +8,7 @@ import { PinPad } from '../_components/PinPad';
 import { SkillMap, type MapData } from '../_components/SkillMap';
 import { IconGrid } from '../_components/IconGrid';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji } from '../_components/Emoji';
 import { fluencyDisplay } from '@/lib/parent-fluency';
 
 type Player = { id: string; icon: string; schoolYear: number; archived: boolean };
@@ -118,7 +119,7 @@ export default function Parent() {
             <div style={{ margin: '0.8rem 0' }}>
               {data.diagnostics.map((d, i) => (
                 <p key={i} style={{ color: 'var(--accent)' }}>
-                  ⚠ {t(DIAG_KEY[d.code], { skill: d.skill })}
+                  <Emoji e="⚠" /> {t(DIAG_KEY[d.code], { skill: d.skill })}
                 </p>
               ))}
             </div>
@@ -227,7 +228,7 @@ function UsagePanel({ usage }: { usage: Usage }) {
       </div>
       {usage.alarm && (
         <p style={{ color: 'var(--accent)', fontSize: '0.85rem', marginTop: '0.4rem' }}>
-          ⚠ {t('parent.usageAlarm', { n: usage.sessionsLast7 })}
+          <Emoji e="⚠" /> {t('parent.usageAlarm', { n: usage.sessionsLast7 })}
         </p>
       )}
     </div>
@@ -280,7 +281,7 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
       <div className="namebtn" style={{ cursor: 'default' }}>
         <div>
           {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
-          {goal.goal.reached ? ` · ${t('goal.reached')} 🎉` : ''}
+          {goal.goal.reached ? <> · {t('goal.reached')} <Emoji e="🎉" /></> : ''}
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
           <button

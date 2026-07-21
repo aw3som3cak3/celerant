@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji } from '../_components/Emoji';
 
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
@@ -110,7 +111,7 @@ function Room() {
       {/* The pixel room — a separate visual register from the practice UI. */}
       <div className="room-stage">
         {hearts.map((h) => (
-          <span key={h.id} className="room-heart" style={{ left: `${h.x}%`, top: `${h.y}%` }}>❤</span>
+          <span key={h.id} className="room-heart" style={{ left: `${h.x}%`, top: `${h.y}%` }}><Emoji e="❤" /></span>
         ))}
         {[...wanderers].sort((a, b) => a.y - b.y).map((w) => {
           const cat = ROSTER_BY_ID.get(w.id)!;
@@ -133,7 +134,7 @@ function Room() {
         {sharedCat && !sharedUnlocked && (
           <div className="cat-carrier">
             <span className="cat-pill">{t('room.selected')}</span>
-            <div className="carrier-box">📦</div>
+            <div className="carrier-box"><Emoji e="📦" /></div>
             <div className="carrier-label">{sharedCat.name[locale]}</div>
             <div className="carrier-meter"><span style={{ width: `${Math.min(100, ((data.progress[sharedCat.id] ?? 0) / sharedCat.cost) * 100)}%` }} /></div>
             <div className="carrier-count">{data.progress[sharedCat.id] ?? 0} / {sharedCat.cost}</div>
@@ -176,7 +177,7 @@ function Room() {
             unreached; a reached goal is celebrated elsewhere (the goal chip) */}
         {data.familyGoalOpen && (
           <div className="target-row">
-            <span className="target-face">🎯</span>
+            <span className="target-face"><Emoji e="🎯" /></span>
             <span className="target-name">{data.familyGoalLabel ?? t('room.familyGoal')}</span>
             <span className="target-count">{data.progress['family'] ?? 0}</span>
             {shared.kind !== 'family' ? (
@@ -190,7 +191,7 @@ function Room() {
 
       <div className="room-nav">
         {p && <a className="room-btn" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>}
-        <a className="room-btn" href="/">🏠 {t('common.home')}</a>
+        <a className="room-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
       </div>
     </div>
   );
