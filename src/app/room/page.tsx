@@ -146,20 +146,23 @@ function Room() {
           );
         })}
 
-        {/* Approach cue: the shared cat still in its carrier, with a climbing meter
-            from session one, so the room is a visible climb, not an empty floor. */}
-        {sharedCat && !sharedUnlocked && (
-          <div className="cat-carrier">
-            <span className="cat-pill">{t('room.selected')}</span>
-            <div className="carrier-box"><Emoji e="📦" /></div>
-            <div className="carrier-label">{sharedCat.name[locale]}</div>
+        {data.unlockedCats.length === 0 && !sharedCat && <p className="room-empty">{t('room.empty')}</p>}
+      </div>
+
+      {/* Approach cue: the shared cat still in its carrier, with a climbing meter from
+          session one, so collecting reads as a visible climb. It lives UNDER the room,
+          not over it — inside the stage it covered the cats and swallowed the taps
+          meant for petting them. */}
+      {sharedCat && !sharedUnlocked && (
+        <div className="cat-carrier">
+          <div className="carrier-box"><Emoji e="📦" /></div>
+          <div className="carrier-info">
+            <div className="carrier-label">{sharedCat.name[locale]} <span className="cat-pill">{t('room.selected')}</span></div>
             <div className="carrier-meter"><span style={{ width: `${Math.min(100, ((data.progress[sharedCat.id] ?? 0) / sharedCat.cost) * 100)}%` }} /></div>
             <div className="carrier-count">{data.progress[sharedCat.id] ?? 0} / {sharedCat.cost}</div>
           </div>
-        )}
-
-        {data.unlockedCats.length === 0 && !sharedCat && <p className="room-empty">{t('room.empty')}</p>}
-      </div>
+        </div>
+      )}
 
       {/* Petting card: name + one-line who/what. Meter-free delight. */}
       {petting && (
