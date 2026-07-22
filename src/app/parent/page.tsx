@@ -301,27 +301,44 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   return <div className="namebtn" style={{ cursor: 'default' }}>{setForm}</div>;
 }
 
-// Add a child — a parent action (behind the PIN). Pick an icon; the app starts
-// easy and climbs, and the parent can set the årskurs afterward on that child.
+// Add a child — a parent action (behind the PIN). Pick an icon, then set the child's
+// årskurs: the parent knows it, and it seeds where the child starts (start-from-below
+// still applies from there). Can be changed later on the child (YearChange).
 function AddChild({ used, onDone }: { used: string[]; onDone: () => void }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
+  const [icon, setIcon] = useState<string | null>(null);
   const [err, setErr] = useState('');
-  async function create(icon: string) {
-    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon });
-    if (r.ok) { setOpen(false); setErr(''); onDone(); } else setErr(t('player.iconTaken'));
+  function close() { setOpen(false); setIcon(null); setErr(''); }
+  async function create(schoolYear: number) {
+    if (!icon) return;
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/player', { icon, schoolYear });
+    if (r.ok) { close(); onDone(); } else setErr(t('player.iconTaken'));
   }
   return (
     <div style={{ margin: '0.5rem 0' }}>
       <button className="pill-btn" onClick={() => setOpen(true)}>+ {t('players.addChild')}</button>
       {open && (
-        <div className="modal-backdrop" onClick={() => setOpen(false)}>
+        <div className="modal-backdrop" onClick={close}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <strong>{t('players.addChild')}</strong>
-              <button className="idk" onClick={() => setOpen(false)}>{t('common.close')}</button>
+              <button className="idk" onClick={close}>{t('common.close')}</button>
             </div>
-            <IconGrid allowSearch exclude={new Set(used)} onPick={create} />
+            {!icon ? (
+              <IconGrid allowSearch exclude={new Set(used)} onPick={setIcon} />
+            ) : (
+              <div style={{ textAlign: 'center' }}>
+                <div className="bigpair" style={{ margin: '0.4rem 0' }}><EmojiIcon iconKey={icon} /></div>
+                <p className="muted">{t('parent.pickYear')}</p>
+                <div className="yearpick">
+                  {['F', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map((y, i) => (
+                    <button key={y} className="pill-btn" onClick={() => create(i)}>{y}</button>
+                  ))}
+                </div>
+                <button className="idk" style={{ marginTop: '0.8rem' }} onClick={() => setIcon(null)}>{t('common.back')}</button>
+              </div>
+            )}
             {err && <p className="muted">{err}</p>}
           </div>
         </div>

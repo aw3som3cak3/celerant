@@ -756,6 +756,9 @@ table.plain-table th {
   font-size: 1rem;
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.25));
 }
+/* Year picker in "add a child" — a row of årskurs buttons (F, 1…9). */
+.yearpick { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin: 0.6rem 0; }
+.yearpick .pill-btn { min-width: 2.6rem; }
 /* The invite in the child's action modal: a gentle accented outline so it reads as
    the "help out" ask, never louder than practice. */
 .tool-test-invite {
