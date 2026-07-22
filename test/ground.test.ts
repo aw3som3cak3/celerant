@@ -8,8 +8,8 @@ process.env.DATABASE_PATH = path.join(dir, 'test.db');
 process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
-import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS } from '@/lib/ground';
-import { groundedStructure, grounded, canGround, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
+import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES } from '@/lib/ground';
+import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
 import { computeUnlocked, type SelState } from '@/lib/selector';
 
 const NOW = Date.UTC(2026, 6, 21);
@@ -38,6 +38,54 @@ describe('GROUND scene contract (pure, shared client/server)', () => {
     const s = buildScene(42);
     expect(scoreChoice(42, s.structure)).toBe(true);
     expect(scoreChoice(42, s.structure === 'combine' ? 'separate' : 'combine')).toBe(false);
+  });
+});
+
+describe('GROUND acquisition ladder (structure → count → numeral → sum)', () => {
+  it('a run climbs the rungs and GROUND_ITEMS matches', () => {
+    expect(RUN_STAGES[0]).toBe('structure');
+    expect(RUN_STAGES.at(-1)).toBe('sum'); // ends at the bridge into symbolic add
+    expect(GROUND_ITEMS).toBe(RUN_STAGES.length);
+  });
+
+  it('items are deterministic and well-formed at every rung', () => {
+    for (let seed = 1; seed < 400; seed++) {
+      for (const stage of ['structure', 'count', 'numeral', 'sum'] as const) {
+        const it = buildGroundItem(seed, stage);
+        expect(buildGroundItem(seed, stage)).toEqual(it); // same seed+stage → same item
+        if (it.stage === 'structure') continue;
+        // choice rungs: 4 distinct options, in [1,10], one of them the answer
+        expect(it.options.length).toBe(4);
+        expect(new Set(it.options).size).toBe(4);
+        for (const o of it.options) { expect(o).toBeGreaterThanOrEqual(1); expect(o).toBeLessThanOrEqual(10); }
+        expect(it.options).toContain(it.answer);
+        // the answer really is the pictured amount
+        if (it.prompt.type === 'group') expect(it.answer).toBe(it.prompt.a);
+        else { expect(it.answer).toBe(it.prompt.a + it.prompt.b); expect(it.answer).toBeLessThanOrEqual(10); }
+        // count shows picture-groups; numeral/sum show digits
+        expect(it.optionType).toBe(stage === 'count' ? 'group' : 'numeral');
+      }
+    }
+  });
+
+  it('gradeGround re-derives the answer from seed + stage', () => {
+    for (const stage of ['count', 'numeral', 'sum'] as const) {
+      const it = buildGroundItem(7, stage);
+      if (it.stage === 'structure') continue;
+      expect(gradeGround(7, stage, it.answer)).toBe(true);
+      const wrong = it.options.find((o) => o !== it.answer)!;
+      expect(gradeGround(7, stage, wrong)).toBe(false);
+    }
+    const s = buildGroundItem(7, 'structure');
+    if (s.stage === 'structure') expect(gradeGround(7, 'structure', s.structure)).toBe(true);
+  });
+
+  it('conceptKey feeds combine/separate to the gate, higher rungs record under their stage', () => {
+    const s = buildGroundItem(7, 'structure');
+    if (s.stage === 'structure') expect(conceptKey(s)).toBe(s.structure); // 'combine' | 'separate'
+    expect(conceptKey(buildGroundItem(7, 'count'))).toBe('count');
+    expect(conceptKey(buildGroundItem(7, 'numeral'))).toBe('numeral');
+    expect(conceptKey(buildGroundItem(7, 'sum'))).toBe('sum');
   });
 });
 
@@ -72,18 +120,36 @@ describe('grounded criterion (shadow — computed, never enforced)', () => {
     expect(grounded(pid, 'mult_table_5')).toBe(true); // not a GROUND family → default true
   });
 
-  it('canGround targets the youngest and retires once both structures are grounded', () => {
+  it('groundFirst leads a beginner into GROUND, and never touches an older kid', () => {
+    const fam = repo.createFamily('bee+ant', 'b:a', 'b:x', NOW);
+    const beginner = repo.createPlayer(fam, 'bee', 0, NOW); // åk0, fresh — no add history
+    const older = repo.createPlayer(fam, 'ant', 4, NOW);
+    // Fresh youngest, hasn't climbed the ladder, add_within_10 not fluent → GROUND first.
+    expect(groundFirst(beginner)).toBe(true);
+    // An older kid is NEVER routed to GROUND — his progression can't be disturbed.
+    expect(groundFirst(older)).toBe(false);
+    // Climbing the WHOLE ladder retires the "first" routing (he flows on to the drill).
+    expect(ladderGrounded(beginner)).toBe(false);
+    for (const k of ['combine', 'separate', 'count', 'numeral', 'sum']) {
+      for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(beginner, k, '{}', k, true, NOW + i);
+    }
+    expect(ladderGrounded(beginner)).toBe(true);
+    expect(groundFirst(beginner)).toBe(false);
+  });
+
+  it('canGround targets the youngest and does NOT retire once grounded (stays replayable)', () => {
     const fam = repo.createFamily('fox+owl', 'f:o', 'f:x', NOW);
     const young = repo.createPlayer(fam, 'fox', 1, NOW);
     const older = repo.createPlayer(fam, 'owl', 4, NOW);
-    expect(canGround(young)).toBe(true); // åk1, nothing grounded
+    expect(canGround(young)).toBe(true); // åk1, in the audience
     expect(canGround(older)).toBe(false); // too old for the door
-    // ground BOTH structures for the young kid → door retires
+    // grounding BOTH structures must NOT remove the door — a kid who aced it can
+    // still go back (punish-for-mastery is exactly what we avoid).
     for (let i = 0; i < GROUND_WINDOW; i++) {
       repo.appendGroundEvent(young, 'combine', '{}', 'combine', true, NOW + i);
       repo.appendGroundEvent(young, 'separate', '{}', 'separate', true, NOW + 100 + i);
     }
-    expect(canGround(young)).toBe(false);
+    expect(canGround(young)).toBe(true);
   });
 });
 
