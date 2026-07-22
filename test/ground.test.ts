@@ -9,7 +9,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES } from '@/lib/ground';
-import { groundedStructure, grounded, canGround, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
+import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
 import { computeUnlocked, type SelState } from '@/lib/selector';
 
 const NOW = Date.UTC(2026, 6, 21);
@@ -118,6 +118,23 @@ describe('grounded criterion (shadow — computed, never enforced)', () => {
     expect(grounded(pid, 'add_within_10')).toBe(true); // combine grounded
     expect(grounded(pid, 'sub_within_10')).toBe(false); // separate not yet
     expect(grounded(pid, 'mult_table_5')).toBe(true); // not a GROUND family → default true
+  });
+
+  it('groundFirst leads a beginner into GROUND, and never touches an older kid', () => {
+    const fam = repo.createFamily('bee+ant', 'b:a', 'b:x', NOW);
+    const beginner = repo.createPlayer(fam, 'bee', 0, NOW); // åk0, fresh — no add history
+    const older = repo.createPlayer(fam, 'ant', 4, NOW);
+    // Fresh youngest, hasn't climbed the ladder, add_within_10 not fluent → GROUND first.
+    expect(groundFirst(beginner)).toBe(true);
+    // An older kid is NEVER routed to GROUND — his progression can't be disturbed.
+    expect(groundFirst(older)).toBe(false);
+    // Climbing the WHOLE ladder retires the "first" routing (he flows on to the drill).
+    expect(ladderGrounded(beginner)).toBe(false);
+    for (const k of ['combine', 'separate', 'count', 'numeral', 'sum']) {
+      for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(beginner, k, '{}', k, true, NOW + i);
+    }
+    expect(ladderGrounded(beginner)).toBe(true);
+    expect(groundFirst(beginner)).toBe(false);
   });
 
   it('canGround targets the youngest and does NOT retire once grounded (stays replayable)', () => {

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import * as repo from '@/db/repo';
 import { sessionFromRequest, parentFamilyFromRequest } from '@/lib/auth';
 import { hasSprintAvailable, hasDiplomas } from '@/lib/sprint-eligibility';
-import { canGround } from '@/lib/ground-gate';
+import { canGround, groundFirst } from '@/lib/ground-gate';
 import { familyIcons } from '@/icons';
 import { json } from '@/lib/api';
 
@@ -48,6 +48,10 @@ export function GET(req: NextRequest) {
       // (spec §4). A per-child capability (youngest, still acquiring add/sub, hasn't
       // grounded both structures) — not an activity/score, so off the comparison rule.
       canGround: canGround(p.id),
+      // groundFirst: this child is a beginner still BEFORE add_within_10, so GROUND is
+      // his first step — the menu leads with it. Once he's climbed the ladder (or made
+      // add_within_10 fluent) this goes false and the number drill leads again.
+      groundFirst: groundFirst(p.id),
     })),
     // The family goal is cooperative and family-wide, so the family may see it
     // (no per-child breakdown). Only the progress number, never who did what.

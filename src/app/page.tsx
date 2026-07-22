@@ -26,7 +26,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean; canGround?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean; canGround?: boolean; groundFirst?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
@@ -255,7 +255,16 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}><EmojiIcon iconKey={player.icon} /></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
+          {/* A beginner still before add-within-10 leads with GROUND — the first rungs
+              of the same ladder. Practice stays right below, never locked. */}
+          {player.groundFirst ? (
+            <>
+              <a className="primary" href={`/ground?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="🌱" /> {t('home.ground')}</a>
+              <a className="next-btn" href={`/practice?p=${player.id}`} style={{ margin: 0 }}>{t('home.startPractice')}</a>
+            </>
+          ) : (
+            <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
+          )}
           {player.canSprint && (
             <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="⚡" /> {t('home.startSprint')}</a>
           )}
@@ -266,8 +275,10 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
             <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}><Emoji e="⌨️" /> {t('home.toolTest')}</a>
           )}
           {/* The quiet GROUND door — an optional "explore" scene, never pushed, never
-              a gate (GROUND-phase spec §4). Kept below practice so it never competes. */}
-          {player.canGround && (
+              a gate (GROUND-phase spec §4). Kept below practice so it never competes.
+              Hidden when the child already leads with GROUND (groundFirst) to avoid a
+              duplicate button. */}
+          {player.canGround && !player.groundFirst && (
             <a className="next-btn" href={`/ground?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🌱" /> {t('home.ground')}</a>
           )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
