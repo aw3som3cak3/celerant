@@ -3,19 +3,19 @@ import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import * as repo from '@/db/repo';
 import { randomSeed } from '@/lib/rng';
-import { RUN_STAGES } from '@/lib/ground';
+import { RUN_STAGES, SPEED_ITEMS, type GroundStage } from '@/lib/ground';
+import { speedRunStages, hasExploreSpeed } from '@/lib/ground-gate';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const Body = z.object({ playerId: z.string().min(1) });
+const Body = z.object({ playerId: z.string().min(1), mode: z.enum(['ladder', 'speed']).optional() });
 
-// Start a GROUND run: issue one {seed, stage} per rung of the acquisition ladder, in
-// climbing order. The client builds and renders each from the seed. SHADOW mode —
-// this only records choices; it authorises nothing and gates nothing. The
-// 'ground_started' usage event feeds the engagement + displacement watch (spec §4),
-// never the ability replay.
+// Start a GROUND run. 'ladder' (default) climbs the acquisition rungs in order.
+// 'speed' is a timed fluency round drawn ONLY from the rungs the child is already
+// grounded (accurate) at — his own speed run. Both log 'ground_started' for the
+// engagement + displacement watch (spec §4), never the ability replay.
 export async function POST(req: NextRequest) {
   const now = Date.now();
   const parsed = Body.safeParse(await req.json().catch(() => null));
@@ -23,7 +23,15 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  const items = RUN_STAGES.map((stage) => ({ seed: randomSeed(), stage }));
-  repo.appendUsageEvent(player.id, 'ground_started', null, now);
-  return json({ items });
+  const mode = parsed.data.mode ?? 'ladder';
+  let items: { seed: number; stage: GroundStage }[];
+  if (mode === 'speed') {
+    const stages = speedRunStages(player.id) as GroundStage[];
+    if (stages.length === 0) return json({ error: 'not_ready' }, 409); // nothing grounded to speed yet
+    items = Array.from({ length: SPEED_ITEMS }, (_, i) => ({ seed: randomSeed(), stage: stages[i % stages.length] }));
+  } else {
+    items = RUN_STAGES.map((stage) => ({ seed: randomSeed(), stage }));
+  }
+  repo.appendUsageEvent(player.id, mode === 'speed' ? 'ground_speed_started' : 'ground_started', null, now);
+  return json({ items, mode, speedReady: hasExploreSpeed(player.id) });
 }

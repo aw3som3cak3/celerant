@@ -1,18 +1,21 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji } from '../_components/Emoji';
-import { buildGroundItem, sceneResult, sceneSymbol, GROUND_ITEMS, type GroundStage, type GroundItem } from '@/lib/ground';
+import { buildGroundItem, sceneResult, sceneSymbol, type GroundStage, type GroundItem } from '@/lib/ground';
 
-// GROUND / acquisition — the shadow scene surface (GROUND-phase spec §1). A short
-// climbing ladder that carries a pre-reading beginner from the MEANING of + / −
-// (things arrive → more, leave → fewer) up to a pictured sum (3🦆 + 4🦆 → 7). No
-// timer, no score, gentle reveal; every choice is recorded and nothing else happens.
+// GROUND / acquisition — the scene surface (GROUND-phase spec §1). Two modes:
+//   ladder  climbs the acquisition rungs (meaning → count → numeral → sum), with a
+//           gentle reveal after each choice. Timed only to gather data.
+//   speed   a fluency round on the rungs the child is ALREADY accurate at: fast,
+//           auto-advancing, no reveal — his own speed run, ending in a rate.
 type Phase = 'ask' | 'named';
 type RunItem = { seed: number; stage: GroundStage };
+type SpeedResult = { seed: number; stage: GroundStage; chosen: string | number; intervalMs: number };
+type SpeedOutcome = { correct: number; total: number; correctPerMin: number; aim: number; outcome: 'fast' | 'keep_going' };
 
 function Objects({ kind, n, small, className }: { kind: string; n: number; small?: boolean; className?: string }) {
   return (
@@ -26,41 +29,90 @@ function Objects({ kind, n, small, className }: { kind: string; n: number; small
 
 function Ground() {
   const { t } = useI18n();
-  const p = useSearchParams().get('p') ?? '';
+  const sp = useSearchParams();
+  const p = sp.get('p') ?? '';
+  const urlMode: 'ladder' | 'speed' = sp.get('mode') === 'speed' ? 'speed' : 'ladder';
+
+  const [mode, setMode] = useState<'ladder' | 'speed'>(urlMode);
   const [items, setItems] = useState<RunItem[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>('ask');
   const [chosenRight, setChosenRight] = useState<boolean | null>(null);
+  const [speedReady, setSpeedReady] = useState(false);
+  const [speedOutcome, setSpeedOutcome] = useState<SpeedOutcome | null>(null);
 
-  const start = useCallback(async () => {
-    setItems(null);
-    setIdx(0);
-    setPhase('ask');
-    setChosenRight(null);
-    const r = await postJSON<{ items: RunItem[] }>('/api/ground/start', { playerId: p });
-    setItems(r.items);
-  }, [p]);
+  const startRef = useRef(0); // client clock, set once the item has painted
+  const capturedRef = useRef(false); // one answer per item (guards a double-tap)
+  const speedResultsRef = useRef<SpeedResult[]>([]);
+
+  const start = useCallback(
+    async (m: 'ladder' | 'speed') => {
+      setMode(m);
+      setItems(null);
+      setIdx(0);
+      setPhase('ask');
+      setChosenRight(null);
+      setSpeedOutcome(null);
+      speedResultsRef.current = [];
+      capturedRef.current = false;
+      const r = await postJSON<{ items: RunItem[]; speedReady: boolean }>('/api/ground/start', { playerId: p, mode: m }).catch(() => null);
+      if (!r) { if (m === 'speed') start('ladder'); return; } // e.g. nothing grounded yet → fall back
+      setItems(r.items);
+      setSpeedReady(r.speedReady);
+    },
+    [p],
+  );
 
   useEffect(() => {
     if (!p) { location.href = '/'; return; }
-    start();
-  }, [p, start]);
+    start(urlMode);
+  }, [p, urlMode, start]);
+
+  // Start the per-item clock once the item has actually painted (two rAFs).
+  useEffect(() => {
+    capturedRef.current = false;
+    if (!items || idx >= items.length) return;
+    let r2 = 0;
+    const r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(() => { startRef.current = performance.now(); }); });
+    return () => { cancelAnimationFrame(r1); cancelAnimationFrame(r2); };
+  }, [items, idx]);
 
   const item: GroundItem | null = useMemo(
-    () => (items ? buildGroundItem(items[idx].seed, items[idx].stage) : null),
+    () => (items && idx < items.length ? buildGroundItem(items[idx].seed, items[idx].stage) : null),
     [items, idx],
+  );
+
+  const finishSpeed = useCallback(
+    async (results: SpeedResult[]) => {
+      const r = await postJSON<SpeedOutcome>('/api/ground/finish', { playerId: p, results });
+      setSpeedOutcome(r);
+    },
+    [p],
   );
 
   const choose = useCallback(
     async (chosen: string | number) => {
-      if (!items || phase !== 'ask' || !item) return;
+      if (!items || !item || capturedRef.current) return;
+      capturedRef.current = true;
+      const intervalMs = Math.max(0, Math.round(performance.now() - startRef.current));
+      const cur = items[idx];
+
+      if (mode === 'speed') {
+        // No reveal — record the timing and fly to the next item; finish → rate.
+        speedResultsRef.current = [...speedResultsRef.current, { seed: cur.seed, stage: cur.stage, chosen, intervalMs }];
+        if (idx + 1 >= items.length) finishSpeed(speedResultsRef.current);
+        else setIdx((n) => n + 1);
+        return;
+      }
+
+      // Ladder: grade locally for the reveal, record server-side.
       const right = item.stage === 'structure' ? chosen === item.structure : Number(chosen) === item.answer;
       setChosenRight(right);
       setPhase('named');
       const last = idx + 1 >= items.length;
-      await postJSON('/api/ground/answer', { playerId: p, seed: items[idx].seed, stage: items[idx].stage, chosen, done: last });
+      await postJSON('/api/ground/answer', { playerId: p, seed: cur.seed, stage: cur.stage, chosen, intervalMs, done: last });
     },
-    [items, phase, item, idx, p],
+    [items, item, idx, mode, p, finishSpeed],
   );
 
   const next = useCallback(() => {
@@ -73,14 +125,31 @@ function Ground() {
 
   if (!items) return <div className="plain muted">…</div>;
 
-  // Done: a warm close, no score — and a way onward, so it's never a dead end.
-  if (idx >= items.length) {
+  // Speed run finished → the fluency result.
+  if (mode === 'speed' && speedOutcome) {
+    const fast = speedOutcome.outcome === 'fast';
+    return (
+      <div className="plain" style={{ textAlign: 'center' }}>
+        <div style={{ fontSize: '3rem' }}><Emoji e={fast ? '🏅' : '🚀'} /></div>
+        <h1>{fast ? t('ground.fast') : t('ground.keepGoing')}</h1>
+        <p style={{ fontSize: '1.4rem', margin: '0.6rem 0' }}>{t('ground.speedResult', { c: speedOutcome.correctPerMin.toFixed(0) })}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1.2rem' }}>
+          <button className="primary" onClick={() => start('speed')}><Emoji e="⚡" /> {t('ground.again')}</button>
+          <a className="next-btn" href="/">{t('common.home')}</a>
+        </div>
+      </div>
+    );
+  }
+
+  // Ladder finished → a warm close with real onward options (never a dead end).
+  if (mode === 'ladder' && idx >= items.length) {
     return (
       <div className="plain" style={{ textAlign: 'center' }}>
         <h1>{t('ground.doneTitle')}</h1>
         <p className="muted">{t('ground.doneLine')}</p>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1.2rem' }}>
-          <button className="primary" onClick={start}><Emoji e="🌱" /> {t('ground.again')}</button>
+          {speedReady && <button className="primary" onClick={() => start('speed')}><Emoji e="⚡" /> {t('ground.speedRun')}</button>}
+          <button className={speedReady ? 'next-btn' : 'primary'} onClick={() => start('ladder')}><Emoji e="🌱" /> {t('ground.again')}</button>
           <a className="next-btn" href={`/practice?p=${p}`}>{t('home.startPractice')}</a>
           <a className="next-btn" href="/">{t('common.home')}</a>
         </div>
@@ -89,15 +158,15 @@ function Ground() {
   }
 
   if (!item) return <div className="plain muted">…</div>;
+  const phaseForScene: Phase = mode === 'speed' ? 'ask' : phase; // speed never reveals
 
   return (
     <div className="ground-wrap">
-      <p className="muted ground-count">{idx + 1} / {GROUND_ITEMS}</p>
-
+      <p className="muted ground-count">{idx + 1} / {items.length}</p>
       {item.stage === 'structure' ? (
-        <StructureScene item={item} phase={phase} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
+        <StructureScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       ) : (
-        <ChoiceScene item={item} phase={phase} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
+        <ChoiceScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       )}
     </div>
   );

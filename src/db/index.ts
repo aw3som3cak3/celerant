@@ -73,6 +73,9 @@ const MIGRATIONS = [
   'ALTER TABLE sprint ADD COLUMN interval_ms INTEGER',
   'ALTER TABLE sprint ADD COLUMN sprint_key TEXT',
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_sprint_key ON sprint(sprint_key) WHERE sprint_key IS NOT NULL',
+  // GROUND fluency: time-to-answer on each acquisition choice, so a grounded rung can
+  // be sped-run (correct×60000/interval_ms). Legacy rows stay NULL (untimed).
+  'ALTER TABLE ground_event ADD COLUMN interval_ms INTEGER',
 ];
 
 export function getDb(): Database.Database {

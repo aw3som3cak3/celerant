@@ -13,6 +13,7 @@ const Body = z.object({
   seed: z.number().int(),
   stage: z.enum(['structure', 'count', 'numeral', 'sum']),
   chosen: z.union([z.string().max(16), z.number().int()]),
+  intervalMs: z.number().min(0).optional(), // client-measured time to answer
   done: z.boolean().optional(), // the last item of the run — logs 'ground_done'
 });
 
@@ -28,10 +29,10 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  const { seed, stage, chosen, done } = parsed.data;
+  const { seed, stage, chosen, intervalMs, done } = parsed.data;
   const item = buildGroundItem(seed, stage);
   const correct = gradeGround(seed, stage, chosen);
-  repo.appendGroundEvent(player.id, conceptKey(item), JSON.stringify(item), String(chosen), correct, now);
+  repo.appendGroundEvent(player.id, conceptKey(item), JSON.stringify(item), String(chosen), correct, now, intervalMs ?? null);
   if (done) repo.appendUsageEvent(player.id, 'ground_done', null, now);
   return json({ correct });
 }

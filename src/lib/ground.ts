@@ -139,3 +139,37 @@ export function gradeGround(seed: number, stage: GroundStage, chosen: string | n
   if (item.stage === 'structure') return chosen === item.structure;
   return Number(chosen) === item.answer;
 }
+
+// ── SPEED RUNS on the ladder (fluency for a rung the child is already accurate at) ──
+// Once a rung is GROUNDED (learned + accurate), a timed round measures how FAST the
+// child answers — building automaticity, the same acquire→accurate→fast arc the
+// symbolic skills follow.
+//
+// The aim is PER-CHILD, anchored to the child's own numpad tap speed (tool_rate) — a
+// fixed target can't serve a 5-year-old (real: 13 taps/min) and a åk4 (35) at once.
+// An Explore answer is a single tap after a quick judgement, so the aim is a fraction
+// of the raw tap rate (EXPLORE_FACTOR). Unmeasured kids fall back to a middling rate.
+// These are first-pass numbers — calibrate EXPLORE_FACTOR from real interval data once
+// it's flowing (the ground_event.interval_ms rows this feature starts recording).
+export const EXPLORE_FACTOR = 0.6;
+export const EXPLORE_DEFAULT_RATE = 18; // fallback tap rate (digits/min) when unmeasured
+export const SPEED_ITEMS = 12;
+
+export function exploreAimFrom(tapRatePerMin: number): number {
+  return Math.max(4, Math.round(EXPLORE_FACTOR * tapRatePerMin));
+}
+
+export type ExploreOutcome = 'fast' | 'keep_going';
+
+// Gentle by construction (a guardrail): a run is either FAST (celebrated) or
+// keep_going (a warm "again"). Never a fail — the child is already accurate here.
+export function classifyExplore(correct: number, total: number, ratePerMin: number, aim: number): ExploreOutcome {
+  const acc = total > 0 ? correct / total : 0;
+  return ratePerMin >= aim && acc >= 0.8 ? 'fast' : 'keep_going';
+}
+
+// The stage a grounded concept key is sped-run on (combine/separate both live in the
+// structure scene).
+export function stageForConcept(key: string): GroundStage {
+  return key === 'combine' || key === 'separate' ? 'structure' : (key as GroundStage);
+}

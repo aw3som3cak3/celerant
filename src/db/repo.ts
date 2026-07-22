@@ -1010,10 +1010,11 @@ export function appendGroundEvent(
   chosen: string,
   correct: boolean,
   at: number,
+  intervalMs: number | null = null,
 ): void {
   getDb()
-    .prepare('INSERT INTO ground_event (player_id, structure, scene_json, chosen, correct, at) VALUES (?, ?, ?, ?, ?, ?)')
-    .run(playerId, structure, sceneJson, chosen, correct ? 1 : 0, at);
+    .prepare('INSERT INTO ground_event (player_id, structure, scene_json, chosen, correct, interval_ms, at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+    .run(playerId, structure, sceneJson, chosen, correct ? 1 : 0, intervalMs, at);
 }
 
 // The child's most recent choices on one structure, newest first — the window the

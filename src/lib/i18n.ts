@@ -114,6 +114,10 @@ const sv: Dict = {
   'ground.soft': 'Titta vad som hände',
   'ground.next': 'Nästa',
   'ground.again': 'En gång till',
+  'ground.speedRun': 'Snabbt!',
+  'ground.speedResult': 'Din fart: {c} per minut',
+  'ground.fast': 'Blixtsnabb!',
+  'ground.keepGoing': 'Bra! En gång till så blir du snabbare.',
   'ground.doneTitle': 'Bra utforskat!',
   'ground.doneLine': 'Du tittade på hur saker blir fler och färre.',
 
@@ -306,6 +310,10 @@ const en: Dict = {
   'ground.soft': 'Look what happened',
   'ground.next': 'Next',
   'ground.again': 'Once more',
+  'ground.speedRun': 'Fast round!',
+  'ground.speedResult': 'Your speed: {c} per minute',
+  'ground.fast': 'Lightning fast!',
+  'ground.keepGoing': 'Nice! Once more and you\'ll get quicker.',
   'ground.doneTitle': 'Nice exploring!',
   'ground.doneLine': 'You watched how things get more and fewer.',
 
