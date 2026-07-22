@@ -22,6 +22,7 @@ function applyAttemptToCache(
   dontKnow: boolean,
   warmup: number,
   at: number,
+  latencyMs: number,
 ): void {
   const db = getDb();
   const ab = db
@@ -30,7 +31,7 @@ function applyAttemptToCache(
     | { theta: number; rd: number; volatility: number; n_obs: number; last_seen_at: number | null }
     | undefined;
   if (!ab) return; // a skill not in the graph: no cache row to update
-  const decision = updateDecision(dontKnow || given === null, tries, correct);
+  const decision = updateDecision(dontKnow || given === null, tries, correct, latencyMs);
   let theta = ab.theta;
   let rd = ab.rd;
   let vol = ab.volatility;
@@ -262,7 +263,7 @@ export function appendAttempt(a: AppendAttempt): number {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
     .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null);
-  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at); // fast path, not full replay
+  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at, a.latencyMs); // fast path, not full replay
   return Number(info.lastInsertRowid);
 }
 
@@ -419,6 +420,16 @@ export function recentFirstTryAccuracySince(playerId: string, skillCode: string,
     .all(playerId, skillCode, sinceAt, n) as { correct: number; tries: number }[];
   if (rows.length === 0) return { acc: 0, count: 0 };
   return { acc: rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length, count: rows.length };
+}
+
+// All-time count of clean first-try successes on a skill (not warm-ups) — "has this
+// child demonstrated the symbol?", used to override the GROUND acquisition routing so
+// a kid who can clearly do the skill isn't sent back to pre-symbolic scaffolding.
+export function firstTrySuccesses(playerId: string, skillCode: string): number {
+  const r = getDb()
+    .prepare("SELECT COUNT(*) c FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL AND warmup = 0 AND correct = 1 AND tries = 1 AND dont_know = 0")
+    .get(playerId, skillCode) as { c: number };
+  return r.c;
 }
 
 export function recentOverallFirstTryAccuracy(playerId: string, n: number): number {

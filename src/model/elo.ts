@@ -48,7 +48,12 @@ export function predict(theta: number): number {
 // path AND replay, so the two can never diverge. First-attempt-only enforced.
 export type UpdateDecision = { apply: boolean; correct: number; halveKChild: boolean };
 
-export function updateDecision(givenIsNull: boolean, tries: number, finalCorrect: number): UpdateDecision {
+// An "I don't know" answered faster than this is a tap-through, not a considered
+// give-up — it doesn't update θ. (Her real answers take ~30s; a genuine give-up is
+// several seconds; tap-throughs cluster under 3.)
+export const IDK_CONSIDER_MS = 3000;
+
+export function updateDecision(givenIsNull: boolean, tries: number, finalCorrect: number, latencyMs = Infinity): UpdateDecision {
   // Measurement principle: score ONLY the first independent response; a retry or a
   // worked-example reveal is teaching, not assessment. So a success counts iff it was
   // right on the FIRST try; anything that needed a retry means the first response was
@@ -56,7 +61,18 @@ export function updateDecision(givenIsNull: boolean, tries: number, finalCorrect
   // dropped — apply:false — which silently deleted a first-try failure, biasing θ
   // upward and, through item selection, kept serving items too hard → more retries →
   // more dropped errors. Counting the first response breaks that loop.)
-  if (givenIsNull) return { apply: true, correct: 0, halveKChild: true }; // "I don't know"
+  //
+  // "I don't know": a CONSIDERED give-up is a real (cheap, half-K) failure — the model
+  // must learn she can't do it, or it keeps serving the same wall. But a sub-3-second
+  // idk is not an observation of ability; it's a "checked out" tap, and these come in
+  // non-independent RUNS at a tired session's tail. Counting each as a fresh failure
+  // violates local independence and lets one bad evening crater θ for weeks. So a fast
+  // idk records to the ledger but contributes NOTHING to θ. (Latency does the work a
+  // run-detector otherwise would; see IDK_CONSIDER_MS.)
+  if (givenIsNull) {
+    if (latencyMs < IDK_CONSIDER_MS) return { apply: false, correct: 0, halveKChild: true }; // tap-through: no θ update
+    return { apply: true, correct: 0, halveKChild: true }; // considered "don't know": a cheap failure
+  }
   if (finalCorrect === 1 && tries === 1) return { apply: true, correct: 1, halveKChild: false }; // right, first try
   return { apply: true, correct: 0, halveKChild: false }; // wrong first try (whether or not fixed on the retry)
 }
