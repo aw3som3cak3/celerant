@@ -2,7 +2,8 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import * as repo from '@/db/repo';
-import { buildGroundItem, gradeGround, conceptKey, classifyExplore, EXPLORE_AIM } from '@/lib/ground';
+import { buildGroundItem, gradeGround, conceptKey, classifyExplore } from '@/lib/ground';
+import { exploreAim } from '@/lib/ground-gate';
 import { intervalRate } from '@/lib/rate';
 import { json } from '@/lib/api';
 
@@ -44,8 +45,9 @@ export async function POST(req: NextRequest) {
 
   const correct = timings.filter((t) => t.correct).length;
   const rate = intervalRate(timings) ?? 0; // correct/min over valid intervals
-  const outcome = classifyExplore(correct, timings.length, rate);
+  const aim = exploreAim(player.id); // anchored to the child's own tap speed
+  const outcome = classifyExplore(correct, timings.length, rate, aim);
   repo.appendUsageEvent(player.id, 'ground_speed_done', outcome === 'fast' ? 'fast' : null, now);
 
-  return json({ correct, total: timings.length, correctPerMin: rate, aim: EXPLORE_AIM, outcome });
+  return json({ correct, total: timings.length, correctPerMin: rate, aim, outcome });
 }

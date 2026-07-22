@@ -8,8 +8,8 @@ process.env.DATABASE_PATH = path.join(dir, 'test.db');
 process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
-import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES, classifyExplore, stageForConcept, EXPLORE_AIM } from '@/lib/ground';
-import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, groundedRungs, speedRunStages, hasExploreSpeed, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
+import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES, classifyExplore, stageForConcept, exploreAimFrom, EXPLORE_FACTOR } from '@/lib/ground';
+import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, groundedRungs, speedRunStages, hasExploreSpeed, exploreAim, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
 import { computeUnlocked, type SelState } from '@/lib/selector';
 
 const NOW = Date.UTC(2026, 6, 21);
@@ -91,9 +91,21 @@ describe('GROUND acquisition ladder (structure → count → numeral → sum)', 
 
 describe('Explore speed runs (fluency on a grounded rung)', () => {
   it('classifyExplore is gentle: fast when quick+accurate, else keep_going — never a fail', () => {
-    expect(classifyExplore(12, 12, EXPLORE_AIM + 3)).toBe('fast'); // quick, all right
-    expect(classifyExplore(12, 12, EXPLORE_AIM - 3)).toBe('keep_going'); // accurate but slow
-    expect(classifyExplore(6, 12, EXPLORE_AIM + 3)).toBe('keep_going'); // quick but only 50% → not fast, not a "fail"
+    const aim = 10;
+    expect(classifyExplore(12, 12, aim + 3, aim)).toBe('fast'); // quick, all right
+    expect(classifyExplore(12, 12, aim - 3, aim)).toBe('keep_going'); // accurate but slow
+    expect(classifyExplore(6, 12, aim + 3, aim)).toBe('keep_going'); // quick but only 50% → not fast, not a "fail"
+  });
+
+  it('the aim is anchored per-child to tap speed — reachable for the youngest', () => {
+    // 0.6 × tap rate: a 5-year-old at ~13 taps/min gets ~8, a åk4 at ~35 gets ~21.
+    expect(exploreAimFrom(13.4)).toBe(Math.round(EXPLORE_FACTOR * 13.4)); // ≈ 8
+    expect(exploreAimFrom(35)).toBe(Math.round(EXPLORE_FACTOR * 35)); // ≈ 21
+    expect(exploreAimFrom(13.4)).toBeLessThan(exploreAimFrom(35)); // slower kid → lower, reachable bar
+    // a fresh player with no writing-speed test falls back to a sane middling aim
+    const fam = repo.createFamily('cub+fawn', 'c:f', 'c:x', NOW);
+    const kid = repo.createPlayer(fam, 'cub', 1, NOW);
+    expect(exploreAim(kid)).toBeGreaterThan(0);
   });
 
   it('stageForConcept maps combine/separate to the structure scene, others to themselves', () => {
