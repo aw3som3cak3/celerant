@@ -34,7 +34,7 @@ export function groundedStructure(playerId: string, structure: GroundStructure):
 
 // The full acquisition ladder, in order. Grounding all of it is "climbed the on-ramp
 // into add-within-10".
-const LADDER_KEYS = ['combine', 'separate', 'count', 'numeral', 'sum'];
+const LADDER_KEYS = ['combine', 'separate', 'count', 'numeral', 'sum', 'produce'];
 export function ladderGrounded(playerId: string): boolean {
   return LADDER_KEYS.every((k) => groundedOn(playerId, k));
 }
