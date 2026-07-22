@@ -9,15 +9,23 @@ import { Emoji } from '../_components/Emoji';
 
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
+type CatAnim = 'idle' | 'walk' | 'sit' | 'sleep';
+
+// What an unlocked prop invites a cat to do when it wanders over: curl up in a bed /
+// carrier, or sit and nibble at the food. (The cat-tree is skipped — it's elevated,
+// so a cat walking up to it would read as floating.)
+const PROP_ANIM: Record<string, 'sleep' | 'sit'> = { bed: 'sleep', carrier: 'sleep', fish: 'sit', catfood: 'sit' };
+
 // The cat, from the ToffeeCraft sprite sheets (src/reward/sprites.ts). A 32×32
 // frame window over /cats/<spriteId>/<anim>.png, stepped by CSS; scaled up with
-// nearest-neighbour so it stays crisp pixel art. Facing flips with travel.
-function CatSprite({ spriteId, walking, flip }: { spriteId: string; walking: boolean; flip: boolean }) {
-  const anim = walking ? 'walk' : 'idle';
+// nearest-neighbour so it stays crisp pixel art. Facing flips with travel. idle/walk
+// are 7 frames, sit/sleep 3.
+function CatSprite({ spriteId, anim, flip }: { spriteId: string; anim: CatAnim; flip: boolean }) {
+  const frames = anim === 'idle' || anim === 'walk' ? 7 : 3;
   return (
     <span
-      className={`cat-sprite ${walking ? 'walk' : ''}`}
-      style={{ backgroundImage: `url(/cats/${spriteId}/${anim}.png)`, transform: `scale(2.6) scaleX(${flip ? -1 : 1})` }}
+      className={`cat-sprite anim-${anim}`}
+      style={{ backgroundImage: `url(/cats/${spriteId}/${anim}.png)`, backgroundSize: `${frames * 32}px 32px`, transform: `scale(2.6) scaleX(${flip ? -1 : 1})` }}
       aria-hidden
     />
   );
@@ -34,7 +42,9 @@ function CatFace({ spriteId, size = 30 }: { spriteId: string; size?: number }) {
   );
 }
 
-type Wanderer = { id: string; x: number; y: number; walking: boolean; flip: boolean };
+// act: 'roam' wanders the floor; 'goto' is walking to a chosen prop; 'rest' is using
+// it (sleeping in the bed, sitting at the food) for a few ticks.
+type Wanderer = { id: string; x: number; y: number; flip: boolean; anim: CatAnim; act: 'roam' | 'goto' | 'rest'; rest: number; target?: string };
 
 function Room() {
   const { t, locale } = useI18n();
@@ -45,6 +55,9 @@ function Room() {
   const [petting, setPetting] = useState<string | null>(null);
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const heartId = useRef(0);
+  // Interactive props (id + floor position + what a cat does there), kept in a ref so
+  // the wander loop reads the latest without re-creating its interval.
+  const propsRef = useRef<{ id: string; x: number; y: number; anim: 'sleep' | 'sit' }[]>([]);
 
   const load = useCallback(() => getJSON<RewardData>('/api/reward').then(setData), []);
   useEffect(() => {
@@ -58,24 +71,55 @@ function Room() {
       const byId = new Map(prev.map((w) => [w.id, w]));
       // y stays in the bottom ~40% of the stage — the cats live ON the floor, never
       // floating up into the sky/wall area of the background.
-      return data.unlockedCats.map((id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 64 + ((i * 17) % 24), walking: false, flip: false });
+      return data.unlockedCats.map(
+        (id, i) => byId.get(id) ?? { id, x: 12 + ((i * 27) % 76), y: 64 + ((i * 17) % 24), flip: false, anim: 'idle', act: 'roam', rest: 0 },
+      );
     });
   }, [data]);
 
-  // The wander loop: every couple of seconds each cat either strolls to a new
-  // spot or settles. No needs, no timers on the cat's mood — just gentle life.
+  // Keep the interactive-prop list current for the wander loop.
+  useEffect(() => {
+    propsRef.current = (data?.unlockedProps ?? [])
+      .filter((id) => PROP_ANIM[id])
+      .map((id) => { const it = ROSTER_BY_ID.get(id); return { id, x: it?.slot?.x ?? 50, y: it?.slot?.y ?? 85, anim: PROP_ANIM[id] }; });
+  }, [data]);
+
+  // The wander loop: every couple of seconds each cat strolls, settles, or heads to a
+  // piece of furniture to use it. No needs, no mood timers — just gentle life.
   useEffect(() => {
     if (wanderers.length === 0) return;
     const iv = setInterval(() => {
       setWanderers((ws) =>
         ws.map((w) => {
+          // Using a prop: hold the pose for a few ticks, then get up and roam.
+          if (w.act === 'rest') {
+            if (w.rest <= 1) return { ...w, act: 'roam', anim: 'idle', rest: 0, target: undefined };
+            return { ...w, rest: w.rest - 1 };
+          }
+          const props = propsRef.current;
+          // Walking to a chosen prop: step toward it; on arrival, settle into its pose.
+          if (w.act === 'goto' && w.target) {
+            const pr = props.find((pp) => pp.id === w.target);
+            if (!pr) return { ...w, act: 'roam', anim: 'idle', target: undefined };
+            const dx = pr.x - w.x, dy = pr.y - w.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 5) return { ...w, x: pr.x, y: pr.y, anim: pr.anim, act: 'rest', rest: 2 + Math.floor(Math.random() * 3) };
+            const step = Math.min(dist, 22);
+            const nx = w.x + (dx / dist) * step, ny = w.y + (dy / dist) * step;
+            return { ...w, x: nx, y: Math.max(60, Math.min(90, ny)), anim: 'walk', flip: nx < w.x, act: 'goto' };
+          }
+          // Roaming: now and then go use a piece of furniture...
+          if (props.length && Math.random() < 0.4) {
+            const pr = props[Math.floor(Math.random() * props.length)];
+            return { ...w, act: 'goto', target: pr.id, anim: 'walk' };
+          }
+          // ...otherwise stroll to a new floor spot, or settle where it is.
           if (Math.random() < 0.55) {
             const nx = Math.max(6, Math.min(90, w.x + (Math.random() * 44 - 22)));
-            // clamp to the floor band (bottom ~40%): never above 62% from the top
             const ny = Math.max(62, Math.min(90, w.y + (Math.random() * 22 - 11)));
-            return { ...w, walking: true, x: nx, y: ny, flip: nx < w.x };
+            return { ...w, anim: 'walk', x: nx, y: ny, flip: nx < w.x, act: 'roam' };
           }
-          return { ...w, walking: false };
+          return { ...w, anim: 'idle', act: 'roam' };
         }),
       );
     }, 2600);
@@ -141,7 +185,7 @@ function Room() {
               title={cat.name[locale]}
             >
               {shared.kind === 'cat' && shared.id === w.id && <span className="cat-pill">{t('room.selected')}</span>}
-              <CatSprite spriteId={cat.spriteId} walking={w.walking} flip={w.flip} />
+              <CatSprite spriteId={cat.spriteId} anim={w.anim} flip={w.flip} />
             </button>
           );
         })}
