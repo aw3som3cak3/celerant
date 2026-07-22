@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS attempt (
   latency_ms   INTEGER NOT NULL,            -- CLIENT-measured per-item interval (input-timing Phase A)
   at           INTEGER NOT NULL,
   idem_key     TEXT,                        -- client idempotency key; NULL on legacy/server-generated rows
+  session_run_id INTEGER,                   -- the session this item belonged to; NULL outside a session (position-in-session analysis)
   voided_at    INTEGER,
   void_reason  TEXT
 );

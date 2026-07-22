@@ -258,6 +258,7 @@ export function answer(
     warmup,
     latencyMs: now - p.served_at,
     at: now,
+    sessionRunId: sessionId ?? null,
   });
   repo.deletePendingItem(itemId);
 
@@ -414,6 +415,7 @@ export function sessionAnswer(
       latencyMs: intervalMs, // CLIENT-measured render→capture; never a server round-trip
       at: now,
       idemKey,
+      sessionRunId: sessionId ?? null,
     });
     if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
       repo.appendUsageEvent(playerId, 'card_earned', code, now);

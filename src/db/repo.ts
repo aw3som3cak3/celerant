@@ -251,6 +251,7 @@ export type AppendAttempt = {
   latencyMs: number;
   at: number;
   idemKey?: string | null; // client idempotency key (input-timing Phase A); NULL server-generated
+  sessionRunId?: number | null; // which session this item belonged to — for position-in-session analysis
 };
 
 // Append to the ledger, then rebuild the cache. Item generation itself writes
@@ -259,10 +260,10 @@ export function appendAttempt(a: AppendAttempt): number {
   const warmup = a.warmup ? 1 : 0;
   const info = getDb()
     .prepare(
-      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key, session_run_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null);
+    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null, a.sessionRunId ?? null);
   applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at, a.latencyMs); // fast path, not full replay
   return Number(info.lastInsertRowid);
 }
@@ -420,6 +421,26 @@ export function recentFirstTryAccuracySince(playerId: string, skillCode: string,
     .all(playerId, skillCode, sinceAt, n) as { correct: number; tries: number }[];
   if (rows.length === 0) return { acc: 0, count: 0 };
   return { acc: rows.filter((r) => r.correct === 1 && r.tries === 1).length / rows.length, count: rows.length };
+}
+
+// --- Calibration monitor inputs (lib/calibration.ts) -----------------------
+// Recent real (non-warm-up) attempts, newest first — for the predicted-vs-observed
+// first-try check per skill.
+export function recentAttemptsForCalibration(playerId: string, limit: number): { skill_code: string; correct: number; tries: number; dont_know: number; latency_ms: number }[] {
+  return getDb()
+    .prepare('SELECT skill_code, correct, tries, dont_know, latency_ms FROM attempt WHERE player_id = ? AND warmup = 0 AND voided_at IS NULL ORDER BY id DESC LIMIT ?')
+    .all(playerId, limit) as { skill_code: string; correct: number; tries: number; dont_know: number; latency_ms: number }[];
+}
+
+// Each attempt with its RELIABLE position-in-session (ROW_NUMBER over session_run_id),
+// for the fatigue curve. Only rows recorded since the session link was added.
+export function attemptPositions(playerId: string): { pos: number; correct: number; tries: number; dont_know: number; latency_ms: number }[] {
+  return getDb()
+    .prepare(
+      `SELECT ROW_NUMBER() OVER (PARTITION BY session_run_id ORDER BY at, id) pos, correct, tries, dont_know, latency_ms
+       FROM attempt WHERE player_id = ? AND session_run_id IS NOT NULL AND warmup = 0 AND voided_at IS NULL`,
+    )
+    .all(playerId) as { pos: number; correct: number; tries: number; dont_know: number; latency_ms: number }[];
 }
 
 // All-time count of clean first-try successes on a skill (not warm-ups) — "has this
