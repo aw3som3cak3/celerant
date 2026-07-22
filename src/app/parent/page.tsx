@@ -22,8 +22,9 @@ type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: numb
 type Usage = { weekly: { weekStart: number; sessions: number }[]; lateEveningSessions: number; enTillRate: number; sessionsLast7: number; alarm: boolean };
 type SkillCalibration = { code: string; n: number; observed: number; verdict: 'ok' | 'too_hard' | 'too_easy' };
 type Fatigue = { curve: { pos: number; n: number; firstTry: number }[]; breakPos: number | null; currentTarget: number; enoughData: boolean };
+type SkillRow = { code: string; year: number; depth: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean; unlocked: boolean };
 type Overview = {
-  player: { id: string; icon: string; schoolYear: number; sessionTarget: number };
+  player: { id: string; icon: string; schoolYear: number; sessionTarget: number; seedGrade: number };
   attemptsLast7Days: number;
   sessionsThisWeek: number;
   diagnostics: Diagnostic[];
@@ -31,7 +32,7 @@ type Overview = {
   usage: Usage;
   calibration: SkillCalibration[];
   fatigue: Fatigue;
-  skills: { code: string; year: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean }[];
+  skills: SkillRow[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
 type T = (key: string, params?: Record<string, string | number>) => string;
@@ -130,6 +131,8 @@ export default function Parent() {
           )}
 
           <CalibrationPanel data={data} />
+
+          <CurriculumProfile data={data} />
 
 
           <div style={{ margin: '0.5rem 0' }}>
@@ -413,6 +416,126 @@ function CalibrationPanel({ data }: { data: Overview }) {
           </button>
         </p>
       )}
+    </div>
+  );
+}
+
+// The curriculum profile — one chart, two questions in a single vertical read: how far
+// along the curriculum a child is (θ per skill), and how solid it is underneath (the
+// fluency band). PARENT-ONLY: it aggregates into something a child could optimise
+// ("fill the band"), so it never appears on a child surface. Honest by construction —
+// dots only for TOUCHED skills, no trend line across gaps we have no evidence for.
+const CP = { col: 15, padL: 10, padR: 10, abilityH: 96, gap: 8, bandH: 16, yearH: 18 };
+const THETA_CLAMP = 3;
+const MIN_FRONTIER = 5; // don't draw a "frontier" through fewer touched points than this
+
+function CurriculumProfile({ data }: { data: Overview }) {
+  const { t } = useI18n();
+  const [hover, setHover] = useState<number | null>(null);
+  const skills = data.skills; // already in curriculum order (year, depth, code)
+  const n = skills.length;
+  const label = (code: string) => code.replace(/_/g, ' ');
+
+  const W = CP.padL + n * CP.col + CP.padR;
+  const bandY = CP.yearH + CP.abilityH + CP.gap;
+  const H = bandY + CP.bandH + 6;
+  const xMid = (i: number) => CP.padL + i * CP.col + CP.col / 2;
+  const yFor = (theta: number) => CP.yearH + (1 - (Math.max(-THETA_CLAMP, Math.min(THETA_CLAMP, theta)) + THETA_CLAMP) / (2 * THETA_CLAMP)) * CP.abilityH;
+  const y0 = yFor(0);
+
+  // Year bands for the X axis (F, 1…9), each spanning its run of columns.
+  const bands: { year: number; from: number; to: number }[] = [];
+  skills.forEach((s, i) => {
+    const last = bands[bands.length - 1];
+    if (last && last.year === s.year) last.to = i;
+    else bands.push({ year: s.year, from: i, to: i });
+  });
+
+  // Frontier: first TOUCHED skill whose θ has dipped below 0 — suppressed if the child
+  // has too few touched skills for a line to mean anything.
+  const touchedCount = skills.filter((s) => s.touched).length;
+  const frontierI = touchedCount >= MIN_FRONTIER ? skills.findIndex((s) => s.touched && s.theta < 0) : -1;
+  // Placement: where the grade prior stops assuming mastery (first skill above the seed
+  // grade). A muted second marker — the gap to the frontier is assumed-vs-demonstrated.
+  const placementI = skills.findIndex((s) => s.year > data.player.seedGrade);
+  const measuredCount = skills.filter((s) => s.rateState === 'measured').length;
+
+  const yr = (y: number) => (y === 0 ? 'F' : String(y));
+  const summary = t('parent.cpAria', { measured: measuredCount, total: n, frontier: frontierI >= 0 ? label(skills[frontierI].code) : '—' });
+
+  return (
+    <div className="cp-wrap">
+      <div className="cp-head">{t('parent.cpTitle')}</div>
+      <div className="cp-scroll">
+        <svg width={W} height={H} role="img" aria-label={summary} className="cp-svg">
+          {/* year bands + labels */}
+          {bands.map((b, k) => {
+            const x = CP.padL + b.from * CP.col;
+            const w = (b.to - b.from + 1) * CP.col;
+            return (
+              <g key={k}>
+                {k % 2 === 1 && <rect x={x} y={CP.yearH} width={w} height={bandY + CP.bandH - CP.yearH} className="cp-band-bg" />}
+                <text x={x + w / 2} y={12} className="cp-year">{yr(b.year)}</text>
+              </g>
+            );
+          })}
+          {/* θ = 0 reference */}
+          <line x1={CP.padL} y1={y0} x2={W - CP.padR} y2={y0} className="cp-zero" />
+          {/* placement + frontier markers */}
+          {placementI >= 0 && <line x1={xMid(placementI)} y1={CP.yearH} x2={xMid(placementI)} y2={bandY + CP.bandH} className="cp-placement" />}
+          {frontierI >= 0 && <line x1={xMid(frontierI)} y1={CP.yearH} x2={xMid(frontierI)} y2={bandY + CP.bandH} className="cp-frontier" />}
+          {/* fluency band — one cell per skill, aligned to the same X */}
+          {skills.map((s, i) => {
+            const x = CP.padL + i * CP.col;
+            const measured = s.rateState === 'measured';
+            const fill = measured && s.aim ? Math.max(0, Math.min(1, (s.rate ?? 0) / s.aim)) : 0;
+            const cls = measured ? 'cp-cell-measured' : s.unlocked ? 'cp-cell-reachable' : 'cp-cell-locked';
+            return (
+              <g key={`b${i}`}>
+                <rect x={x + 0.5} y={bandY} width={CP.col - 1} height={CP.bandH} className={cls} />
+                {measured && <rect x={x + 0.5} y={bandY + CP.bandH * (1 - fill)} width={CP.col - 1} height={CP.bandH * fill} className="cp-cell-fill" />}
+              </g>
+            );
+          })}
+          {/* ability dots — TOUCHED skills only, no connecting line across gaps */}
+          {skills.map((s, i) => (s.touched ? <circle key={`d${i}`} cx={xMid(i)} cy={yFor(s.theta)} r={3} className="cp-dot" /> : null))}
+          {/* hover/focus hit targets — one focusable column each */}
+          {skills.map((s, i) => (
+            <rect
+              key={`h${i}`}
+              x={CP.padL + i * CP.col}
+              y={CP.yearH}
+              width={CP.col}
+              height={bandY + CP.bandH - CP.yearH}
+              className={`cp-hit ${hover === i ? 'on' : ''}`}
+              tabIndex={0}
+              role="button"
+              aria-label={`${label(s.code)}, θ ${s.theta.toFixed(2)}${s.touched ? '' : ' (ej övad)'}`}
+              onMouseEnter={() => setHover(i)}
+              onMouseLeave={() => setHover((h) => (h === i ? null : h))}
+              onFocus={() => setHover(i)}
+            />
+          ))}
+        </svg>
+      </div>
+      <div className="cp-detail muted">
+        {hover != null ? (
+          <span>
+            <strong>{label(skills[hover].code)}</strong> · θ {skills[hover].theta.toFixed(2)}
+            {skills[hover].touched ? '' : ` · ${t('parent.cpUntouched')}`}
+            {skills[hover].aim != null && ` · ${t('parent.cpRate')} ${skills[hover].rate != null && skills[hover].rateState === 'measured' ? Math.round(skills[hover].rate!) : '—'}/${Math.round(skills[hover].aim!)}`}
+          </span>
+        ) : (
+          <span>{t('parent.cpMeasured', { measured: measuredCount, total: n })}</span>
+        )}
+      </div>
+      <div className="cp-legend muted">
+        <span><i className="cp-lg cp-cell-measured" /> {t('parent.cpLegMeasured')}</span>
+        <span><i className="cp-lg cp-cell-reachable" /> {t('parent.cpLegReachable')}</span>
+        <span><i className="cp-lg cp-cell-locked" /> {t('parent.cpLegLocked')}</span>
+        {placementI >= 0 && <span><i className="cp-lg-line cp-placement" /> {t('parent.cpLegPlacement')}</span>}
+        {frontierI >= 0 && <span><i className="cp-lg-line cp-frontier" /> {t('parent.cpLegFrontier')}</span>}
+      </div>
     </div>
   );
 }

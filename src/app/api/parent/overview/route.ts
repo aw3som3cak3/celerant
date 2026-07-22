@@ -1,8 +1,11 @@
 import { NextRequest } from 'next/server';
 import * as repo from '@/db/repo';
 import { parentFamilyFromRequest } from '@/lib/auth';
-import { SKILLS } from '@/skills';
+import { SKILLS, skillDepth } from '@/skills';
 import { aimFor } from '@/lib/fluency';
+import { seedGradeFor } from '@/lib/onboarding';
+import { buildStates } from '@/lib/practice';
+import { computeUnlocked } from '@/lib/selector';
 import { skillLabel } from '@/lib/labels';
 import { displacement } from '@/lib/analysis';
 import { calibrationReport, fatigueReport } from '@/lib/calibration';
@@ -43,9 +46,15 @@ export function GET(req: NextRequest) {
   const player = repo.playerById(playerId)!;
 
   const ability = repo.abilities(playerId);
-  const aim = aimFor(repo.latestToolRate(playerId), player.school_year);
+  // Aim uses the SEED grade — the SAME grade the fluency layer gates milestones and
+  // diplomas on (buildStates / fix-grade-source-of-truth §1). The old raw-school_year
+  // aim here was a displayed number that disagreed with the one that awards the
+  // diploma ("why 18/22 when she got it?"); this aligns them.
+  const seedGrade = seedGradeFor(player.school_year);
+  const aim = aimFor(repo.latestToolRate(playerId), seedGrade);
+  const unlocked = computeUnlocked(buildStates(playerId, player.school_year));
 
-  const rows: { code: string; year: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean }[] = [];
+  const rows: { code: string; year: number; depth: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean; unlocked: boolean }[] = [];
   // Codes, not sentences — the client translates them (parent.diagCollapse /
   // parent.diagTrivial), so the diagnostic honours the chosen locale.
   const diagnostics: { code: 'collapse' | 'trivial' | 'underplaced'; skill: string }[] = [];
@@ -56,6 +65,7 @@ export function GET(req: NextRequest) {
     rows.push({
       code: ab.skill_code,
       year: meta.year,
+      depth: skillDepth(ab.skill_code),
       theta: ab.theta,
       mode: meta.mode,
       rate: ab.rate,
@@ -65,6 +75,7 @@ export function GET(req: NextRequest) {
       // only a cold-start seed. The client greys these so a parent reads an
       // untouched year-8 θ of -2.00 as "not practised", not "failed algebra".
       touched: ab.last_seen_at != null,
+      unlocked: unlocked.get(ab.skill_code) ?? false,
     });
 
     const { acc, count } = repo.recentFirstTryAccuracy(playerId, ab.skill_code, 20);
@@ -87,10 +98,12 @@ export function GET(req: NextRequest) {
     diagnostics.push({ code: 'underplaced', skill: '' });
   }
 
-  rows.sort((a, b) => a.year - b.year || a.code.localeCompare(b.code));
+  // Curriculum order: year, then prerequisite depth within the year, then code as a
+  // stable tiebreak. This is the profile chart's X axis.
+  rows.sort((a, b) => a.year - b.year || a.depth - b.depth || a.code.localeCompare(b.code));
 
   return json({
-    player: { id: player.id, icon: player.icon, schoolYear: player.school_year, sessionTarget: player.session_target },
+    player: { id: player.id, icon: player.icon, schoolYear: player.school_year, sessionTarget: player.session_target, seedGrade },
     attemptsLast7Days: repo.attemptsLast7Days(playerId, now),
     // A plain number for the parent to notice, not to optimise (§3.6). No child
     // ever sees a count of sessions — enthusiasm shows for them as done maths.
