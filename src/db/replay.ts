@@ -294,4 +294,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { player_id } of affected) replayOne(db, player_id);
     mark('voided_empty_sprints_v1');
   }
+
+  // θ first-response fix: updateDecision used to DROP a "right on the second try"
+  // (apply:false), silently deleting a first-try error and biasing θ upward. It now
+  // scores the first independent response, so a corrected retry counts as an error.
+  // Replay every existing child once so their ability recomputes under the corrected
+  // scoring — from their current grade seed, touching no grades. Runs once.
+  if (!done('theta_first_response_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('theta_first_response_v1');
+  }
 }

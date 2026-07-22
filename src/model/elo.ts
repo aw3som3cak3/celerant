@@ -49,12 +49,16 @@ export function predict(theta: number): number {
 export type UpdateDecision = { apply: boolean; correct: number; halveKChild: boolean };
 
 export function updateDecision(givenIsNull: boolean, tries: number, finalCorrect: number): UpdateDecision {
+  // Measurement principle: score ONLY the first independent response; a retry or a
+  // worked-example reveal is teaching, not assessment. So a success counts iff it was
+  // right on the FIRST try; anything that needed a retry means the first response was
+  // wrong and is scored as an error. (Previously a "right on the second try" was
+  // dropped — apply:false — which silently deleted a first-try failure, biasing θ
+  // upward and, through item selection, kept serving items too hard → more retries →
+  // more dropped errors. Counting the first response breaks that loop.)
   if (givenIsNull) return { apply: true, correct: 0, halveKChild: true }; // "I don't know"
-  if (finalCorrect === 1) {
-    if (tries === 1) return { apply: true, correct: 1, halveKChild: false }; // right, first try
-    return { apply: false, correct: 0, halveKChild: false }; // right, second try: no update
-  }
-  return { apply: true, correct: 0, halveKChild: false }; // wrong twice
+  if (finalCorrect === 1 && tries === 1) return { apply: true, correct: 1, halveKChild: false }; // right, first try
+  return { apply: true, correct: 0, halveKChild: false }; // wrong first try (whether or not fixed on the retry)
 }
 
 // Idle RD growth: a skill's uncertainty rises with the time since it was last
