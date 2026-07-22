@@ -1036,12 +1036,15 @@ table.plain-table th {
   width: 32px; height: 32px;
   image-rendering: pixelated;
   background-repeat: no-repeat;
-  background-size: 224px 32px; /* 7 frames wide (idle & walk) */
   transform-origin: center bottom;
-  animation: catplay7 1.1s steps(7) infinite;
+  /* background-size is set inline per anim (7 frames for idle/walk, 3 for sit/sleep). */
 }
-.cat-sprite.walk { animation-duration: 0.6s; }
+.cat-sprite.anim-idle  { animation: catplay7 1.1s steps(7) infinite; }
+.cat-sprite.anim-walk  { animation: catplay7 0.6s steps(7) infinite; }
+.cat-sprite.anim-sit   { animation: catplay3 1.6s steps(3) infinite; }
+.cat-sprite.anim-sleep { animation: catplay3 2.2s steps(3) infinite; }
 @keyframes catplay7 { from { background-position-x: 0; } to { background-position-x: -224px; } }
+@keyframes catplay3 { from { background-position-x: 0; } to { background-position-x: -96px; } }
 /* a still cat (first idle frame) for boards, chips and the pet card */
 .cat-face {
   display: inline-block;
