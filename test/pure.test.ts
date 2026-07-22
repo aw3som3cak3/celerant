@@ -57,8 +57,12 @@ describe('grading table (updateDecision, §5)', () => {
   it('wrong twice updates with 0.0', () => {
     expect(updateDecision(false, 2, 0)).toEqual({ apply: true, correct: 0, halveKChild: false });
   });
-  it('"I don\'t know" updates with 0.0 and halved kChild', () => {
-    expect(updateDecision(true, 1, 0)).toEqual({ apply: true, correct: 0, halveKChild: true });
+  it('a considered "I don\'t know" updates with 0.0 and halved kChild', () => {
+    expect(updateDecision(true, 1, 0, 8000)).toEqual({ apply: true, correct: 0, halveKChild: true }); // 8s: genuine give-up
+    expect(updateDecision(true, 1, 0)).toEqual({ apply: true, correct: 0, halveKChild: true }); // no latency → treated as considered
+  });
+  it('a sub-3s "I don\'t know" is a tap-through — records but does not touch θ (local independence)', () => {
+    expect(updateDecision(true, 1, 0, 1500)).toEqual({ apply: false, correct: 0, halveKChild: true });
   });
 });
 

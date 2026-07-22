@@ -101,12 +101,19 @@ export const GROUND_ENFORCED = false as const;
 // still acquiring add_within_10: the home menu leads them into the ladder, and once
 // they've climbed it they flow on to the number drill. Older/accurate kids are never
 // touched (they're past acquisition), so nobody's progression can break.
+// The gate is satisfiable by EITHER path (both reviewers, Q3): climbed the GROUND
+// ladder, OR demonstrated symbolic competence. A kid with a real record of first-try
+// add_within_10 successes has the symbol and belongs in drill, not pre-symbolic
+// scaffolding — this is "demonstration overrides the initial guess", and it means no
+// grandfathering flag: existing/able kids simply derive as already past acquisition.
+const DEMONSTRATED_SYMBOL = 20; // clean first-try successes on add_within_10
+
 export function groundFirst(playerId: string): boolean {
   const p = repo.playerById(playerId);
   if (!p || p.school_year > 2) return false; // only the youngest, GROUND's audience
-  if (ladderGrounded(playerId)) return false; // already climbed the on-ramp → move on
-  // Only a child NOT yet fluent at add_within_10 is still "before" it; a kid who has
-  // made it fluent has passed acquisition and is never sent back.
+  if (ladderGrounded(playerId)) return false; // climbed the on-ramp → move on
+  if (repo.firstTrySuccesses(playerId, 'add_within_10') >= DEMONSTRATED_SYMBOL) return false; // has shown she can do it
+  // Otherwise, GROUND-first only while she hasn't yet made add_within_10 fluent.
   const add = skillEligibility(playerId).find((e) => e.code === 'add_within_10');
   return !add || add.band !== 'fluent';
 }

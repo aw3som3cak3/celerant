@@ -38,7 +38,7 @@ type Row = {
 export function computeAbility(
   chosenYear: number,
   toolRate: number | null,
-  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; at: number }[],
+  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; latency_ms: number; at: number }[],
   sprints: { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
@@ -60,7 +60,7 @@ export function computeAbility(
   for (const a of attempts) {
     const c = cache.get(a.skill_code);
     if (!c) continue; // a skill deleted from the graph: its evidence is skipped
-    const decision = updateDecision(a.dont_know === 1 || a.given === null, a.tries, a.correct);
+    const decision = updateDecision(a.dont_know === 1 || a.given === null, a.tries, a.correct, a.latency_ms);
     if (decision.apply) {
       // Idle since this skill was last seen — grows RD (spacing affecting belief).
       const idle = c.last_seen_at == null ? 0 : (a.at - c.last_seen_at) / RATING_PERIOD_MS;
@@ -116,7 +116,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
 
   const attempts = db
     .prepare(
-      'SELECT skill_code, given, correct, tries, dont_know, warmup, at FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
+      'SELECT skill_code, given, correct, tries, dont_know, warmup, latency_ms, at FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
     )
     .all(playerId) as {
     skill_code: string;
@@ -125,6 +125,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
     tries: number;
     dont_know: number;
     warmup: number;
+    latency_ms: number;
     at: number;
   }[];
 
@@ -303,5 +304,18 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   if (!done('theta_first_response_v1')) {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('theta_first_response_v1');
+  }
+
+  // idk local-independence: a sub-3s "don't know" is a tap-through, not an assessment,
+  // and no longer updates θ. Diagnosed from the youngest child: her "93%→16% decline"
+  // was a session-length/fatigue artifact — 100% first-try for items 1–6, cratering to
+  // 40%/55%-idk in the tail — with tap-through idks clustered at the end. Replay every
+  // child under the corrected scoring, and shorten her session so the tired tail that
+  // dragged her aggregate down simply doesn't exist. Runs once; a parent can re-length.
+  if (!done('idk_latency_gate_v1')) {
+    const fam = db.prepare("SELECT id FROM family WHERE icon_display = 'turtle+ice_cream'").get() as { id: string } | undefined;
+    if (fam) db.prepare("UPDATE player SET session_target = 6 WHERE family_id = ? AND icon = 'koala'").run(fam.id);
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('idk_latency_gate_v1');
   }
 }
