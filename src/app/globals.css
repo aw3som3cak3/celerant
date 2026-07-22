@@ -1277,7 +1277,21 @@ table.plain-table th {
 .ground-groups { display: flex; align-items: center; justify-content: center; gap: 2.2rem; }
 .ground-cluster { display: flex; flex-wrap: wrap; gap: 5px; max-width: 150px; justify-content: center; }
 .ground-cluster.settled { max-width: 220px; }
+.ground-cluster.small { gap: 2px; max-width: 96px; }
 .ground-obj { width: 36px; height: 36px; }
+.ground-obj.small { width: 20px; height: 20px; }
+
+/* Rungs 2–4: a prompt (groups, optionally with a + sign) and a 2×2 grid of options,
+   each option either a picture-group or a big numeral. */
+.ground-prompt { display: flex; align-items: center; justify-content: center; gap: 1.2rem; flex-wrap: wrap; }
+.ground-plus { font-size: 2rem; font-weight: 800; color: #3a2f28; }
+.ground-options { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; margin-top: 0.2rem; }
+.ground-option {
+  min-height: 72px; padding: 0.6rem; border: 3px solid #3a2f28; border-radius: 14px;
+  background: #fff7e6; cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.ground-option:active { transform: scale(0.97); }
+.ground-numeral { font-size: 2.4rem; font-weight: 800; color: #3a2f28; font-variant-numeric: tabular-nums; }
 .ground-cluster.arriving { animation: ground-approach 1.1s ease-in-out infinite; }
 .ground-cluster.leaving { animation: ground-depart 1.1s ease-in-out infinite; }
 @keyframes ground-approach { 0%, 100% { transform: translateX(12px); } 50% { transform: translateX(-6px); } }
