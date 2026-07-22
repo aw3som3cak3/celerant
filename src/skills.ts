@@ -587,6 +587,20 @@ export const SKILLS: Skill[] = [...tier1, ...tier2, ...tier3, ...tier4, ...tier5
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 
+// Prerequisite depth: 0 for a skill with no prerequisites, else 1 + the deepest
+// prerequisite. Orders skills WITHIN a year by how far into the DAG they sit, so the
+// curriculum profile reads left→right as genuine progression, not alphabetically.
+// Memoized; the graph is acyclic (validated), so the recursion terminates.
+const _depth = new Map<string, number>();
+export function skillDepth(code: string): number {
+  const cached = _depth.get(code);
+  if (cached != null) return cached;
+  const s = BY_CODE.get(code);
+  const d = !s || s.requires.length === 0 ? 0 : 1 + Math.max(...s.requires.map(skillDepth));
+  _depth.set(code, d);
+  return d;
+}
+
 /**
  * Seed theta from the child's school year. There is no beta.
  *

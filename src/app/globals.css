@@ -764,6 +764,34 @@ table.plain-table th {
 .calib-row { margin: 0.3rem 0; font-size: 0.9rem; }
 .calib-hard { color: var(--accent); font-weight: 700; }
 .calib-easy { color: #4a9d5b; font-weight: 700; }
+
+/* curriculum profile chart (parent view) — two aligned tracks over a shared X axis */
+.cp-wrap { margin: 0.9rem 0; }
+.cp-head { font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; }
+.cp-scroll { overflow-x: auto; overflow-y: hidden; border: 1px solid var(--line); border-radius: 10px; padding: 4px 0; -webkit-overflow-scrolling: touch; }
+.cp-svg { display: block; }
+.cp-band-bg { fill: var(--accent); opacity: 0.05; }
+.cp-year { fill: currentColor; opacity: 0.55; font-size: 10px; text-anchor: middle; }
+.cp-zero { stroke: currentColor; opacity: 0.25; stroke-width: 1; stroke-dasharray: 3 3; }
+.cp-dot { fill: var(--accent); }
+.cp-frontier { stroke: var(--accent); stroke-width: 2; }
+.cp-placement { stroke: currentColor; opacity: 0.35; stroke-width: 1.5; stroke-dasharray: 2 2; }
+.cp-cell-locked { fill: currentColor; opacity: 0.06; }
+.cp-cell-reachable { fill: var(--accent); opacity: 0.18; }
+.cp-cell-measured { fill: var(--accent); opacity: 0.15; }
+.cp-cell-fill { fill: var(--accent); opacity: 0.9; }
+.cp-hit { fill: transparent; cursor: pointer; outline: none; }
+.cp-hit.on { fill: currentColor; opacity: 0.06; }
+.cp-hit:focus-visible { fill: var(--accent); opacity: 0.12; }
+.cp-detail { font-size: 0.85rem; margin-top: 0.35rem; min-height: 1.2rem; }
+.cp-legend { display: flex; flex-wrap: wrap; gap: 0.7rem; font-size: 0.75rem; margin-top: 0.2rem; }
+.cp-legend span { display: inline-flex; align-items: center; gap: 0.25rem; }
+.cp-lg { width: 11px; height: 11px; border-radius: 2px; display: inline-block; }
+.cp-lg.cp-cell-measured { background: var(--accent); opacity: 0.9; }
+.cp-lg.cp-cell-reachable { background: var(--accent); opacity: 0.18; }
+.cp-lg.cp-cell-locked { background: currentColor; opacity: 0.1; }
+.cp-lg-line { width: 12px; height: 0; border-top: 2px solid var(--accent); display: inline-block; }
+.cp-lg-line.cp-placement { border-top: 2px dashed currentColor; opacity: 0.5; }
 /* The invite in the child's action modal: a gentle accented outline so it reads as
    the "help out" ask, never louder than practice. */
 .tool-test-invite {
