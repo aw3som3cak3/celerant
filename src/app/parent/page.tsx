@@ -20,6 +20,8 @@ const DIAG_KEY = {
 } as const;
 type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: number; nBefore: number; nAfter: number };
 type Usage = { weekly: { weekStart: number; sessions: number }[]; lateEveningSessions: number; enTillRate: number; sessionsLast7: number; alarm: boolean };
+type SkillCalibration = { code: string; n: number; observed: number; verdict: 'ok' | 'too_hard' | 'too_easy' };
+type Fatigue = { curve: { pos: number; n: number; firstTry: number }[]; breakPos: number | null; currentTarget: number; enoughData: boolean };
 type Overview = {
   player: { id: string; icon: string; schoolYear: number; sessionTarget: number };
   attemptsLast7Days: number;
@@ -27,6 +29,8 @@ type Overview = {
   diagnostics: Diagnostic[];
   transfer: Transfer[];
   usage: Usage;
+  calibration: SkillCalibration[];
+  fatigue: Fatigue;
   skills: { code: string; year: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean }[];
 };
 type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
@@ -124,6 +128,9 @@ export default function Parent() {
               ))}
             </div>
           )}
+
+          <CalibrationPanel data={data} />
+
 
           <div style={{ margin: '0.5rem 0' }}>
             <YearChange playerId={data.player.id} current={data.player.schoolYear} />
@@ -371,6 +378,42 @@ function SessionLen({ playerId, current }: { playerId: string; current: number }
         </button>
       ))}
     </span>
+  );
+}
+
+// The calibration monitor, parent-facing. Two watchdogs on how the model is placing
+// THIS child: (1) skills where predicted (~80% aim) and observed first-try diverge —
+// too-hard means the estimate is serving her problems she can't do; (2) the fatigue
+// curve — if her first-try craters after position N, the session is too long and its
+// tail is poisoning the numbers. Silent when all is well (an empty panel is normal).
+function CalibrationPanel({ data }: { data: Overview }) {
+  const { t } = useI18n();
+  const label = (code: string) => code.replace(/_/g, ' ');
+  const flagged = data.calibration.filter((c) => c.verdict !== 'ok');
+  const fat = data.fatigue;
+  const suggestShorter = fat.enoughData && fat.breakPos != null && fat.breakPos < fat.currentTarget;
+  if (flagged.length === 0 && !suggestShorter) return null; // nothing to say → say nothing
+
+  return (
+    <div className="calib-panel">
+      {flagged.map((c) => (
+        <p key={c.code} className="calib-row">
+          <Emoji e="🎯" /> <strong>{label(c.code)}</strong>: {t('parent.calibServed')} {Math.round(c.observed * 100)}%{' '}
+          <span className={c.verdict === 'too_hard' ? 'calib-hard' : 'calib-easy'}>
+            {t(c.verdict === 'too_hard' ? 'parent.calibTooHard' : 'parent.calibTooEasy')}
+          </span>{' '}
+          <span className="muted">(n={c.n})</span>
+        </p>
+      ))}
+      {suggestShorter && (
+        <p className="calib-row">
+          <Emoji e="⚠" /> {t('parent.calibFatigue', { n: fat.breakPos!, target: fat.currentTarget })}{' '}
+          <button className="idk" style={{ color: 'var(--accent)' }} onClick={async () => { await postJSON('/api/player/target', { playerId: data.player.id, target: fat.breakPos! }); location.reload(); }}>
+            {t('parent.calibSetTo', { n: fat.breakPos! })}
+          </button>
+        </p>
+      )}
+    </div>
   );
 }
 

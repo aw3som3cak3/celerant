@@ -76,6 +76,9 @@ const MIGRATIONS = [
   // GROUND fluency: time-to-answer on each acquisition choice, so a grounded rung can
   // be sped-run (correct×60000/interval_ms). Legacy rows stay NULL (untimed).
   'ALTER TABLE ground_event ADD COLUMN interval_ms INTEGER',
+  // Position-in-session analysis (the calibration monitor): link each attempt to its
+  // session so accuracy-by-position is reliable, not reconstructed by timestamp.
+  'ALTER TABLE attempt ADD COLUMN session_run_id INTEGER',
 ];
 
 export function getDb(): Database.Database {

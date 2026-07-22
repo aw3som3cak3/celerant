@@ -5,6 +5,7 @@ import { SKILLS } from '@/skills';
 import { aimFor } from '@/lib/fluency';
 import { skillLabel } from '@/lib/labels';
 import { displacement } from '@/lib/analysis';
+import { calibrationReport, fatigueReport } from '@/lib/calibration';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -102,6 +103,12 @@ export function GET(req: NextRequest) {
     // FLAT, with a calm ceiling alarm — never an engagement metric, no target.
     usage: displacement(playerId, now),
     diagnostics, // usually empty — an empty parent view is the normal one
+    // The calibration monitor: predicted (~80% aim) vs observed first-try per skill,
+    // and the fatigue curve. A permanent watchdog on the model's placement of THIS
+    // child — the failure mode of a confident estimate is misplacement, and it lands
+    // on the kid, not the dashboard.
+    calibration: calibrationReport(playerId),
+    fatigue: fatigueReport(playerId, player.session_target),
     skills: rows,
   });
 }

@@ -759,6 +759,11 @@ table.plain-table th {
 /* Year picker in "add a child" — a row of årskurs buttons (F, 1…9). */
 .yearpick { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; margin: 0.6rem 0; }
 .yearpick .pill-btn { min-width: 2.6rem; }
+/* calibration monitor (parent view) */
+.calib-panel { margin: 0.6rem 0; padding: 0.6rem 0.8rem; border: 1px solid var(--line); border-radius: 10px; background: rgba(200, 162, 74, 0.06); }
+.calib-row { margin: 0.3rem 0; font-size: 0.9rem; }
+.calib-hard { color: var(--accent); font-weight: 700; }
+.calib-easy { color: #4a9d5b; font-weight: 700; }
 /* The invite in the child's action modal: a gentle accented outline so it reads as
    the "help out" ask, never louder than practice. */
 .tool-test-invite {
