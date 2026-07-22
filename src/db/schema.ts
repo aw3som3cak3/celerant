@@ -289,10 +289,11 @@ CREATE TABLE IF NOT EXISTS prereg (
 CREATE TABLE IF NOT EXISTS ground_event (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   player_id   TEXT NOT NULL REFERENCES player(id),
-  structure   TEXT NOT NULL,       -- the CORRECT structure: 'combine' | 'separate'
-  scene_json  TEXT NOT NULL,       -- {kind, a, b} the concrete situation shown
-  chosen      TEXT NOT NULL,       -- what the child picked: 'combine' | 'separate'
-  correct     INTEGER NOT NULL,    -- chosen === structure
+  structure   TEXT NOT NULL,       -- the CORRECT concept key: 'combine'|'separate'|'count'|'numeral'|'sum'
+  scene_json  TEXT NOT NULL,       -- the item shown
+  chosen      TEXT NOT NULL,       -- what the child picked
+  correct     INTEGER NOT NULL,    -- chosen matched
+  interval_ms INTEGER,             -- client-measured time to answer (fluency); NULL on untimed/legacy rows
   at          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ground_event_player ON ground_event(player_id, structure, at);

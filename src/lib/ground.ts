@@ -139,3 +139,27 @@ export function gradeGround(seed: number, stage: GroundStage, chosen: string | n
   if (item.stage === 'structure') return chosen === item.structure;
   return Number(chosen) === item.answer;
 }
+
+// ── SPEED RUNS on the ladder (fluency for a rung the child is already accurate at) ──
+// Once a rung is GROUNDED (learned + accurate), a timed round measures how FAST the
+// child answers — building automaticity, the same acquire→accurate→fast arc the
+// symbolic skills follow. EXPLORE_AIM is a first-guess fluency target (correct
+// picks/min); recognition is much faster than writing, so this is NOT the writing-
+// speed number — calibrate it from real timed data.
+export const EXPLORE_AIM = 12;
+export const SPEED_ITEMS = 12;
+
+export type ExploreOutcome = 'fast' | 'keep_going';
+
+// Gentle by construction (a guardrail): a run is either FAST (celebrated) or
+// keep_going (a warm "again"). Never a fail — the child is already accurate here.
+export function classifyExplore(correct: number, total: number, ratePerMin: number): ExploreOutcome {
+  const acc = total > 0 ? correct / total : 0;
+  return ratePerMin >= EXPLORE_AIM && acc >= 0.8 ? 'fast' : 'keep_going';
+}
+
+// The stage a grounded concept key is sped-run on (combine/separate both live in the
+// structure scene).
+export function stageForConcept(key: string): GroundStage {
+  return key === 'combine' || key === 'separate' ? 'structure' : (key as GroundStage);
+}

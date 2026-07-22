@@ -8,8 +8,8 @@ process.env.DATABASE_PATH = path.join(dir, 'test.db');
 process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
-import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES } from '@/lib/ground';
-import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
+import { structureOf, buildScene, sceneResult, scoreChoice, GROUND_ITEMS, buildGroundItem, gradeGround, conceptKey, RUN_STAGES, classifyExplore, stageForConcept, EXPLORE_AIM } from '@/lib/ground';
+import { groundedStructure, grounded, canGround, groundFirst, ladderGrounded, groundedRungs, speedRunStages, hasExploreSpeed, GROUND_WINDOW, GROUND_THRESHOLD } from '@/lib/ground-gate';
 import { computeUnlocked, type SelState } from '@/lib/selector';
 
 const NOW = Date.UTC(2026, 6, 21);
@@ -86,6 +86,32 @@ describe('GROUND acquisition ladder (structure → count → numeral → sum)', 
     expect(conceptKey(buildGroundItem(7, 'count'))).toBe('count');
     expect(conceptKey(buildGroundItem(7, 'numeral'))).toBe('numeral');
     expect(conceptKey(buildGroundItem(7, 'sum'))).toBe('sum');
+  });
+});
+
+describe('Explore speed runs (fluency on a grounded rung)', () => {
+  it('classifyExplore is gentle: fast when quick+accurate, else keep_going — never a fail', () => {
+    expect(classifyExplore(12, 12, EXPLORE_AIM + 3)).toBe('fast'); // quick, all right
+    expect(classifyExplore(12, 12, EXPLORE_AIM - 3)).toBe('keep_going'); // accurate but slow
+    expect(classifyExplore(6, 12, EXPLORE_AIM + 3)).toBe('keep_going'); // quick but only 50% → not fast, not a "fail"
+  });
+
+  it('stageForConcept maps combine/separate to the structure scene, others to themselves', () => {
+    expect(stageForConcept('combine')).toBe('structure');
+    expect(stageForConcept('separate')).toBe('structure');
+    expect(stageForConcept('count')).toBe('count');
+    expect(stageForConcept('sum')).toBe('sum');
+  });
+
+  it('a speed run is offered only on rungs the child is grounded at', () => {
+    const fam = repo.createFamily('owl+bat', 'o:b', 'o:x', NOW);
+    const kid = repo.createPlayer(fam, 'owl', 1, NOW);
+    expect(hasExploreSpeed(kid)).toBe(false); // nothing grounded → no speed run
+    // ground BOTH structures → the structure rung becomes speed-runnable (once)
+    for (const k of ['combine', 'separate']) for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(kid, k, '{}', k, true, NOW + i);
+    expect(groundedRungs(kid).sort()).toEqual(['combine', 'separate']);
+    expect(speedRunStages(kid)).toEqual(['structure']); // both collapse to one scene
+    expect(hasExploreSpeed(kid)).toBe(true);
   });
 });
 

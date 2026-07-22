@@ -1,6 +1,6 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { structureOf, type GroundStructure } from './ground';
+import { structureOf, stageForConcept, type GroundStructure } from './ground';
 import { skillEligibility } from './sprint-eligibility';
 
 // GROUND → drill criterion and the Level-3 gate seam (GROUND-phase spec §3, §5).
@@ -37,6 +37,20 @@ export function groundedStructure(playerId: string, structure: GroundStructure):
 const LADDER_KEYS = ['combine', 'separate', 'count', 'numeral', 'sum'];
 export function ladderGrounded(playerId: string): boolean {
   return LADDER_KEYS.every((k) => groundedOn(playerId, k));
+}
+
+// The concept keys a child is accurate (grounded) at — the rungs eligible for a SPEED
+// run. A skill you can do reliably earns the fluency (speed) stage, exactly as on the
+// symbolic side. De-duped to the scene STAGES the run will draw from (combine/separate
+// share the structure scene).
+export function groundedRungs(playerId: string): string[] {
+  return LADDER_KEYS.filter((k) => groundedOn(playerId, k));
+}
+export function speedRunStages(playerId: string): string[] {
+  return [...new Set(groundedRungs(playerId).map(stageForConcept))];
+}
+export function hasExploreSpeed(playerId: string): boolean {
+  return speedRunStages(playerId).length > 0;
 }
 
 // The ground→drill predicate for a single skill. A skill GROUND doesn't cover (mult,
