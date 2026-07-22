@@ -111,6 +111,7 @@ const sv: Dict = {
   'ground.yes': 'Just det!',
   'ground.soft': 'Titta vad som hände',
   'ground.next': 'Nästa',
+  'ground.again': 'En gång till',
   'ground.doneTitle': 'Bra utforskat!',
   'ground.doneLine': 'Du tittade på hur saker blir fler och färre.',
 
@@ -300,6 +301,7 @@ const en: Dict = {
   'ground.yes': "That's it!",
   'ground.soft': 'Look what happened',
   'ground.next': 'Next',
+  'ground.again': 'Once more',
   'ground.doneTitle': 'Nice exploring!',
   'ground.doneLine': 'You watched how things get more and fewer.',
 

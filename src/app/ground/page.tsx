@@ -4,6 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
+import { Emoji } from '../_components/Emoji';
 import { buildScene, sceneResult, sceneSymbol, GROUND_ITEMS } from '@/lib/ground';
 
 // GROUND / acquisition — the shadow scene surface (GROUND-phase spec §1). A child
@@ -31,10 +32,19 @@ function Ground() {
   const [phase, setPhase] = useState<Phase>('ask');
   const [chosenRight, setChosenRight] = useState<boolean | null>(null);
 
+  const start = useCallback(async () => {
+    setSeeds(null);
+    setIdx(0);
+    setPhase('ask');
+    setChosenRight(null);
+    const r = await postJSON<{ seeds: number[] }>('/api/ground/start', { playerId: p });
+    setSeeds(r.seeds);
+  }, [p]);
+
   useEffect(() => {
     if (!p) { location.href = '/'; return; }
-    postJSON<{ seeds: number[] }>('/api/ground/start', { playerId: p }).then((r) => setSeeds(r.seeds));
-  }, [p]);
+    start();
+  }, [p, start]);
 
   const scene = useMemo(() => (seeds ? buildScene(seeds[idx]) : null), [seeds, idx]);
 
@@ -59,13 +69,18 @@ function Ground() {
 
   if (!seeds) return <div className="plain muted">…</div>;
 
-  // Done: a warm close, no score.
+  // Done: a warm close, no score — and a way onward, so it's never a dead end. The
+  // child can go again, slip into practice, or head home.
   if (idx >= seeds.length) {
     return (
       <div className="plain" style={{ textAlign: 'center' }}>
         <h1>{t('ground.doneTitle')}</h1>
         <p className="muted">{t('ground.doneLine')}</p>
-        <a className="primary" href="/" style={{ marginTop: '1rem' }}>{t('common.home')}</a>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1.2rem' }}>
+          <button className="primary" onClick={start}><Emoji e="🌱" /> {t('ground.again')}</button>
+          <a className="next-btn" href={`/practice?p=${p}`}>{t('home.startPractice')}</a>
+          <a className="next-btn" href="/">{t('common.home')}</a>
+        </div>
       </div>
     );
   }

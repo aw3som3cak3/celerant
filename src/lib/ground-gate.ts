@@ -50,12 +50,13 @@ export function grounded(playerId: string, skillCode: string): boolean {
 // not a refactor.
 export const GROUND_ENFORCED = false as const;
 
-// The quiet-door gate (spec §4): GROUND is reachable but not pushed. Offer it to its
-// actual audience — the youngest kids, still acquiring add/sub — and let it retire
-// itself once both structures are grounded. A capability, not an activity/score, so
-// it stays off the comparison-surface rule.
+// The quiet-door gate (spec §4): GROUND is reachable but not pushed. Offered to its
+// audience — the youngest kids, still acquiring add/sub. It does NOT retire once both
+// structures are grounded: a child who enjoyed it (and grounded it) must still be able
+// to go back — removing her favourite scene the moment she succeeds is exactly the
+// punish-for-mastery trap we avoid, and replays are just more shadow data. Kept a
+// capability, not an activity/score, so it stays off the comparison-surface rule.
 export function canGround(playerId: string): boolean {
   const p = repo.playerById(playerId);
-  if (!p || p.school_year > 2) return false;
-  return !(groundedStructure(playerId, 'combine') && groundedStructure(playerId, 'separate'));
+  return !!p && p.school_year <= 2;
 }

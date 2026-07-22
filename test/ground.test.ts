@@ -72,18 +72,19 @@ describe('grounded criterion (shadow — computed, never enforced)', () => {
     expect(grounded(pid, 'mult_table_5')).toBe(true); // not a GROUND family → default true
   });
 
-  it('canGround targets the youngest and retires once both structures are grounded', () => {
+  it('canGround targets the youngest and does NOT retire once grounded (stays replayable)', () => {
     const fam = repo.createFamily('fox+owl', 'f:o', 'f:x', NOW);
     const young = repo.createPlayer(fam, 'fox', 1, NOW);
     const older = repo.createPlayer(fam, 'owl', 4, NOW);
-    expect(canGround(young)).toBe(true); // åk1, nothing grounded
+    expect(canGround(young)).toBe(true); // åk1, in the audience
     expect(canGround(older)).toBe(false); // too old for the door
-    // ground BOTH structures for the young kid → door retires
+    // grounding BOTH structures must NOT remove the door — a kid who aced it can
+    // still go back (punish-for-mastery is exactly what we avoid).
     for (let i = 0; i < GROUND_WINDOW; i++) {
       repo.appendGroundEvent(young, 'combine', '{}', 'combine', true, NOW + i);
       repo.appendGroundEvent(young, 'separate', '{}', 'separate', true, NOW + 100 + i);
     }
-    expect(canGround(young)).toBe(false);
+    expect(canGround(young)).toBe(true);
   });
 });
 
