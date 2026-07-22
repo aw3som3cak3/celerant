@@ -209,12 +209,24 @@ function Players({ me }: { me: Me }) {
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              onClick={() => (editing ? setChanging(p) : p.canSprint || p.hasDiplomas || p.needsToolTest || p.canGround ? setSprinting(p) : (location.href = `/practice?p=${p.id}`))}
+              // A beginner still before add-within-10 goes STRAIGHT into Explore — it's
+              // the only step for her; there is no separate Practice yet. Once she's
+              // climbed the ladder, groundFirst drops and the normal menu returns.
+              onClick={() =>
+                editing
+                  ? setChanging(p)
+                  : p.groundFirst
+                    ? (location.href = `/ground?p=${p.id}`)
+                    : p.canSprint || p.hasDiplomas || p.needsToolTest || p.canGround
+                      ? setSprinting(p)
+                      : (location.href = `/practice?p=${p.id}`)
+              }
             >
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
-              {!editing && p.canSprint && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
-              {!editing && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden><Emoji e="⌨️" /></span>}
+              {!editing && p.groundFirst && <span className="tile-ground" aria-hidden><Emoji e="🌱" /></span>}
+              {!editing && !p.groundFirst && p.canSprint && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
+              {!editing && !p.groundFirst && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden><Emoji e="⌨️" /></span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -255,16 +267,9 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}><EmojiIcon iconKey={player.icon} /></div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          {/* A beginner still before add-within-10 leads with GROUND — the first rungs
-              of the same ladder. Practice stays right below, never locked. */}
-          {player.groundFirst ? (
-            <>
-              <a className="primary" href={`/ground?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="🌱" /> {t('home.ground')}</a>
-              <a className="next-btn" href={`/practice?p=${player.id}`} style={{ margin: 0 }}>{t('home.startPractice')}</a>
-            </>
-          ) : (
-            <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
-          )}
+          {/* A groundFirst beginner never reaches this modal — she goes straight to
+              Explore. So Practice is simply the primary for everyone who does. */}
+          <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
           {player.canSprint && (
             <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="⚡" /> {t('home.startSprint')}</a>
           )}
@@ -274,11 +279,10 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
           {player.needsToolTest && (
             <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}><Emoji e="⌨️" /> {t('home.toolTest')}</a>
           )}
-          {/* The quiet GROUND door — an optional "explore" scene, never pushed, never
-              a gate (GROUND-phase spec §4). Kept below practice so it never competes.
-              Hidden when the child already leads with GROUND (groundFirst) to avoid a
-              duplicate button. */}
-          {player.canGround && !player.groundFirst && (
+          {/* The quiet GROUND door — for a young kid who's PAST the beginner routing
+              (climbed the ladder / fluent) but may still want to replay Explore. A
+              groundFirst beginner never reaches this modal (she goes straight in). */}
+          {player.canGround && (
             <a className="next-btn" href={`/ground?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🌱" /> {t('home.ground')}</a>
           )}
           <button className="idk" onClick={onClose}>{t('common.close')}</button>
