@@ -39,15 +39,18 @@ export function ladderGrounded(playerId: string): boolean {
   return LADDER_KEYS.every((k) => groundedOn(playerId, k));
 }
 
-// The concept keys a child is accurate (grounded) at — the rungs eligible for a SPEED
-// run. A skill you can do reliably earns the fluency (speed) stage, exactly as on the
-// symbolic side. De-duped to the scene STAGES the run will draw from (combine/separate
-// share the structure scene).
+// The concept keys a child is accurate (grounded) at.
 export function groundedRungs(playerId: string): string[] {
   return LADDER_KEYS.filter((k) => groundedOn(playerId, k));
 }
+// Which rungs earn a timed SPEED run. Deliberately ONLY 'produce' (the typed rung):
+// a timer on a multiple-choice recognition rung rewards fast GUESSING — tap one of N
+// pictures fast and be right sometimes — which a five-year-old will find by accident.
+// Typing makes a guess simply wrong, and produce is also the rung whose fluency
+// actually transfers to symbolic drill. Recognition-rung timing is still recorded
+// (evidence that the meaning is automatic — "time to verify", not a target to grind).
 export function speedRunStages(playerId: string): string[] {
-  return [...new Set(groundedRungs(playerId).map(stageForConcept))];
+  return groundedOn(playerId, 'produce') ? ['produce'] : [];
 }
 export function hasExploreSpeed(playerId: string): boolean {
   return speedRunStages(playerId).length > 0;

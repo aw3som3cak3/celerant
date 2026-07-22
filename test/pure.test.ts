@@ -49,8 +49,10 @@ describe('grading table (updateDecision, §5)', () => {
   it('right first try updates with 1.0', () => {
     expect(updateDecision(false, 1, 1)).toEqual({ apply: true, correct: 1, halveKChild: false });
   });
-  it('right second try does not update', () => {
-    expect(updateDecision(false, 2, 1)).toEqual({ apply: false, correct: 0, halveKChild: false });
+  it('right only on the second try scores the first response — an error', () => {
+    // The first independent response was wrong; a corrected retry is teaching, not
+    // ability. Counting it as an error (not dropping it) is the θ-contamination fix.
+    expect(updateDecision(false, 2, 1)).toEqual({ apply: true, correct: 0, halveKChild: false });
   });
   it('wrong twice updates with 0.0', () => {
     expect(updateDecision(false, 2, 0)).toEqual({ apply: true, correct: 0, halveKChild: false });

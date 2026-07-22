@@ -122,14 +122,17 @@ describe('Explore speed runs (fluency on a grounded rung)', () => {
     expect(stageForConcept('sum')).toBe('sum');
   });
 
-  it('a speed run is offered only on rungs the child is grounded at', () => {
+  it('a speed run is offered ONLY on the produce rung — timing a recognition pick rewards guessing', () => {
     const fam = repo.createFamily('owl+bat', 'o:b', 'o:x', NOW);
     const kid = repo.createPlayer(fam, 'owl', 1, NOW);
-    expect(hasExploreSpeed(kid)).toBe(false); // nothing grounded → no speed run
-    // ground BOTH structures → the structure rung becomes speed-runnable (once)
-    for (const k of ['combine', 'separate']) for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(kid, k, '{}', k, true, NOW + i);
-    expect(groundedRungs(kid).sort()).toEqual(['combine', 'separate']);
-    expect(speedRunStages(kid)).toEqual(['structure']); // both collapse to one scene
+    expect(hasExploreSpeed(kid)).toBe(false);
+    // grounding the RECOGNITION rungs does NOT unlock a speed run (guessing is gameable).
+    for (const k of ['combine', 'separate', 'count', 'numeral', 'sum']) for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(kid, k, '{}', k, true, NOW + i);
+    expect(speedRunStages(kid)).toEqual([]);
+    expect(hasExploreSpeed(kid)).toBe(false);
+    // only grounding PRODUCE (typed) does.
+    for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(kid, 'produce', '{}', 'produce', true, NOW + i);
+    expect(speedRunStages(kid)).toEqual(['produce']);
     expect(hasExploreSpeed(kid)).toBe(true);
   });
 });
