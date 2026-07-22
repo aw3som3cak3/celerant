@@ -44,16 +44,21 @@ describe('GROUND scene contract (pure, shared client/server)', () => {
 describe('GROUND acquisition ladder (structure → count → numeral → sum)', () => {
   it('a run climbs the rungs and GROUND_ITEMS matches', () => {
     expect(RUN_STAGES[0]).toBe('structure');
-    expect(RUN_STAGES.at(-1)).toBe('sum'); // ends at the bridge into symbolic add
+    expect(RUN_STAGES.at(-1)).toBe('produce'); // ends at the type-it bridge into symbolic add
     expect(GROUND_ITEMS).toBe(RUN_STAGES.length);
   });
 
   it('items are deterministic and well-formed at every rung', () => {
     for (let seed = 1; seed < 400; seed++) {
-      for (const stage of ['structure', 'count', 'numeral', 'sum'] as const) {
+      for (const stage of ['structure', 'count', 'numeral', 'sum', 'produce'] as const) {
         const it = buildGroundItem(seed, stage);
         expect(buildGroundItem(seed, stage)).toEqual(it); // same seed+stage → same item
         if (it.stage === 'structure') continue;
+        if (it.stage === 'produce') { // typed bridge: pictured a+b, answer ≤ 10, no options
+          expect(it.answer).toBe(it.a + it.b);
+          expect(it.answer).toBeLessThanOrEqual(10);
+          continue;
+        }
         // choice rungs: 4 distinct options, in [1,10], one of them the answer
         expect(it.options.length).toBe(4);
         expect(new Set(it.options).size).toBe(4);
@@ -71,7 +76,7 @@ describe('GROUND acquisition ladder (structure → count → numeral → sum)', 
   it('gradeGround re-derives the answer from seed + stage', () => {
     for (const stage of ['count', 'numeral', 'sum'] as const) {
       const it = buildGroundItem(7, stage);
-      if (it.stage === 'structure') continue;
+      if (it.stage === 'structure' || it.stage === 'produce') continue;
       expect(gradeGround(7, stage, it.answer)).toBe(true);
       const wrong = it.options.find((o) => o !== it.answer)!;
       expect(gradeGround(7, stage, wrong)).toBe(false);
@@ -86,6 +91,8 @@ describe('GROUND acquisition ladder (structure → count → numeral → sum)', 
     expect(conceptKey(buildGroundItem(7, 'count'))).toBe('count');
     expect(conceptKey(buildGroundItem(7, 'numeral'))).toBe('numeral');
     expect(conceptKey(buildGroundItem(7, 'sum'))).toBe('sum');
+    expect(conceptKey(buildGroundItem(7, 'produce'))).toBe('produce');
+    expect(gradeGround(7, 'produce', buildGroundItem(7, 'produce').stage === 'produce' ? (buildGroundItem(7, 'produce') as { answer: number }).answer : 0)).toBe(true);
   });
 });
 
@@ -168,7 +175,7 @@ describe('grounded criterion (shadow — computed, never enforced)', () => {
     expect(groundFirst(older)).toBe(false);
     // Climbing the WHOLE ladder retires the "first" routing (he flows on to the drill).
     expect(ladderGrounded(beginner)).toBe(false);
-    for (const k of ['combine', 'separate', 'count', 'numeral', 'sum']) {
+    for (const k of ['combine', 'separate', 'count', 'numeral', 'sum', 'produce']) {
       for (let i = 0; i < GROUND_WINDOW; i++) repo.appendGroundEvent(beginner, k, '{}', k, true, NOW + i);
     }
     expect(ladderGrounded(beginner)).toBe(true);

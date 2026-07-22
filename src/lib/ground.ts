@@ -15,11 +15,14 @@ export type GroundStructure = 'combine' | 'separate';
 //   count      HOW MANY now — pick the picture-group that shows the total
 //   numeral    NAME the amount — pick the digit that matches a group
 //   sum        add with pictures — 3🦆 + 4🦆 → pick the digit 7 (bridge to drill)
-export type GroundStage = 'structure' | 'count' | 'numeral' | 'sum';
+//   produce  the bridge OUT of the ladder: 3🦆 + 4🦆 → TYPE 7 on a numpad. Turns
+//            recognition (pick from options) into production (recall + type) with the
+//            picture still there — the last step before bare symbolic 3+4=▢ drill.
+export type GroundStage = 'structure' | 'count' | 'numeral' | 'sum' | 'produce';
 
 // A run climbs the rungs, two items each (easy → hard). Short, so it never competes
 // with drill for session time (spec §4).
-export const RUN_STAGES: GroundStage[] = ['structure', 'structure', 'count', 'count', 'numeral', 'numeral', 'sum', 'sum'];
+export const RUN_STAGES: GroundStage[] = ['structure', 'structure', 'count', 'count', 'numeral', 'sum', 'produce', 'produce'];
 export const GROUND_ITEMS = RUN_STAGES.length;
 
 // The two meanings GROUND teaches, before the add/sub SYMBOL. A family maps to the
@@ -109,7 +112,10 @@ function buildChoice(r: ReturnType<typeof makeRng>, stage: 'count' | 'numeral' |
   return { stage, kind, prompt: { type: 'sum', a, b }, answer, options: makeOptions(r, answer), optionType: stage === 'count' ? 'group' : 'numeral' };
 }
 
-export type GroundItem = ({ stage: 'structure' } & GroundScene) | ChoiceItem;
+// ── Rung 5: PRODUCE — type the pictured sum (the bridge to symbolic drill) ──
+export type ProduceItem = { stage: 'produce'; kind: string; a: number; b: number; answer: number };
+
+export type GroundItem = ({ stage: 'structure' } & GroundScene) | ChoiceItem | ProduceItem;
 
 // Build the item for a run position from its seed and stage. Deterministic, so the
 // client renders exactly what the server will grade.
@@ -122,7 +128,17 @@ export function buildGroundItem(seed: number, stage: GroundStage): GroundItem {
     if (structure === 'combine') { const a = r.int(2, 5); const b = r.int(1, 4); return { stage, kind, a, b, structure }; }
     const a = r.int(3, 6); const b = r.int(1, a - 1); return { stage, kind, a, b, structure };
   }
+  if (stage === 'produce') {
+    const a = r.int(1, 5);
+    const b = r.int(1, Math.min(5, 10 - a));
+    return { stage, kind, a, b, answer: a + b };
+  }
   return buildChoice(r, stage, kind);
+}
+
+// Digits in the produce answer (for numpad auto-submit).
+export function produceAnswerLength(item: ProduceItem): number {
+  return String(item.answer).length;
 }
 
 // The ledger key a choice records under. Structure items keep their specific meaning

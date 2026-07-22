@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 const Body = z.object({
   playerId: z.string().min(1),
   seed: z.number().int(),
-  stage: z.enum(['structure', 'count', 'numeral', 'sum']),
+  stage: z.enum(['structure', 'count', 'numeral', 'sum', 'produce']),
   chosen: z.union([z.string().max(16), z.number().int()]),
   intervalMs: z.number().min(0).optional(), // client-measured time to answer
   done: z.boolean().optional(), // the last item of the run — logs 'ground_done'

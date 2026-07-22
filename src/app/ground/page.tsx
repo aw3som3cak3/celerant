@@ -165,6 +165,8 @@ function Ground() {
       <p className="muted ground-count">{idx + 1} / {items.length}</p>
       {item.stage === 'structure' ? (
         <StructureScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
+      ) : item.stage === 'produce' ? (
+        <ProduceScene key={idx} item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       ) : (
         <ChoiceScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       )}
@@ -243,6 +245,51 @@ function ChoiceScene({ item, phase, chosenRight, onChoose, onNext, last }: Scene
                 {item.optionType === 'numeral' ? <span className="ground-numeral">{n}</span> : <Objects kind={item.kind} n={n} small />}
               </button>
             ))}
+          </div>
+        </>
+      ) : (
+        <Reveal right={chosenRight} onNext={onNext} last={last} />
+      )}
+    </>
+  );
+}
+
+// ── Rung 5: produce — type the pictured sum on a numpad (bridge to symbolic) ──
+function ProduceScene({ item, phase, chosenRight, onChoose, onNext, last }: SceneProps<Extract<GroundItem, { stage: 'produce' }>>) {
+  const { t } = useI18n();
+  const [v, setV] = useState('');
+  const press = (d: string) => setV((s) => (s.length >= 2 ? s : s + d));
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
+  return (
+    <>
+      <div className="ground-stage">
+        {phase === 'ask' ? (
+          <div className="ground-prompt">
+            <Objects kind={item.kind} n={item.a} />
+            <span className="ground-plus">+</span>
+            <Objects kind={item.kind} n={item.b} />
+          </div>
+        ) : (
+          <div className="ground-resolved">
+            <Objects kind={item.kind} n={item.answer} className="settled" />
+            <div className="ground-symbol">{item.a} + {item.b} = {item.answer}</div>
+          </div>
+        )}
+      </div>
+      {phase === 'ask' ? (
+        <>
+          <p className="ground-q">{t('ground.howManyTogether')}</p>
+          <div className="ground-entry">{v || ' '}</div>
+          <div className="numpad" role="group">
+            {keys.map((k, i) =>
+              k == null ? (
+                <span key={i} className="numpad-gap" aria-hidden />
+              ) : (
+                <button key={i} className="numpad-key" type="button" onClick={() => press(k)}>{k}</button>
+              ),
+            )}
+            <button className="numpad-key numpad-back" type="button" aria-label="sudda" onClick={() => setV((s) => s.slice(0, -1))}>⌫</button>
+            <button className="numpad-key numpad-ok" type="button" aria-label="klar" disabled={v.length === 0} onClick={() => v.length && onChoose(v)}>✓</button>
           </div>
         </>
       ) : (

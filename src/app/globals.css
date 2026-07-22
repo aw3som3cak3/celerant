@@ -1306,6 +1306,8 @@ table.plain-table th {
 }
 .ground-option:active { transform: scale(0.97); }
 .ground-numeral { font-size: 2.4rem; font-weight: 800; color: #3a2f28; font-variant-numeric: tabular-nums; }
+/* produce rung: the typed answer above the numpad */
+.ground-entry { font-size: 2.4rem; font-weight: 800; min-height: 3rem; color: #3a2f28; font-variant-numeric: tabular-nums; letter-spacing: 0.1em; }
 .ground-cluster.arriving { animation: ground-approach 1.1s ease-in-out infinite; }
 .ground-cluster.leaving { animation: ground-depart 1.1s ease-in-out infinite; }
 @keyframes ground-approach { 0%, 100% { transform: translateX(12px); } 50% { transform: translateX(-6px); } }

@@ -16,7 +16,7 @@ const Body = z.object({
     .array(
       z.object({
         seed: z.number().int(),
-        stage: z.enum(['structure', 'count', 'numeral', 'sum']),
+        stage: z.enum(['structure', 'count', 'numeral', 'sum', 'produce']),
         chosen: z.union([z.string().max(16), z.number().int()]),
         intervalMs: z.number().min(0),
       }),
