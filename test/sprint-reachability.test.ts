@@ -50,12 +50,12 @@ describe('milestone reachability under realistic numpad input latency', () => {
     console.log(`REACHABILITY: aim=${aim.toFixed(1)}/min  fluent@2200ms=${r.correctPerMin.toFixed(1)}/min  → ${r.outcome?.kind}`);
   });
 
-  it('maps the crossover: fast fluent crosses, ~3s/answer is the boundary', () => {
-    const aim = aimFor(null, 2);
+  it('maps the crossover: fast fluent crosses, ~3.6s/answer is the boundary', () => {
+    const aim = aimFor(null, 2); // additive: 60/(60/35+2) ≈ 16.15/min
     const fast = fluentRun(pid, 'reach-fast', 1600); // strong fluent
-    const boundary = fluentRun(pid, 'reach-boundary', 3000); // hesitant
+    const boundary = fluentRun(pid, 'reach-boundary', 3600); // hesitant
     expect(fast.correctPerMin).toBeGreaterThan(aim); // 19×60000/32000 = 35.6/min ✓
-    // 19×60000/60000 = 19.0/min ≈ aim — the natural fluency boundary, not a UI artifact.
+    // 19×60000/(20×3600) = 15.8/min ≈ aim — the natural fluency boundary, not a UI artifact.
     expect(boundary.correctPerMin).toBeLessThanOrEqual(aim + 0.5);
     // eslint-disable-next-line no-console
     console.log(`REACHABILITY map: fast@1600ms=${fast.correctPerMin.toFixed(1)}  boundary@3000ms=${boundary.correctPerMin.toFixed(1)}  aim=${aim.toFixed(1)}`);

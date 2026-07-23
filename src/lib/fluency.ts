@@ -41,45 +41,58 @@ export function sprintRateIsCredible(correct: number, errors: number): boolean {
   const graded = correct + errors;
   return graded > 0 && correct / graded >= SPRINT_ACC_FLOOR;
 }
-export const AIM_BASE_FRACTION = 0.55; // 0.55 × ceiling × aim_factor
-
 // A provisional rate for a component tier ABOVE the child's placement floor is
 // seeded deliberately below the aim, so it does not satisfy the gate: the child
 // has not demonstrated it and must earn a measured rate. Tiers at/below the
 // floor are seeded AT the aim and do satisfy it. This factor is not a knob on
-// the aim itself (see the note against editing AIM_BASE_FRACTION / aim_factor);
-// it only distances an un-demonstrated provisional value from the bar.
+// the aim itself; it only distances an un-demonstrated provisional value from the bar.
 export const PROVISIONAL_BELOW_AIM = 0.6;
 
-// aim = 0.55 × latest tool_rate × aim_factor. Never stored; always computed.
-// Returns null when the child has never had their writing speed measured — used
-// by the celeration chart, which wants a real ceiling or none.
-export function computeAim(latestToolRate: number | null, aimFactor: number): number | null {
-  if (latestToolRate == null) return null;
-  return AIM_BASE_FRACTION * latestToolRate * aimFactor;
+// --- The ADDITIVE fluency standard -----------------------------------------
+// The aim is a per-item TIME budget, not a fraction of hand speed: the child's own
+// motor time to enter an answer PLUS a fixed retrieval budget every child shares.
+//
+// This FIXES an inverted bug in the old multiplicative aim (0.55 × tap_rate). There,
+// a faster writer got a HIGHER aim and therefore LESS time to think: at 25 dpm the
+// 14/min aim left ~2s to retrieve; at 45 dpm the 24.8/min aim left only ~1.1s. The
+// quicker hand was punished with a harder recall standard — backwards from the
+// protective intent, and it feeds the live unlock gate. Additive subtracts motor
+// time out instead of multiplying it in, so every child gets the SAME recall budget
+// (RETRIEVAL_BUDGET_S) regardless of writing speed; a faster hand raises the items/
+// min aim only because the hand is faster. (Reproduces ~14/min at 26 dpm, ~18 at 45.)
+//
+// Alternative not taken: an EMPIRICAL per-child fraction (achieved ÷ tap-rate on a
+// genuinely mastered skill). Equally valid and more "demonstrated-over-assumed", but
+// it needs a clean mastered reference to bootstrap; additive works from the first
+// tool_rate. Swap here if the reference becomes reliable.
+export const RETRIEVAL_BUDGET_S = 2; // seconds of recall time granted to every child, on top of motor
+const MOTOR_DIGITS = 1; // representative answer's motor cost in digit-times (calibration: 26 dpm → ~14/min)
+
+// items/min afforded by a digits/min tap rate: 60 / (motor_time + retrieval_budget).
+// Always < tap_rate (the +budget guarantees a physically reachable aim), so no cap
+// is needed — a fast writer can never be handed an aim their hand can't meet.
+function aimFromTapRate(tapRate: number): number {
+  const motorS = (MOTOR_DIGITS * 60) / tapRate; // seconds to physically enter the answer
+  return 60 / (motorS + RETRIEVAL_BUDGET_S);
 }
 
-// A per-årskurs default writing ceiling (digits/min), for the aim BEFORE any
-// tool_rate exists (ui-lifecycle §4.5). Placement is not a gate; provisional
-// rates seeded from this default already satisfy the fluency gate. One real
-// measurement overwrites this guess outright — never averaged against it.
-// Writing speed climbs with age; these are deliberately modest.
+// Returns null when the child has never had their writing speed measured — used by
+// the celeration chart, which wants a real ceiling or none. (aimFactor: legacy, ignored.)
+export function computeAim(latestToolRate: number | null, _aimFactor?: number): number | null {
+  return latestToolRate == null ? null : aimFromTapRate(latestToolRate);
+}
+
+// A per-årskurs default writing ceiling (digits/min), standing in for the hand
+// BEFORE any tool_rate exists (ui-lifecycle §4.5). Writing speed climbs with age.
 export function defaultCeiling(schoolYear: number): number {
   return 25 + 5 * Math.max(0, Math.min(9, schoolYear));
 }
 
-// The aim that always exists: the årskurs default, personalised DOWNWARD by a
-// measured writing speed but never raised above it. The default ceilings are modest
-// and already reachable (milestones fire at them); a measurement's job is to protect
-// a child whose hand can't keep up with the grade default, giving them a fairer,
-// lower bar — not to demand more of a fast one. This matters now that the probe runs
-// on the fast numpad rather than the old OS keyboard: an un-capped 0.55×rate would
-// ask for more digits per minute than a child can physically enter, and the sprint
-// (measured on that same numpad) could never cross it. aimFactor is fixed at 1.0.
+// The aim that always exists: from the child's measured writing speed if we have it,
+// else the årskurs default ceiling. Additive — see above.
 export function aimFor(latestToolRate: number | null, schoolYear: number): number {
-  const def = defaultCeiling(schoolYear);
-  const ceiling = latestToolRate == null ? def : Math.min(latestToolRate, def);
-  return AIM_BASE_FRACTION * ceiling;
+  const tapRate = latestToolRate ?? defaultCeiling(schoolYear);
+  return aimFromTapRate(tapRate);
 }
 
 export type SprintPoint = { day: number; correctPerMin: number; errorsPerMin: number };

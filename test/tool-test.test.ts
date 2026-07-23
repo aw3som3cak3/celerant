@@ -51,12 +51,11 @@ describe('writing-speed test invitation — once/day, capped at 3', () => {
   });
 
   it('a measurement grounds the aim in real hand speed (no longer the årskurs seed)', () => {
-    // Before any measurement the aim used the seeded ceiling; now it uses the child's
-    // measured writing speed (latest-wins), so the fluency bar is personal.
-    const seededAim = aimFor(null, 3); // 0.55 × defaultCeiling(3)
-    expect(seededAim).toBeCloseTo(0.55 * defaultCeiling(3));
-    const measuredAim = aimFor(repo.latestToolRate(pid), 3); // latest = 39
-    expect(measuredAim).toBeCloseTo(0.55 * 39);
-    expect(measuredAim).not.toBeCloseTo(seededAim);
+    // Before any measurement the aim uses the seeded ceiling tap-rate; now it uses the
+    // child's measured writing speed (latest-wins). Additive: aim = 60/(60/tapRate + X).
+    const tr = repo.latestToolRate(pid)!; // latest = 39
+    const add = (rate: number) => 60 / (60 / rate + 2);
+    expect(aimFor(null, 3)).toBeCloseTo(add(defaultCeiling(3)), 5); // seed tap-rate = grade default
+    expect(aimFor(tr, 3)).toBeCloseTo(add(tr), 5); // measured hand speed grounds the aim
   });
 });

@@ -63,18 +63,22 @@ describe('writing-speed probe on the numpad (interval-based)', () => {
   });
 });
 
-// The numpad copies faster than the old OS-keyboard probe, so a raw 0.55×rate would
-// demand more digits/min than a child can enter and no sprint could cross it. The aim
-// caps at the grade default: a measurement can only LOWER the bar for a slow hand.
-describe('aim caps a fast writing speed at the reachable grade default', () => {
-  it('a fast numpad rate does not raise the aim above the default', () => {
-    expect(aimFor(200, 3)).toBeCloseTo(0.55 * defaultCeiling(3)); // 200 ≫ 40 ⇒ capped
-    expect(aimFor(defaultCeiling(3), 3)).toBeCloseTo(0.55 * defaultCeiling(3)); // exactly at ⇒ same
+// Additive aim (replaces the old multiplicative 0.55×rate + cap): the bar is motor
+// time + a fixed retrieval budget, so every hand gets the SAME recall time and a
+// faster writer is never handed a harder recall standard. No cap needed — the aim is
+// always below the tap rate, hence physically reachable.
+const add = (rate: number) => 60 / (60 / rate + 2);
+describe('additive aim: same retrieval budget for every hand, always reachable', () => {
+  it('a faster hand raises the items/min aim but grants identical recall time', () => {
+    const fast = aimFor(45, 3), slow = aimFor(26, 3);
+    expect(fast).toBeGreaterThan(slow); // faster hand → higher items/min...
+    const retrieval = (r: number) => 60 / aimFor(r, 3) - 60 / r; // target time − motor time
+    expect(retrieval(45)).toBeCloseTo(retrieval(26), 5); // ...but the SAME X seconds of recall (the fix)
+    expect(fast).toBeLessThan(45); // always physically reachable — no cap required
   });
 
-  it('a slow measured hand lowers the aim below the default', () => {
-    const slow = defaultCeiling(3) - 15; // 25, well under the ceiling
-    expect(aimFor(slow, 3)).toBeCloseTo(0.55 * slow);
-    expect(aimFor(slow, 3)).toBeLessThan(aimFor(null, 3));
+  it('a slow measured hand lowers the aim below the seed', () => {
+    expect(aimFor(25, 3)).toBeCloseTo(add(25), 5);
+    expect(aimFor(25, 3)).toBeLessThan(aimFor(null, 3));
   });
 });
