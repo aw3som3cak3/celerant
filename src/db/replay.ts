@@ -340,4 +340,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('digit_adjusted_aim_v1');
   }
+
+  // Trailing-zero motor discount: "70" is entered about as fast as "7", so the motor
+  // budget no longer charges a trailing zero a full digit. This raises the aim for the
+  // patterned ×10/tens skills whose old aim a child could physically exceed (the gate
+  // was a rubber stamp there). Changes the digit-adjusted seeded provisional rates for
+  // those skills, so replay every child once more to keep cache==replay. Runs once.
+  if (!done('motor_trailing_zero_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('motor_trailing_zero_v1');
+  }
 }
