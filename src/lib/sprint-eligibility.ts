@@ -58,6 +58,11 @@ export function skillEligibility(playerId: string): SprintEligibility[] {
   const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
   const attemptCounts = repo.nonWarmupCountsBySkill(playerId); // for the practised-dependent tie-breaker
+  // A crossing is a durable DECISION, not a live comparison: once a clean sprint earned
+  // the aim, the skill is fluent for good. Reading `measuredRate >= aim` alone had the
+  // same stored-vs-moving-threshold bug as the unlock gate — a drifted-up aim would make
+  // an earned DIPLOMA vanish and re-offer a mastered skill. earnedFluent closes that.
+  const earned = repo.everMilestonedSkills(playerId);
 
   const out: SprintEligibility[] = [];
   for (const s of states) {
@@ -66,7 +71,7 @@ export function skillEligibility(playerId: string): SprintEligibility[] {
     const aim = s.aim ?? 0;
     const ab = ability.get(s.code);
     const measuredRate = ab?.rate_state === 'measured' && ab.rate != null ? ab.rate : null;
-    const measuredFluent = measuredRate != null && measuredRate >= aim;
+    const measuredFluent = earned.has(s.code) || (measuredRate != null && measuredRate >= aim);
 
     // Accuracy over attempts SINCE the last collapse-demotion (0 ⇒ whole history),
     // so a demoted skill must re-solidify on fresh untimed practice before it can

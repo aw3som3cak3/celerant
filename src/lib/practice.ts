@@ -36,6 +36,9 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
   const seedGrade = seedGradeFor(schoolYear);
   // Floor the effective tap by demonstrated throughput (copy-probe under-reads tapping).
   const floor = repo.bestObservedDigitRate(playerId);
+  // Skills whose fluency the child has EARNED (a clean sprint crossed the aim). A stored,
+  // monotonic grant — see componentFluent's invariant; a drifting aim never revokes it.
+  const earned = repo.everMilestonedSkills(playerId);
 
   return SKILLS.map((s) => {
     const ab = ability.get(s.code);
@@ -58,6 +61,7 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       // componentFluent keep the unlock monotonic-up when a sprint later measures a
       // real, possibly below-aim, rate.
       seedFluent: s.mode === 'component' ? seedGrade >= s.year : true,
+      earnedFluent: earned.has(s.code),
     };
   });
 }

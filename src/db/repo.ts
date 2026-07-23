@@ -4,7 +4,9 @@ import { getDb } from './index';
 import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 import { SKILLS, ancestors } from '@/skills';
-import { aimFor, bestObservedDigitRate as bestObservedFrom } from '@/lib/fluency';
+import { aimFor, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR } from '@/lib/fluency';
+import { expectedPhysicalDigits } from '@/lib/item';
+import { seedGradeFor } from '@/lib/onboarding';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
 
 // Incremental cache update for one resolved attempt — the fast path. Attempts
@@ -1157,6 +1159,34 @@ export function bestObservedDigitRate(playerId: string): number {
   for (const ab of abilities(playerId).values())
     if (ab.rate_state === 'measured' && ab.rate != null) measured.push({ code: ab.skill_code, rate: ab.rate });
   return bestObservedFrom(measured);
+}
+
+// Skills the child has EARNED fluency on — a durable, monotonic decision reconstructed
+// from the SPRINT ledger (not the motivational usage_event, which the model never
+// reads). A skill is earned the first time a clean sprint crossed its aim, judged
+// against the effective-tap floor AS IT WAS THEN (the running floor from strictly
+// EARLIER sprints), so a later fast sprint that raises the floor can never un-earn an
+// earlier crossing — the whole point. This is the stored DECISION that replaces
+// re-litigating a frozen rate against a moving aim: once granted, access is not revoked.
+export function everMilestonedSkills(playerId: string): Set<string> {
+  const player = playerById(playerId);
+  const out = new Set<string>();
+  if (!player) return out;
+  const seedGrade = seedGradeFor(player.school_year);
+  const tr = latestToolRate(playerId);
+  const sprints = getDb()
+    .prepare('SELECT skill_code, correct, errors, duration_s, interval_ms, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id')
+    .all(playerId) as { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[];
+  let floor = 0;
+  for (const sp of sprints) {
+    const graded = sp.correct + sp.errors;
+    const rate = sp.interval_ms != null && sp.interval_ms > 0 ? (sp.correct * 60000) / sp.interval_ms : (sp.correct * 60) / sp.duration_s;
+    const acc = graded > 0 ? sp.correct / graded : 0;
+    // A milestone crossing: clean AND at/above the aim it faced at the time.
+    if (acc >= SPRINT_ACC_FLOOR && rate >= aimFor(tr, seedGrade, sp.skill_code, floor)) out.add(sp.skill_code);
+    floor = Math.max(floor, rate * expectedPhysicalDigits(sp.skill_code)); // this sprint joins the floor for LATER ones
+  }
+  return out;
 }
 
 // --- pre-registration (evidence-and-theses.md §3) ---------------------------
