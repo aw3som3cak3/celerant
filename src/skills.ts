@@ -135,11 +135,64 @@ const S = (s: Omit<Skill, "family" | "sprintable"> & { family?: string }): Skill
   ...s,
 } as Skill);
 
+/* ═══ TIER 0 · number sense — the on-ramp into add-within-10 ═════════ year 0 */
+// A pre-reading beginner (a five-year-old) cannot START on add_within_10. It used to
+// be the graph ROOT (requires: []), so when a child kept failing it the selector had
+// nothing easier to fall back to and simply re-served the one problem she could not
+// do — the "full circle" a real beginner hit. These three rungs give the selector
+// reachable, pre-symbolic content BELOW add_within_10 (which now requires them): the
+// same more → count → add arc the GROUND scene teaches, but in the numpad drill so it
+// sits on the child's ordinary path, not a separate scene. PICTURES (emoji), never
+// bare digits, so a child who cannot yet read numerals can still answer by counting.
+//
+// year 0 is deliberate: seedGradeFor floors at 0, so `seedGrade >= year` holds for
+// EVERY child and these rungs seed FLUENT for everyone — add_within_10 therefore
+// stays unlocked for every child who already does it (no older child is bricked). The
+// only child who drops to these is one whose add_within_10 θ has fallen below her own
+// p-band, i.e. she genuinely cannot do it yet — which is exactly who they are for.
+const PIC = ["🍎", "🐟", "🦆", "⭐", "🍪", "🍒"] as const;
+
+const tier0: Skill[] = [
+  S({
+    // THE ROOT. The meaning of "more": two bunches, type how many the BIGGER holds.
+    // "eller" (never "+"), so it can't be misread as an addition to sum.
+    code: "more_or_less", year: 0, mode: "component", requires: [],
+    generate: (r) => {
+      const e = r.pick(PIC);
+      const [x, y] = until(() => [r.int(1, 6), r.int(1, 6)], ([x, y]) => x !== y);
+      const hi = Math.max(x, y), lo = Math.min(x, y);
+      return { prompt: `${e.repeat(x)} eller ${e.repeat(y)}`, answer: int(hi),
+        steps: [`${hi} är fler än ${lo}`, `Flest är ${hi}`] };
+    },
+  }),
+  S({
+    // Cardinality: how many in one bunch (up to ten).
+    code: "count_within_10", year: 0, mode: "component", requires: ["more_or_less"],
+    generate: (r) => {
+      const e = r.pick(PIC);
+      const n = r.int(1, 10);
+      return { prompt: `${e.repeat(n)} =`, answer: int(n), steps: [`Räkna: ${n}`] };
+    },
+  }),
+  S({
+    // First symbolic addition, pictured and tiny (sum ≤ 5): the step before add_within_10.
+    // Draw the SUM uniformly, then split it, so no single answer dominates the draws.
+    code: "add_within_5", year: 0, mode: "component", requires: ["count_within_10"],
+    generate: (r) => {
+      const e = r.pick(PIC);
+      const sum = r.int(2, 5);
+      const a = r.int(1, sum - 1), b = sum - a;
+      return { prompt: `${e.repeat(a)} + ${e.repeat(b)} =`, answer: int(sum),
+        steps: [`${a} + ${b} = ${sum}`] };
+    },
+  }),
+];
+
 /* ═══ TIER 1 · additive within 20 ═══════════════════════════════ year 1 */
 
 const tier1: Skill[] = [
   S({
-    code: "add_within_10", year: 1, mode: "component", requires: [],
+    code: "add_within_10", year: 1, mode: "component", requires: ["add_within_5"],
     generate: (r) => {
       const [a, b] = until(() => [r.int(1, 8), r.int(1, 8)], ([a, b]) => a + b <= 10 && a !== b);
       return { prompt: `${a} + ${b} =`, answer: int(a + b), steps: [`${a} + ${b} = ${a + b}`] };
@@ -583,7 +636,7 @@ const tier8: Skill[] = [
 
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tier1, ...tier2, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
+export const SKILLS: Skill[] = [...tier0, ...tier1, ...tier2, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 
