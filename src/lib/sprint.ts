@@ -91,7 +91,7 @@ export type SprintStep = { done: false; prompt: string; endsAt: number } | { don
 
 function finalize(s: SprintSession, now: number): SprintResult {
   const correctPerMin = (s.correct * 60) / s.durationS;
-  const aim = aimFor(repo.latestToolRate(s.playerId), seedGradeFor(s.schoolYear));
+  const aim = aimFor(repo.latestToolRate(s.playerId), seedGradeFor(s.schoolYear), s.skillCode);
   const graded = s.correct + s.errors;
   let outcome: SprintOutcome | null = graded > 0 ? classifySprint(s.correct, s.errors, correctPerMin, aim) : null;
   let bonus: SprintBonus | null = null;
@@ -233,7 +233,7 @@ export function ingestSprint(
     else errors++;
     intervalMs += r.intervalMs;
   }
-  const aim = aimFor(repo.latestToolRate(playerId), seedGradeFor(schoolYearOf(playerId)));
+  const aim = aimFor(repo.latestToolRate(playerId), seedGradeFor(schoolYearOf(playerId)), code);
   const graded = correct + errors;
   const correctPerMin = intervalMs > 0 ? (correct * 60000) / intervalMs : 0;
   const errorsPerMin = intervalMs > 0 ? (errors * 60000) / intervalMs : 0;
@@ -331,5 +331,5 @@ export function chartForSkill(playerId: string, code: string): ChartData {
     correctPerMin: (sp.correct * 60) / sp.duration_s,
     errorsPerMin: (sp.errors * 60) / sp.duration_s,
   }));
-  return { code, points, aim: aimFor(repo.latestToolRate(playerId), seedGradeFor(schoolYearOf(playerId))), celeration: celeration(points) };
+  return { code, points, aim: aimFor(repo.latestToolRate(playerId), seedGradeFor(schoolYearOf(playerId)), code), celeration: celeration(points) };
 }

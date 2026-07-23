@@ -19,7 +19,10 @@ let pid: string;
 
 beforeAll(() => {
   const fam = repo.createFamily('bear+owl', 'b:o', 'b:x', NOW);
-  pid = repo.createPlayer(fam, 'bear', 2, NOW); // åk2, no tool_rate → aim ≈ 0.55×35 ≈ 19.25/min
+  // åk2, no tool_rate → aim from the grade default ceiling, digit-adjusted per skill.
+  // mult_table_5 answers are all two digits, so its motor budget is 2 digit-times:
+  // aim = 60/(2×60/30 + 2) = 10/min (vs 15/min if it were judged as one digit).
+  pid = repo.createPlayer(fam, 'bear', 2, NOW);
 });
 
 // n items, the first `correctCount` answered right, each with the given interval.
@@ -74,10 +77,10 @@ describe('interval-based sprint ingest re-bases the rate, feeding the UNCHANGED 
   });
 
   it('near-miss build_speed: slow but accurate → no reward, base stands, coaching = build speed', () => {
-    // 20 correct @ 5000ms → 20×60000/100000 = 12/min < aim; acc 1.0 → near_miss build_speed.
-    const r = ingestSprint(pid, CODE, 'run-nearmiss', results(20, 20, 5000, 20000), NOW);
+    // 20 correct @ 8000ms → 20×60000/160000 = 7.5/min < aim (10/min); acc 1.0 → near_miss build_speed.
+    const r = ingestSprint(pid, CODE, 'run-nearmiss', results(20, 20, 8000, 20000), NOW);
     expect(r.outcome).toEqual({ kind: 'near_miss', reason: 'build_speed' });
-    expect(r.correctPerMin).toBeCloseTo(12, 3);
+    expect(r.correctPerMin).toBeCloseTo(7.5, 3);
     expect(r.bonus).toBeNull();
   });
 

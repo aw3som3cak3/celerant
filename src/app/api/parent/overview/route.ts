@@ -51,7 +51,7 @@ export function GET(req: NextRequest) {
   // aim here was a displayed number that disagreed with the one that awards the
   // diploma ("why 18/22 when she got it?"); this aligns them.
   const seedGrade = seedGradeFor(player.school_year);
-  const aim = aimFor(repo.latestToolRate(playerId), seedGrade);
+  const toolRate = repo.latestToolRate(playerId);
   const unlocked = computeUnlocked(buildStates(playerId, player.school_year));
 
   const rows: { code: string; year: number; depth: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean; unlocked: boolean }[] = [];
@@ -70,7 +70,7 @@ export function GET(req: NextRequest) {
       mode: meta.mode,
       rate: ab.rate,
       rateState: ab.rate_state,
-      aim: meta.mode === 'component' ? aim : null,
+      aim: meta.mode === 'component' ? aimFor(toolRate, seedGrade, ab.skill_code) : null,
       // Seeded ≠ earned (bug-hunt-fluency.md §3/§4): a skill never served carries
       // only a cold-start seed. The client greys these so a parent reads an
       // untouched year-8 θ of -2.00 as "not practised", not "failed algebra".

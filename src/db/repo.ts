@@ -1140,9 +1140,9 @@ export function transferProbeDue(playerId: string, now: number): boolean {
   if (last != null && now - last < 14 * PROBE_DAY) return false;
   const player = playerById(playerId);
   if (!player) return false;
-  const aim = aimFor(latestToolRate(playerId), player.school_year);
+  const tr = latestToolRate(playerId);
   for (const ab of abilities(playerId).values()) {
-    if (ab.rate_state === 'measured' && ab.rate != null && ab.rate >= aim) return true;
+    if (ab.rate_state === 'measured' && ab.rate != null && ab.rate >= aimFor(tr, player.school_year, ab.skill_code)) return true;
   }
   return false;
 }
@@ -1200,7 +1200,7 @@ export type SignalRow = {
 export function applicationSignal(playerId: string): SignalRow[] {
   const player = playerById(playerId);
   if (!player) return [];
-  const aim = aimFor(latestToolRate(playerId), player.school_year);
+  const tr = latestToolRate(playerId);
   const db = getDb();
   const sprints = db
     .prepare('SELECT skill_code, correct, duration_s, at FROM sprint WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id')
@@ -1212,7 +1212,8 @@ export function applicationSignal(playerId: string): SignalRow[] {
   const out: SignalRow[] = [];
   for (const c of SKILLS) {
     if (c.mode !== 'component') continue;
-    // earliest sprint on this component that met the aim
+    // earliest sprint on this component that met its (digit-adjusted) aim
+    const aim = aimFor(tr, player.school_year, c.code);
     let crossed: number | null = null;
     for (const sp of sprints) {
       if (sp.skill_code !== c.code) continue;
