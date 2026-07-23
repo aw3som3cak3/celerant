@@ -225,8 +225,7 @@ function Players({ me }: { me: Me }) {
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
               {!editing && p.groundFirst && <span className="tile-ground" aria-hidden><Emoji e="🌱" /></span>}
-              {!editing && !p.groundFirst && p.canSprint && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
-              {!editing && !p.groundFirst && !p.canSprint && p.needsToolTest && <span className="tile-test" aria-hidden><Emoji e="⌨️" /></span>}
+              {!editing && !p.groundFirst && (p.canSprint || p.needsToolTest) && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -270,14 +269,20 @@ function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () =>
           {/* A groundFirst beginner never reaches this modal — she goes straight to
               Explore. So Practice is simply the primary for everyone who does. */}
           <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
-          {player.canSprint && (
-            <a className="next-btn" href={`/sprint?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}><Emoji e="⚡" /> {t('home.startSprint')}</a>
+          {/* Speed run. When the once-a-day writing-speed measure is due, it IS the
+              first speed run of the day: route through it, then flow into the real
+              sprint (then=1) if one is waiting. No separate "help the app" door. */}
+          {(player.canSprint || player.needsToolTest) && (
+            <a
+              className="next-btn"
+              href={player.needsToolTest ? `/warmup?p=${player.id}${player.canSprint ? '&then=1' : ''}` : `/sprint?p=${player.id}`}
+              style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}
+            >
+              <Emoji e="⚡" /> {t('home.startSprint')}
+            </a>
           )}
           {player.hasDiplomas && (
             <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🏅" /> {t('home.diplomas')}</a>
-          )}
-          {player.needsToolTest && (
-            <a className="next-btn tool-test-invite" href={`/warmup?p=${player.id}`} style={{ margin: 0 }}><Emoji e="⌨️" /> {t('home.toolTest')}</a>
           )}
           {/* The quiet GROUND door — for a young kid who's PAST the beginner routing
               (climbed the ladder / fluent) but may still want to replay Explore. A

@@ -301,6 +301,10 @@ export function submitToolMeasure(playerId: string, toolId: string, copies: Tool
   let digits = 0;
   let sumMs = 0;
   for (const c of copies) {
+    // The FIRST number is orientation, not speed: the child is still reading the
+    // instructions and finding the pad, so its interval measures getting-started, not
+    // hand speed. Counting begins from the first value submitted (i.e. item 1 on).
+    if (c.i === 0) continue;
     const target = t.numbers[c.i];
     // Count only a cleanly-copied number timed within the valid window; a wrong copy
     // or an interrupted item measures something other than hand speed.
