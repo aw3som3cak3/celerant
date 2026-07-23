@@ -1475,3 +1475,8 @@ table.plain-table th {
   font-style: italic;
   color: var(--ink-soft) !important;
 }
+.about-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
