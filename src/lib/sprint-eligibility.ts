@@ -25,6 +25,13 @@ import { skillLabel } from './labels';
 
 const SKILL_META = new Map(SKILLS.map((s) => [s.code, s]));
 
+// Reverse prerequisite graph: DEPENDENTS.get(X) = skills that directly require X.
+// Used only to prefer, among already-eligible skills, one whose measurement would
+// ARM a transfer test — never to change what is eligible.
+const DEPENDENTS = new Map<string, string[]>();
+for (const s of SKILLS) for (const r of s.requires) DEPENDENTS.set(r, [...(DEPENDENTS.get(r) ?? []), s.code]);
+const PRACTISED_DEP_MIN = 10; // a dependent with ≥ this many non-warmup attempts is "practised"
+
 export type SprintBand = 'ground' | 'building' | 'fluent';
 export type SprintEligibility = {
   code: string;
@@ -33,6 +40,12 @@ export type SprintEligibility = {
   accuracy: number; // recent first-try accuracy over the (post-demotion) window
   rate: number | null; // MEASURED rate if any, else null (provisional is not shown as earned)
   aim: number;
+  // Experimental-instrument hints (used ONLY as an offer tie-breaker among already-
+  // eligible skills; never affect eligibility). armsTest: this skill has a currently-
+  // practised direct dependent, so measuring it lets transfer be observed on that
+  // edge. newEdge: not yet measured, so measuring it arms a NEW edge (vs re-measuring).
+  armsTest: boolean;
+  newEdge: boolean;
 };
 
 // Classify every sprintable, unlocked component for a child. Non-sprintable skills
@@ -44,6 +57,7 @@ export function skillEligibility(playerId: string): SprintEligibility[] {
   const states = buildStates(playerId, player.school_year);
   const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
+  const attemptCounts = repo.nonWarmupCountsBySkill(playerId); // for the practised-dependent tie-breaker
 
   const out: SprintEligibility[] = [];
   for (const s of states) {
@@ -62,7 +76,8 @@ export function skillEligibility(playerId: string): SprintEligibility[] {
     const accurate = count >= SPRINT_ACCURACY_WINDOW && acc >= SPRINT_ACCURACY_GATE;
 
     const band: SprintBand = measuredFluent ? 'fluent' : accurate ? 'building' : 'ground';
-    out.push({ code: s.code, family: s.family, band, accuracy: acc, rate: measuredRate, aim });
+    const armsTest = (DEPENDENTS.get(s.code) ?? []).some((d) => (attemptCounts.get(d) ?? 0) >= PRACTISED_DEP_MIN);
+    out.push({ code: s.code, family: s.family, band, accuracy: acc, rate: measuredRate, aim, armsTest, newEdge: measuredRate == null });
   }
   return out;
 }
@@ -106,12 +121,17 @@ export function sprintOffer(playerId: string, now: number): SprintOffer | null {
   if (!elig.length) return null;
 
   // Offer a skill the child JUST practised well (the peak moment), never one they
-  // recently waved off. Highest accuracy wins — the surest victory lap.
+  // recently waved off. Then a TIE-BREAKER among these already-eligible candidates:
+  // prefer one that arms a transfer test (has a practised dependent), and among those
+  // one not yet measured (arms a NEW edge) — so the fluency layer doubles as the
+  // experimental instrument. This only reorders; it never changes eligibility, never
+  // gates, never nags. Highest accuracy still breaks the final tie (the surest lap).
   const justPractised = new Set(repo.recentAttemptSkillCodes(playerId, OFFER_SESSION_WINDOW));
   const declined = new Set(repo.usageDetailsSince(playerId, 'sprint_declined', now - OFFER_DECLINE_COOLDOWN_MS));
+  const rank = (e: SprintEligibility) => (e.armsTest ? 1 : 0);
   const cands = elig
     .filter((e) => justPractised.has(e.code) && !declined.has(e.code))
-    .sort((a, b) => b.accuracy - a.accuracy);
+    .sort((a, b) => rank(b) - rank(a) || Number(b.armsTest && b.newEdge) - Number(a.armsTest && a.newEdge) || b.accuracy - a.accuracy);
   if (!cands.length) return null;
 
   const c = cands[0];

@@ -8,7 +8,7 @@ import { Emoji, emojify } from '../_components/Emoji';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 
-type Eligible = { code: string; family: string };
+type Eligible = { code: string; family: string; armsTest?: boolean };
 type BatchItem = { seed: number; answerLength: number };
 type Batch = { skillCode: string; family: string; items: BatchItem[] };
 type SprintOutcome =
@@ -45,7 +45,7 @@ function Sprint() {
   const loadEligible = useCallback(() => {
     getJSON<{ skills?: Eligible[]; error?: string }>(`/api/sprint/eligible?playerId=${p}`).then((r) => {
       if (r.error) location.href = '/';
-      else setEligible((r.skills ?? []).map((s) => ({ code: s.code, family: s.family })));
+      else setEligible((r.skills ?? []).map((s) => ({ code: s.code, family: s.family, armsTest: (s as { armsTest?: boolean }).armsTest })));
     });
   }, [p]);
 
@@ -85,7 +85,11 @@ function Sprint() {
   useEffect(() => {
     if (isLap || startedRef.current || phase !== 'pick' || !eligible || eligible.length === 0) return;
     startedRef.current = true;
-    start(eligible[Math.floor(Math.random() * eligible.length)].code);
+    // Prefer a skill that arms a transfer test (has a practised dependent); random
+    // among those, else random among all. A tie-break, not a gate — every candidate
+    // is already an eligible, mastered victory-lap skill.
+    const pool = eligible.some((e) => e.armsTest) ? eligible.filter((e) => e.armsTest) : eligible;
+    start(pool[Math.floor(Math.random() * pool.length)].code);
   }, [isLap, phase, eligible, start]);
 
   const ingest = useCallback(async () => {

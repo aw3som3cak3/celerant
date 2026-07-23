@@ -453,6 +453,17 @@ export function firstTrySuccesses(playerId: string, skillCode: string): number {
   return r.c;
 }
 
+// Non-warmup, non-voided attempt count per skill for one child, in a single query.
+// Drives the sprint-offer tie-breaker's "practised dependent" test (a dependent with
+// enough real attempts that transfer to it could be observed). A map, so a caller
+// can check many dependents without a query each.
+export function nonWarmupCountsBySkill(playerId: string): Map<string, number> {
+  const rows = getDb()
+    .prepare('SELECT skill_code, COUNT(*) c FROM attempt WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 GROUP BY skill_code')
+    .all(playerId) as { skill_code: string; c: number }[];
+  return new Map(rows.map((r) => [r.skill_code, r.c]));
+}
+
 export function recentOverallFirstTryAccuracy(playerId: string, n: number): number {
   const rows = getDb()
     .prepare('SELECT correct, tries FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY id DESC LIMIT ?')
