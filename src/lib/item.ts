@@ -31,22 +31,43 @@ export function digitCount(s: string): number {
   return (s.match(/[0-9]/g) ?? []).length;
 }
 
-// Expected number of digits in a skill's answer, averaged over its OWN generator's
-// distribution. This is the MOTOR cost the fluency aim must budget for: a two-digit
-// answer takes two digit-times to enter, not one, so judging a two-digit skill by a
-// one-digit aim understates its fluency by exactly the answer-length ratio — an
-// artifact that grows up the graph (longer answers) and mimics a transfer signal.
-// Sampled, not hardcoded, so it tracks each generator's real mix (add_within_10 ≈
-// 1.05, mult_table_2 ≈ 1.7, add_2d_no_carry ≈ 2.0). DETERMINISTIC (a fixed seed
-// sequence) so the value is stable and replay reproduces the seeded rate exactly.
-// Memoized: the draws run once per code per process.
+// A trailing zero is a PATTERNED keystroke: "70" is entered about as fast as "7", so
+// it costs a fraction of a fresh digit, not a whole one. Confirmed on prod — a child
+// answered mult_table_10 (all "N0") at the SAME rate as a single-digit skill, and the
+// only skills whose implied digit output exceeded the child's own tap ceiling were the
+// trailing-zero ones (×10, tens). Charging each trailing zero a full digit halved the
+// aim for those skills and made the gate a rubber stamp (a child cleared 2.4× the aim
+// without it asking a real question). Round shapes beyond trailing zeros (doubles,
+// other familiar numbers) are also cheaper, but trailing zeros are the clean, dominant,
+// detectable case — modelling the rest is the perfect-ruler chase we're time-boxing out.
+const TRAILING_ZERO_COST = 0.25; // a trailing zero costs a quarter-digit of motor time
+
+// Effective MOTOR cost of an answer, in digit-times: full price for each digit except
+// trailing zeros, which are discounted. (Signs / slashes are ignored — the tap rate is
+// digits/min.) Never below one — every answer takes at least one keystroke-time.
+function motorDigitsOf(answer: string): number {
+  const ds = answer.replace(/[^0-9]/g, '');
+  if (ds.length <= 1) return 1;
+  const tz = ds.match(/0+$/)?.[0].length ?? 0;
+  return Math.max(1, ds.length - tz + tz * TRAILING_ZERO_COST);
+}
+
+// Expected MOTOR cost of a skill's answer, in digit-times, averaged over its OWN
+// generator's distribution. This is what the fluency aim budgets motor time for: a
+// two-digit answer takes ~two digit-times to enter, not one, so judging it by a one-
+// digit aim understates its fluency by the answer-length ratio — an artifact that grows
+// up the graph (longer answers) and mimics a transfer signal. Trailing zeros are
+// discounted (see motorDigitsOf). Sampled, not hardcoded, so it tracks each generator's
+// real mix (add_within_10 ≈ 1.19, mult_table_2 ≈ 1.7, add_2d_no_carry ≈ 2.0, and the
+// patterned ×10/tens skills drop well below their raw digit count). DETERMINISTIC (a
+// fixed seed sequence) so replay reproduces the seeded rate exactly. Memoized.
 const _expectedDigits = new Map<string, number>();
 export function expectedAnswerDigits(code: string): number {
   const cached = _expectedDigits.get(code);
   if (cached != null) return cached;
   const N = 400;
   let sum = 0;
-  for (let i = 0; i < N; i++) sum += Math.max(1, answerLengthOf(code, (0x5eed + i * 0x9e3779b1) >>> 0));
+  for (let i = 0; i < N; i++) sum += motorDigitsOf(buildItem(code, (0x5eed + i * 0x9e3779b1) >>> 0).answer);
   const avg = sum / N;
   _expectedDigits.set(code, avg);
   return avg;
