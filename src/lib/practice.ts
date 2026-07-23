@@ -34,6 +34,8 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
   // digit-adjusted: a longer answer costs more motor time, so it gets a lower items/
   // min aim — otherwise every multi-digit skill reads as slower than it is.
   const seedGrade = seedGradeFor(schoolYear);
+  // Floor the effective tap by demonstrated throughput (copy-probe under-reads tapping).
+  const floor = repo.bestObservedDigitRate(playerId);
 
   return SKILLS.map((s) => {
     const ab = ability.get(s.code);
@@ -49,7 +51,7 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       lastSeenAt: ab ? ab.last_seen_at : null,
       requires: s.requires,
       rate,
-      aim: aimFor(toolRate, seedGrade, s.code),
+      aim: aimFor(toolRate, seedGrade, s.code, floor),
       volatility: ab?.volatility,
       // The seed's own fluency decision, recoverable from grade + skill year (the
       // provisional rate was seeded ≥ aim iff seedGrade ≥ year — replay.ts). Lets

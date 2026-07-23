@@ -73,6 +73,24 @@ export function expectedAnswerDigits(code: string): number {
   return avg;
 }
 
+// Expected count of PHYSICAL keystrokes in a skill's answer — every digit at full
+// price, NO trailing-zero discount, because the child physically presses each key. This
+// is NOT the motor-cost above (which discounts a patterned zero's thinking): it's raw
+// throughput, used to turn a demonstrated answer rate into a demonstrated keystroke rate
+// (rate × physical digits) — the lower bound on the child's true tapping ceiling that
+// corrects the copy-task probe's under-read. Deterministic + memoized, same as above.
+const _physicalDigits = new Map<string, number>();
+export function expectedPhysicalDigits(code: string): number {
+  const cached = _physicalDigits.get(code);
+  if (cached != null) return cached;
+  const N = 400;
+  let sum = 0;
+  for (let i = 0; i < N; i++) sum += Math.max(1, answerLengthOf(code, (0x5eed + i * 0x9e3779b1) >>> 0));
+  const avg = sum / N;
+  _physicalDigits.set(code, avg);
+  return avg;
+}
+
 // The sprint auto-submit boundary: the entered answer has reached the server-issued
 // digit count, so the tap that completes it can capture and stop the clock. Pure so
 // it's unit-testable independent of the DOM.

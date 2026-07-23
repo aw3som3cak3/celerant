@@ -89,8 +89,15 @@ function componentFluent(s: SelState): boolean {
       // sprint is inert with respect to what gets served.
       return steady && (s.seedFluent === true || (s.aim != null && s.rate.value >= s.aim - EPS));
     case 'provisional':
-      // Seeded at (or below) the aim from the child's school year.
-      return s.aim != null && s.rate.value >= s.aim - EPS && steady;
+      // Seeded at (or below) the aim from the child's grade. Monotonic-up like the
+      // measured branch: a seed that GRANTED fluency (seedFluent — seedGrade ≥ year)
+      // stays fluent even if the LIVE aim later drifts ABOVE the seeded value. The aim
+      // moves when the child's tool_rate changes or the demonstrated-throughput tap
+      // floor rises, but the fast path only re-rates the sprinted skill — it never
+      // re-seeds a prerequisite's provisional — so without this a single sprint could
+      // silently re-lock the whole chain beneath it. A skill ABOVE grade (seedFluent
+      // false, seeded below aim) still must earn it.
+      return steady && (s.seedFluent === true || (s.aim != null && s.rate.value >= s.aim - EPS));
     case 'unknown':
       throw new Error(
         `fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`,

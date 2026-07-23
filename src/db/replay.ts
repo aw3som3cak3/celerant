@@ -2,7 +2,7 @@ import 'server-only';
 import { getDb } from './index';
 import { SKILLS, seedTheta } from '@/skills';
 import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
-import { aimFor } from '@/lib/fluency';
+import { aimFor, bestObservedDigitRate } from '@/lib/fluency';
 import { seedGradeFor } from '@/lib/onboarding';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
@@ -44,6 +44,16 @@ export function computeAbility(
   const cache = new Map<string, Row>();
   const seedGrade = seedGradeFor(chosenYear);
 
+  // Demonstrated keystroke throughput floors the effective tap (the copy-based writing-
+  // speed measurement under-reads pure tapping) — computed here from the child's own
+  // sprints so the seeded provisional aim matches the live one in buildStates. Latest
+  // credible rate per skill × physical digits, exactly what the cache will store.
+  const latestSprintRate = new Map<string, number>();
+  for (const sp of sprints) {
+    latestSprintRate.set(sp.skill_code, sp.interval_ms != null && sp.interval_ms > 0 ? (sp.correct * 60000) / sp.interval_ms : (sp.correct * 60) / sp.duration_s);
+  }
+  const floor = bestObservedDigitRate([...latestSprintRate].map(([code, rate]) => ({ code, rate })));
+
   for (const s of SKILLS) {
     const component = s.mode === 'component';
     cache.set(s.code, {
@@ -52,7 +62,7 @@ export function computeAbility(
       volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
-      rate: component ? aimFor(toolRate, seedGrade, s.code) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
+      rate: component ? aimFor(toolRate, seedGrade, s.code, floor) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
       rate_state: component ? 'provisional' : 'unknown',
     });
   }
@@ -349,5 +359,15 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   if (!done('motor_trailing_zero_v1')) {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('motor_trailing_zero_v1');
+  }
+
+  // Tap-floor: the copy-based writing-speed measurement under-reads the tapping ceiling,
+  // so the effective tap is now floored by the child's demonstrated keystroke throughput
+  // (best measured rate × physical digits). This raises aims for any child who has
+  // out-sprinted that measurement, changing his seeded provisional rates. Replay all to
+  // keep cache==replay. Runs once.
+  if (!done('tap_floor_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('tap_floor_v1');
   }
 }
