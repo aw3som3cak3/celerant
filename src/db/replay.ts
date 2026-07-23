@@ -318,4 +318,16 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('idk_latency_gate_v1');
   }
+
+  // Number-sense on-ramp (more_or_less → count_within_10 → add_within_5) added BELOW
+  // add_within_10, which is no longer the graph root. computeAbility seeds every SKILL
+  // for every player, but the ability cache only GAINS rows for the new codes on a
+  // replay — and buildStates hands the selector an 'unknown' rate for any un-seeded
+  // component, which componentFluent throws on when it's a prerequisite. Replay every
+  // existing child once so the three new rungs get their provisional seed and no
+  // selector call can throw. Runs once; a no-op on a fresh DB (seeded at creation).
+  if (!done('bridge_number_sense_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_number_sense_v1');
+  }
 }

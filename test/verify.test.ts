@@ -44,6 +44,14 @@ const verifyItem = (it: Item): Result => {
   const v = answer.v;
   if (!Number.isInteger(v)) return { ok: false, why: `non-integer answer ${v}` };
 
+  // Pre-symbolic pictorial rungs (tier 0: more_or_less / count / add_within_5) show
+  // emoji groups, not digits — there is no arithmetic string to evaluate. Verify what
+  // DOES apply: a non-negative integer answer the final step states.
+  if (!/\d/.test(prompt)) {
+    if (v < 0) return { ok: false, why: `negative pictorial answer ${v}` };
+    return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
+  }
+
   if (/av|Förkorta/.test(prompt)) {
     return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
   }
@@ -96,7 +104,12 @@ describe('feature tags evaluate to the answer (instrumentation.md §2.4)', () =>
         const ansNum = it.answer.kind === 'int' ? it.answer.v : it.answer.n / it.answer.d;
         const f = extractFeatures(s.code, it.prompt, ansStr);
 
-        expect(f.operands.length, `${s.code}: no operands parsed from "${it.prompt}"`).toBeGreaterThan(0);
+        // Pre-symbolic pictorial rungs (tier 0) carry no digit operands by design; the
+        // rest must parse at least one. answer_magnitude is derived from the answer, so
+        // it holds for both.
+        if (/\d/.test(it.prompt)) {
+          expect(f.operands.length, `${s.code}: no operands parsed from "${it.prompt}"`).toBeGreaterThan(0);
+        }
         expect(f.answer_magnitude).toBeCloseTo(Math.abs(ansNum), 9);
 
         // Direct two-operand arithmetic: the tagged operands, combined by the
