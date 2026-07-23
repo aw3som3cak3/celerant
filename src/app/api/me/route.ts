@@ -33,8 +33,9 @@ export function GET(req: NextRequest) {
     // child have ANY skill in the fluency-building band right now? (Derived from
     // eligibility, self-regulating — no cadence.) Per-child capability, not a
     // per-child activity/score, so it stays off the comparison-surface rule.
-    // needsToolTest drives the temporary "help make the app better" invitation on
-    // the icon tap: fewer than TOOL_TEST_TARGET measurements AND none yet today.
+    // needsToolTest folds the writing-speed probe into the child's FIRST speed run
+    // of the day: fewer than TOOL_TEST_TARGET measurements AND none yet today. When
+    // set, the ⚡ button routes through /warmup first (then into the real sprint).
     // Once measured today it's gone until tomorrow; after the target it's gone for
     // good. A per-child capability, not an activity/score — off the comparison rule.
     players: repo.playersInFamily(s.familyId).map((p) => ({

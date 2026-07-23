@@ -23,30 +23,31 @@ beforeAll(() => {
 // client copies each and reports a client-measured interval, the server re-grades and
 // states digits/min over the summed valid intervals.
 describe('writing-speed probe on the numpad (interval-based)', () => {
-  it('measures digits/min from correctly-copied numbers and their intervals', () => {
+  it('measures digits/min from items 1+ (the first number is orientation, excluded)', () => {
     const s = startToolMeasure(pid, NOW);
-    expect(s.numbers.length).toBeGreaterThan(0);
+    expect(s.numbers.length).toBeGreaterThan(1);
     // Copy every number correctly, each in exactly 1s.
     const copies = s.numbers.map((n, i) => ({ i, given: n, intervalMs: 1000 }));
-    const totalDigits = s.numbers.reduce((a, n) => a + n.length, 0);
+    // Item 0 is excluded (getting-started), so the rate is over items 1..N-1 only.
+    const measuredDigits = s.numbers.slice(1).reduce((a, n) => a + n.length, 0);
+    const measuredCount = s.numbers.length - 1;
     const r = submitToolMeasure(pid, s.toolId, copies, NOW + 60_000);
-    // digits × 60000 / summed-ms; every item was 1000ms.
-    expect(r?.digitsPerMin).toBeCloseTo((totalDigits * 60000) / (s.numbers.length * 1000));
+    expect(r?.digitsPerMin).toBeCloseTo((measuredDigits * 60000) / (measuredCount * 1000));
     expect(repo.latestToolRate(pid)).toBeCloseTo(r!.digitsPerMin);
   });
 
-  it('excludes wrong copies and out-of-window intervals from the rate', () => {
+  it('excludes the first number, wrong copies, and out-of-window intervals', () => {
     const s = startToolMeasure(pid, NOW);
-    // Only the FIRST item is a clean, in-window copy (500ms is >150 and <60000).
     const copies = s.numbers.map((n, i) => {
-      if (i === 0) return { i, given: n, intervalMs: 500 };
-      if (i === 1) return { i, given: n, intervalMs: 90_000 }; // interrupted → excluded
-      if (i === 2) return { i, given: '999999', intervalMs: 500 }; // wrong copy → excluded
+      if (i === 0) return { i, given: n, intervalMs: 500 }; // clean but ORIENTATION → excluded
+      if (i === 1) return { i, given: n, intervalMs: 500 }; // the one clean, counted item
+      if (i === 2) return { i, given: n, intervalMs: 90_000 }; // interrupted → excluded
+      if (i === 3) return { i, given: '999999', intervalMs: 500 }; // wrong copy → excluded
       return { i, given: n, intervalMs: 50 }; // sub-human → excluded
     });
     const r = submitToolMeasure(pid, s.toolId, copies, NOW);
-    // Rate rests on item 0 alone: its digits over its 500ms.
-    expect(r?.digitsPerMin).toBeCloseTo((s.numbers[0].length * 60000) / 500);
+    // Rate rests on item 1 alone (item 0 is the excluded orientation number).
+    expect(r?.digitsPerMin).toBeCloseTo((s.numbers[1].length * 60000) / 500);
   });
 
   it('writes no measurement when nothing is clean', () => {
