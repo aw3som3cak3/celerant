@@ -52,7 +52,7 @@ export function computeAbility(
       volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
-      rate: component ? aimFor(toolRate, seedGrade) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
+      rate: component ? aimFor(toolRate, seedGrade, s.code) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
       rate_state: component ? 'provisional' : 'unknown',
     });
   }
@@ -329,5 +329,15 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
   if (!done('bridge_number_sense_v1')) {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_number_sense_v1');
+  }
+
+  // Digit-adjusted aim: the fluency motor budget is now expected_answer_digits ×
+  // seconds_per_digit, not a flat one digit, so aimFor is per-skill. computeAbility
+  // seeds each component's provisional rate AT its aim, so the seeded rates change
+  // for every multi-digit skill. Replay every child once to re-seed the cache under
+  // the digit-adjusted aim, preserving the cache==replay invariant. Runs once.
+  if (!done('digit_adjusted_aim_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('digit_adjusted_aim_v1');
   }
 }

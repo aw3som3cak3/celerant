@@ -30,8 +30,10 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
   // Aim uses the SEED grade (seedGradeFor), the same grade the cache's provisional
   // rates were seeded under (replay.ts). If the live aim used the raw chosen grade
   // while the cache used the seed grade, the fluency gate would flip on the
-  // mismatch (fix-grade-source-of-truth §1 — one grade, applied one way).
-  const aim = aimFor(toolRate, seedGradeFor(schoolYear));
+  // mismatch (fix-grade-source-of-truth §1 — one grade, applied one way). PER SKILL,
+  // digit-adjusted: a longer answer costs more motor time, so it gets a lower items/
+  // min aim — otherwise every multi-digit skill reads as slower than it is.
+  const seedGrade = seedGradeFor(schoolYear);
 
   return SKILLS.map((s) => {
     const ab = ability.get(s.code);
@@ -47,13 +49,13 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       lastSeenAt: ab ? ab.last_seen_at : null,
       requires: s.requires,
       rate,
-      aim,
+      aim: aimFor(toolRate, seedGrade, s.code),
       volatility: ab?.volatility,
       // The seed's own fluency decision, recoverable from grade + skill year (the
       // provisional rate was seeded ≥ aim iff seedGrade ≥ year — replay.ts). Lets
       // componentFluent keep the unlock monotonic-up when a sprint later measures a
       // real, possibly below-aim, rate.
-      seedFluent: s.mode === 'component' ? seedGradeFor(schoolYear) >= s.year : true,
+      seedFluent: s.mode === 'component' ? seedGrade >= s.year : true,
     };
   });
 }

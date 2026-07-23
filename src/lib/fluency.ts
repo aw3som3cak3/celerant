@@ -1,5 +1,6 @@
 // Fluency math: the aim, celeration fit, and the accuracy gate constant.
 // See addendum §3, §4, §5, §9.
+import { expectedAnswerDigits } from './item';
 
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
@@ -66,20 +67,25 @@ export const PROVISIONAL_BELOW_AIM = 0.6;
 // it needs a clean mastered reference to bootstrap; additive works from the first
 // tool_rate. Swap here if the reference becomes reliable.
 export const RETRIEVAL_BUDGET_S = 2; // seconds of recall time granted to every child, on top of motor
-const MOTOR_DIGITS = 1; // representative answer's motor cost in digit-times (calibration: 26 dpm → ~14/min)
 
-// items/min afforded by a digits/min tap rate: 60 / (motor_time + retrieval_budget).
-// Always < tap_rate (the +budget guarantees a physically reachable aim), so no cap
-// is needed — a fast writer can never be handed an aim their hand can't meet.
-function aimFromTapRate(tapRate: number): number {
-  const motorS = (MOTOR_DIGITS * 60) / tapRate; // seconds to physically enter the answer
+// items/min afforded by a digits/min tap rate: 60 / (motor_time + retrieval_budget),
+// where motor_time = expected_answer_digits × seconds_per_digit. `digits` is the
+// skill's expected answer length (default 1 for the writing-speed probe and generic
+// callers) — WITHOUT it a two-digit skill is judged by a one-digit motor budget, which
+// understates every longer-answer skill and, because answers lengthen up the graph,
+// manufactures a downstream "less fluent than its prerequisites" pattern shaped like a
+// transfer signal. Always < tap_rate (the +budget guarantees a physically reachable
+// aim), so no cap is needed — a fast writer can never be handed an unmeetable aim.
+function aimFromTapRate(tapRate: number, digits = 1): number {
+  const motorS = (digits * 60) / tapRate; // seconds to physically enter the whole answer
   return 60 / (motorS + RETRIEVAL_BUDGET_S);
 }
 
 // Returns null when the child has never had their writing speed measured — used by
-// the celeration chart, which wants a real ceiling or none. (aimFactor: legacy, ignored.)
-export function computeAim(latestToolRate: number | null, _aimFactor?: number): number | null {
-  return latestToolRate == null ? null : aimFromTapRate(latestToolRate);
+// the celeration chart, which wants a real ceiling or none. `code`, when given, digit-
+// adjusts the motor budget to that skill's expected answer length.
+export function computeAim(latestToolRate: number | null, code?: string): number | null {
+  return latestToolRate == null ? null : aimFromTapRate(latestToolRate, code ? expectedAnswerDigits(code) : 1);
 }
 
 // A per-årskurs default writing ceiling (digits/min), standing in for the hand
@@ -89,10 +95,12 @@ export function defaultCeiling(schoolYear: number): number {
 }
 
 // The aim that always exists: from the child's measured writing speed if we have it,
-// else the årskurs default ceiling. Additive — see above.
-export function aimFor(latestToolRate: number | null, schoolYear: number): number {
+// else the årskurs default ceiling. Additive and digit-adjusted — see above. `code`,
+// when given, budgets motor time for THAT skill's expected answer length; omit it only
+// where no skill applies (the writing-speed probe), which falls back to one digit.
+export function aimFor(latestToolRate: number | null, schoolYear: number, code?: string): number {
   const tapRate = latestToolRate ?? defaultCeiling(schoolYear);
-  return aimFromTapRate(tapRate);
+  return aimFromTapRate(tapRate, code ? expectedAnswerDigits(code) : 1);
 }
 
 export type SprintPoint = { day: number; correctPerMin: number; errorsPerMin: number };
