@@ -137,6 +137,11 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
       <div className="or-divider">{t('common.or')}</div>
       <button className="primary" onClick={onCreate}>{t('login.newFamily')}</button>
 
+      {/* Reachable logged-out: what the project is, for a family we’re inviting. */}
+      <div style={{ marginTop: '1.4rem' }}>
+        <a className="idk" href="/about">{t('login.whatIsThis')}</a>
+      </div>
+
       {modalSlot && (
         <IconModal
           exclude={new Set([a, b].filter(Boolean) as string[])}

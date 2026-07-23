@@ -1364,3 +1364,114 @@ table.plain-table th {
 @media (prefers-reduced-motion: reduce) {
   .ground-cluster.arriving, .ground-cluster.leaving { animation: none; }
 }
+
+/* --- Public "what is this" page (/about), reachable logged-out ------------- */
+.about {
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 4rem;
+  line-height: 1.65;
+}
+.about-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.6rem 0 1.6rem;
+}
+.about-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--ink);
+  text-decoration: none;
+}
+.about-tolink {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.95rem;
+}
+.about h1 {
+  font-size: clamp(2rem, 6vw, 2.6rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0.4rem 0 0.4rem;
+}
+.about .tagline {
+  font-size: 1.2rem;
+  color: var(--ink);
+  margin: 0 0 0.8rem;
+}
+.about h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 0.8rem;
+}
+.about p {
+  color: var(--ink-soft);
+  margin: 0.6rem 0;
+}
+.about p.lead {
+  color: var(--ink);
+}
+.about hr {
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 2.4rem 0 1.8rem;
+}
+.value-list {
+  list-style: none;
+  padding: 0;
+  margin: 0.4rem 0 0.8rem;
+  font-size: 1.1rem;
+}
+.value-list li {
+  padding: 0.3rem 0;
+}
+.value-list .l {
+  color: var(--accent);
+  font-weight: 600;
+}
+.value-list .o {
+  color: var(--faint);
+}
+.value-list .r {
+  color: var(--ink-soft);
+}
+.assume-list {
+  padding-left: 1.3rem;
+  margin: 0.4rem 0;
+}
+.assume-list li {
+  margin: 0.95rem 0;
+  color: var(--ink-soft);
+}
+.assume-list strong {
+  color: var(--ink);
+}
+.assume-list .cite {
+  color: var(--ink-soft);
+  font-style: italic;
+  font-size: 0.9em;
+}
+.about ul.plain-bullets {
+  padding-left: 1.3rem;
+  margin: 0.4rem 0;
+}
+.about ul.plain-bullets li {
+  margin: 0.55rem 0;
+  color: var(--ink-soft);
+}
+.about strong {
+  color: var(--ink);
+}
+.about-cta {
+  display: inline-block;
+}
+.about-foot {
+  margin-top: 3rem !important;
+  text-align: center;
+  font-style: italic;
+  color: var(--ink-soft) !important;
+}
