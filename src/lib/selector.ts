@@ -42,6 +42,9 @@ export type SelState = {
   seedFluent?: boolean; // did the child's grade SEED grant this component fluency? (the
   // provisional decision, recoverable from grade + skill year). Used to keep a
   // measured rate monotonic-up for unlock — see componentFluent.
+  earnedFluent?: boolean; // did a clean sprint ever CROSS this component's aim (judged
+  // against the floor as it was then)? A durable, monotonic decision from the sprint
+  // ledger — the OTHER way access is granted, and like seedFluent it is never revoked.
 };
 
 // A skill whose θ swings between mastery and misses is not yet fluent, distinct
@@ -68,41 +71,28 @@ export type SkillScore = {
 // because a prerequisite should never be evaluated before placement seeds it.
 function componentFluent(s: SelState): boolean {
   if (s.mode === 'compound') return true;
-  // Epsilon compare: a provisional rate seeded at the aim, or a measured rate
-  // that lands exactly on it, must not have the gate flip on IEEE-754 ordering.
+  if (s.rate.source === 'unknown')
+    throw new Error(`fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`);
+  // Epsilon compare: a provisional rate seeded at the aim, or a measured rate that lands
+  // exactly on it, must not have the gate flip on IEEE-754 ordering.
   const EPS = 1e-9;
   const steady = (s.volatility ?? 0) <= VOL_GATE; // not erratic on this skill
-  switch (s.rate.source) {
-    case 'measured':
-      // LATENT-BUG FIX (fluency-sprint-wiring, "Option B"). The unlock gate is
-      // MONOTONIC-UP under measurement: a real sprint can CONFIRM fluency (rate ≥
-      // aim) but must never REVOKE an unlock the seed already granted and the child
-      // has since built past. The old line dropped the skill on a single below-aim
-      // sprint — which re-locked everything downstream and re-created the exact
-      // fragile "accurate but slow" failure the whole design guards against. So:
-      // fluent-for-unlock = the SEED's own decision passed (seedFluent), OR the
-      // measured rate clears aim. Either way still gated on `steady` (the accuracy /
-      // volatility side is untouched, and a sprint never writes volatility). The
-      // measured value is still recorded — chart, parent view, later inspection; it
-      // simply can't retroactively lock. This changes UNLOCK only: never θ, never
-      // the selector's difficulty score (which reads θ, not rate), so a below-aim
-      // sprint is inert with respect to what gets served.
-      return steady && (s.seedFluent === true || (s.aim != null && s.rate.value >= s.aim - EPS));
-    case 'provisional':
-      // Seeded at (or below) the aim from the child's grade. Monotonic-up like the
-      // measured branch: a seed that GRANTED fluency (seedFluent — seedGrade ≥ year)
-      // stays fluent even if the LIVE aim later drifts ABOVE the seeded value. The aim
-      // moves when the child's tool_rate changes or the demonstrated-throughput tap
-      // floor rises, but the fast path only re-rates the sprinted skill — it never
-      // re-seeds a prerequisite's provisional — so without this a single sprint could
-      // silently re-lock the whole chain beneath it. A skill ABOVE grade (seedFluent
-      // false, seeded below aim) still must earn it.
-      return steady && (s.seedFluent === true || (s.aim != null && s.rate.value >= s.aim - EPS));
-    case 'unknown':
-      throw new Error(
-        `fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`,
-      );
-  }
+
+  // THE INVARIANT — one rule, every path (measured and provisional alike): access, once
+  // GRANTED, is never revoked by a later measurement. Access is granted two ways, each a
+  // stored DECISION rather than a value re-litigated against a moving threshold:
+  //   seedFluent   — the child's grade seed judged this fluent (seedGrade ≥ year)
+  //   earnedFluent — a clean sprint once crossed the aim (judged against the floor then)
+  // Either grant stands even if the LIVE aim later drifts above the frozen rate (which it
+  // does when tool_rate changes or the demonstrated-throughput tap floor rises — and the
+  // fast path never re-seeds a prerequisite's provisional). Without this, a GOOD sprint
+  // raised the ceiling → raised every aim → pushed frozen seeds below them → re-locked
+  // skills the child already had: performing well locked you out. A rate currently at or
+  // above the live aim also passes; a skill never granted and not yet fast must still
+  // earn it. The rate stays recorded (chart, parent view); it just can't retroactively
+  // lock. Unlock only — never θ, never the difficulty score (which reads θ, not rate).
+  const granted = s.seedFluent === true || s.earnedFluent === true;
+  return steady && (granted || (s.aim != null && s.rate.value >= s.aim - EPS));
 }
 
 // Spacing term. Rises with days since last seen, but a well-known skill (high θ,
