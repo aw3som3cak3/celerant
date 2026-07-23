@@ -1,6 +1,6 @@
 // Fluency math: the aim, celeration fit, and the accuracy gate constant.
 // See addendum §3, §4, §5, §9.
-import { expectedAnswerDigits } from './item';
+import { expectedAnswerDigits, expectedPhysicalDigits } from './item';
 
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
@@ -81,11 +81,28 @@ function aimFromTapRate(tapRate: number, digits = 1): number {
   return 60 / (motorS + RETRIEVAL_BUDGET_S);
 }
 
+// The copy-based writing-speed probe measures visual-search + decode + motor (read the
+// target digit, find the key, tap); typing a number you already KNOW is pure motor. So
+// the probe UNDER-reads the tapping ceiling — a child beats it ~2× on skills he knows
+// (proven on prod: a child produced 54 keystrokes/min against a 26 probe). A rate the
+// child has actually achieved is a hard lower bound on his ceiling, so demonstrated
+// throughput overrides the assumed measurement — the same demonstrated-over-assumed
+// move as ability overriding placement. `floorRate` (digits/min the child has actually
+// produced) raises the effective tap; it self-corrects as more sprints land and needs
+// no new probe. Zero (the default) leaves the probe/ceiling untouched.
+export function bestObservedDigitRate(measured: { code: string; rate: number }[]): number {
+  let best = 0;
+  for (const m of measured) best = Math.max(best, m.rate * expectedPhysicalDigits(m.code));
+  return best;
+}
+
 // Returns null when the child has never had their writing speed measured — used by
 // the celeration chart, which wants a real ceiling or none. `code`, when given, digit-
-// adjusts the motor budget to that skill's expected answer length.
-export function computeAim(latestToolRate: number | null, code?: string): number | null {
-  return latestToolRate == null ? null : aimFromTapRate(latestToolRate, code ? expectedAnswerDigits(code) : 1);
+// adjusts the motor budget; `floorRate` raises the tap by demonstrated throughput.
+export function computeAim(latestToolRate: number | null, code?: string, floorRate = 0): number | null {
+  if (latestToolRate == null && floorRate <= 0) return null;
+  const tap = Math.max(latestToolRate ?? 0, floorRate);
+  return aimFromTapRate(tap, code ? expectedAnswerDigits(code) : 1);
 }
 
 // A per-årskurs default writing ceiling (digits/min), standing in for the hand
@@ -98,8 +115,11 @@ export function defaultCeiling(schoolYear: number): number {
 // else the årskurs default ceiling. Additive and digit-adjusted — see above. `code`,
 // when given, budgets motor time for THAT skill's expected answer length; omit it only
 // where no skill applies (the writing-speed probe), which falls back to one digit.
-export function aimFor(latestToolRate: number | null, schoolYear: number, code?: string): number {
-  const tapRate = latestToolRate ?? defaultCeiling(schoolYear);
+// `floorRate` raises the effective tap by the child's demonstrated keystroke throughput
+// (bestObservedDigitRate) so the copy-probe's under-read can't leave aims loose — see
+// above; default 0 leaves callers without a player context (tests, the probe) unchanged.
+export function aimFor(latestToolRate: number | null, schoolYear: number, code?: string, floorRate = 0): number {
+  const tapRate = Math.max(latestToolRate ?? defaultCeiling(schoolYear), floorRate);
   return aimFromTapRate(tapRate, code ? expectedAnswerDigits(code) : 1);
 }
 
