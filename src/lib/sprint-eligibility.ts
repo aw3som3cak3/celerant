@@ -1,6 +1,6 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { SKILLS } from '@/skills';
+import { SKILLS, skillDepth } from '@/skills';
 import { buildStates } from './practice';
 import { computeUnlocked } from './selector';
 import { SPRINT_ACCURACY_GATE, SPRINT_ACCURACY_WINDOW } from './fluency';
@@ -87,9 +87,18 @@ export function skillEligibility(playerId: string): SprintEligibility[] {
   return out;
 }
 
-// The eligible skills: exactly the fluency-building band.
+// The eligible skills: exactly the fluency-building band, EASIEST FIRST (by curriculum
+// year, then prerequisite depth). A speed run is never a test to ace, so it always opens
+// on the gentlest available skill — the child meets the clock on something they're most
+// solid at, not a random (possibly hardest) eligible one. Callers that want the first
+// speed run take skills[0].
 export function eligibleSprintSkills(playerId: string): SprintEligibility[] {
-  return skillEligibility(playerId).filter((e) => e.band === 'building');
+  return skillEligibility(playerId)
+    .filter((e) => e.band === 'building')
+    .sort((a, b) => {
+      const sa = SKILL_META.get(a.code)!, sb = SKILL_META.get(b.code)!;
+      return sa.year - sb.year || skillDepth(a.code) - skillDepth(b.code) || a.code.localeCompare(b.code);
+    });
 }
 
 // Is a specific skill sprint-eligible for this child right now? The gate startSprint

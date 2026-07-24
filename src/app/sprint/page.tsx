@@ -4,9 +4,8 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getJSON, postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
-import { Emoji, emojify } from '../_components/Emoji';
+import { Emoji } from '../_components/Emoji';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
-import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 
 type Eligible = { code: string; family: string; armsTest?: boolean };
 type BatchItem = { seed: number; answerLength: number };
@@ -17,7 +16,6 @@ type SprintOutcome =
   | { kind: 'collapse' };
 type Bonus = { sprintId: number; units: number };
 type Result = { correct: number; errors: number; correctPerMin: number; errorsPerMin: number; aim: number; outcome: SprintOutcome | null; bonus: Bonus | null };
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
 
 // Interval-based sprint (input-timing A4): a fixed batch of items the client builds
 // locally and auto-advances through — no wall-clock timer, no per-item fetch. The
@@ -79,17 +77,14 @@ function Sprint() {
     }
   }, [p, isLap, autoGo, startCode, start, loadEligible]);
 
-  // Skip the "which speed run?" menu — kids don't know what they're picking. As soon
-  // as the eligible list loads, start a RANDOM eligible skill; only the empty state
-  // shows a screen.
+  // Skip the "which speed run?" menu — kids don't know what they're picking. As soon as
+  // the eligible list loads, start the EASIEST eligible skill (the list arrives sorted
+  // easiest-first). Not random: a child who feels "bad at speed runs" should always meet
+  // the clock on the gentlest thing they've got, so it reads as just another calm turn.
   useEffect(() => {
     if (isLap || startedRef.current || phase !== 'pick' || !eligible || eligible.length === 0) return;
     startedRef.current = true;
-    // Prefer a skill that arms a transfer test (has a practised dependent); random
-    // among those, else random among all. A tie-break, not a gate — every candidate
-    // is already an eligible, mastered victory-lap skill.
-    const pool = eligible.some((e) => e.armsTest) ? eligible.filter((e) => e.armsTest) : eligible;
-    start(pool[Math.floor(Math.random() * pool.length)].code);
+    start(eligible[0].code);
   }, [isLap, phase, eligible, start]);
 
   const ingest = useCallback(async () => {
@@ -186,13 +181,16 @@ function Sprint() {
     );
   }
 
-  // Result: the fluency outcome made vivid (rising line + a crossing celebration);
-  // the +3 milestone units are garnish. A near-miss shows progress + coaching, a
-  // collapse routes gently to untimed practice — no failure language anywhere.
+  // Result: a speed run is just another calm turn, never a verdict. EVERY finish shows
+  // the same quiet "done" — no speed number, no faster/slower coaching, no crossing
+  // spotlight — so a run can't be read as pass/fail and a child can't come away "bad at
+  // speed runs". A crossing still records its diploma (witnessed later, privately, in the
+  // room) and auto-sends its bonus to the shared goal, both off-screen. Only a collapse
+  // shows a different screen, and only to route gently to untimed practice.
   const outcome = result?.outcome ?? null;
   const skillName = code.replace(/_/g, ' ');
-  // "En till ⚡" only when there is ANOTHER eligible skill to run — after a crossing
-  // the skill becomes fluent, so if it was the last one, offer no dead button.
+  // "En till?" only when ANOTHER eligible skill remains; it starts the EASIEST of them
+  // (the list is easiest-first), so a second turn stays as gentle as the first.
   const remaining = eligible ?? [];
   const againButton =
     remaining.length > 0 ? (
@@ -201,10 +199,10 @@ function Sprint() {
         onClick={() => {
           startedRef.current = false;
           setResult(null);
-          start(remaining[Math.floor(Math.random() * remaining.length)].code);
+          start(remaining[0].code);
         }}
       >
-        {emojify(t('sprint.againZap'))}
+        {t('sprint.again')}
       </button>
     ) : null;
   const backLink = <a className="next-btn" href={isLap ? `/shelf?p=${p}` : '/'}>{t('common.back')}</a>;
@@ -222,80 +220,11 @@ function Sprint() {
     );
   }
 
-  if (outcome?.kind === 'milestone') {
-    return (
-      <div className="plain" style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '3.5rem' }}><Emoji e="🏅" /></div>
-        <h1>{emojify(t('sprint.milestoneTitle'))}</h1>
-        <p style={{ fontSize: '1.3rem', margin: '0.5rem 0' }}>{t('sprint.milestoneLine', { skill: skillName })}</p>
-        {result && <p className="muted">{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
-        {result?.bonus && <SprintBonusAllocation sprintId={result.bonus.sprintId} units={result.bonus.units} />}
-        <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
-      </div>
-    );
-  }
-
-  const coaching =
-    outcome?.kind === 'near_miss'
-      ? outcome.reason === 'keep_clean'
-        ? t('sprint.nearKeepClean')
-        : t('sprint.nearBuildSpeed', { skill: skillName })
-      : null;
   return (
     <div className="plain" style={{ textAlign: 'center' }}>
       <div style={{ fontSize: '3rem' }}><Emoji e="🎉" /></div>
       <h1>{t('sprint.done')}</h1>
-      {result && <p style={{ fontSize: '1.5rem', margin: '0.6rem 0' }}>{emojify(t('sprint.yourSpeed', { c: result.correctPerMin.toFixed(0) }))}</p>}
-      {coaching && <p className="muted">{emojify(coaching)}</p>}
       <p style={{ marginTop: '1.5rem' }}>{againButton} {backLink}</p>
-    </div>
-  );
-}
-
-// Direct the sprint MILESTONE bonus (the +3 units) to a cat or the family goal —
-// already auto-directed to the shared target; this only redirects it.
-function SprintBonusAllocation({ sprintId, units }: { sprintId: number; units: number }) {
-  const { t, locale } = useI18n();
-  const [data, setData] = useState<RewardData | null>(null);
-  const [chosen, setChosen] = useState<Target | null>(null);
-
-  useEffect(() => {
-    getJSON<RewardData>('/api/reward').then((d) => { setData(d); setChosen(d.sharedTarget); });
-  }, []);
-
-  async function pick(target: Target) {
-    setChosen(target);
-    const r = await postJSON<{ reward?: RewardData }>('/api/sprint/allocate-bonus', { sprintId, target });
-    if (r.reward) setData(r.reward);
-  }
-
-  if (!data || !chosen) return null;
-  const cats = CATS.filter((c) => !data.unlockedCats.includes(c.id)).slice(0, 4);
-  const same = (a: Target, b: Target) => a.kind === b.kind && a.id === b.id;
-  const sharedProp = data.sharedTarget.kind === 'prop' ? ROSTER_BY_ID.get(data.sharedTarget.id) : undefined;
-  return (
-    <div className="alloc-box">
-      <div className="alloc-head">{t('sprint.bonusCountsToward', { n: units })}</div>
-      <div className="alloc-choices">
-        {sharedProp && (
-          <button className={`alloc-chip ${same(chosen, data.sharedTarget) ? 'on' : ''}`} onClick={() => pick(data.sharedTarget)}>
-            <span className="prop-thumb" style={{ width: 20, height: 20, backgroundImage: `url(/props/${sharedProp.id}.png)` }} aria-hidden /> {sharedProp.name[locale]}
-          </button>
-        )}
-        {cats.map((c) => {
-          const tgt: Target = { kind: 'cat', id: c.id };
-          return (
-            <button key={c.id} className={`alloc-chip ${same(chosen, tgt) ? 'on' : ''}`} onClick={() => pick(tgt)}>
-              <span className="cat-face" style={{ width: 20, height: 20, backgroundImage: `url(/cats/${c.id}/idle.png)`, backgroundSize: '140px 20px' }} aria-hidden /> {c.name[locale]}
-            </button>
-          );
-        })}
-        {data.familyGoalOpen && (
-          <button className={`alloc-chip ${chosen.kind === 'family' ? 'on' : ''}`} onClick={() => pick({ kind: 'family', id: 'family' })}>
-            <Emoji e="🎯" /> {data.familyGoalLabel ?? t('room.familyGoal')}
-          </button>
-        )}
-      </div>
     </div>
   );
 }
