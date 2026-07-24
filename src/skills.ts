@@ -21,9 +21,18 @@ export type Rng = {
   pick<T>(xs: readonly T[]): T;
 };
 
+// The subject a skill belongs to. Today every skill is maths; the field exists so a
+// second subject (spelling) can be pooled, mapped, seeded and gated SEPARATELY without
+// silently mixing — see the SKILLS-iteration register. Defaulted in S() so authoring a
+// maths skill never has to name it.
+export type Subject = "maths" | "spelling";
+
 export type Answer =
   | { kind: "int"; v: number }
-  | { kind: "frac"; n: number; d: number }; // always in lowest terms
+  | { kind: "frac"; n: number; d: number } // always in lowest terms
+  | { kind: "word"; text: string }; // spelling: the CANONICAL lower-case form (A16); the
+// displayed pad glyphs are a separate concern, so a versaler pad is a view swap, not a
+// data migration. Grading is case-insensitive against this canonical (see grade.ts).
 
 export type Item = {
   prompt: string; // "3x + 7 = 22"  |  "47 + 28 ="
@@ -34,6 +43,7 @@ export type Item = {
 export type Skill = {
   code: string;
   family: string;
+  subject: Subject; // maths | spelling — the partition key (defaulted to maths in S())
   year: number; // Lgr22 school year
   mode: "component" | "compound"; // compounds combine across operations
   // Whether a 30-second fluency SPRINT belongs on this skill. `mode` alone is the
@@ -127,12 +137,15 @@ const until = <T>(f: () => T, ok: (t: T) => boolean, tries = 400): T => {
   throw new Error("generator could not satisfy its constraint");
 };
 
-const S = (s: Omit<Skill, "family" | "sprintable"> & { family?: string }): Skill => ({
+const S = (s: Omit<Skill, "family" | "sprintable" | "subject"> & { family?: string; subject?: Subject }): Skill => ({
   family: s.code.split("_")[0],
   // A component is sprintable unless it's a written multi-column algorithm; a
   // compound is never sprintable. One derived flag, one exception set.
   sprintable: s.mode === "component" && !NON_SPRINTABLE.has(s.code),
   ...s,
+  // Every skill authored via S() today is maths; spelling skills pass subject:"spelling".
+  // After the spread so the default always wins when the field is omitted.
+  subject: s.subject ?? "maths",
 } as Skill);
 
 /* ═══ TIER 0 · number sense — the on-ramp into add-within-10 ═════════ year 0 */
@@ -698,6 +711,7 @@ export function skillByCode(code: string): Skill {
 
 /** Canonical answer string for storage and grading. */
 export function answerToString(a: Answer): string {
+  if (a.kind === "word") return a.text; // already canonical lower-case (A16)
   return a.kind === "int" ? String(a.v) : `${a.n}/${a.d}`;
 }
 
