@@ -105,10 +105,20 @@ export function computeAim(latestToolRate: number | null, code?: string, floorRa
   return aimFromTapRate(tap, code ? expectedAnswerDigits(code) : 1);
 }
 
-// A per-årskurs default writing ceiling (digits/min), standing in for the hand
-// BEFORE any tool_rate exists (ui-lifecycle §4.5). Writing speed climbs with age.
+// A per-årskurs default writing ceiling (digits/min), standing in for the hand BEFORE
+// any tool_rate exists (ui-lifecycle §4.5) — so it only ever sets a NEW player's aim,
+// until their first writing-speed test replaces it. Writing speed climbs with age.
+//
+// Re-anchored 2026-07-24 from the first real copy-task measurements: intercept 25 → 12.
+// The old curve badly over-estimated the young/middle grades (åk0 measured ~13 vs 25;
+// åk3 measured ~27 across two kids vs 40) — and a too-high default hands a new player a
+// too-hard fluency aim, the "I'm bad at speed runs" trap. `12 + 5·grade` sits on the two
+// best-anchored points (åk0≈13, åk3≈27) and errs slightly LOW everywhere else, which is
+// the fair direction for a new player (a forgiving opening bar that their own measured
+// rate, and the demonstrated-throughput floor, correct upward). CALIBRATED ON n=4 across
+// grades 0/3/4 only — provisional; re-fit as more grades report a measurement.
 export function defaultCeiling(schoolYear: number): number {
-  return 25 + 5 * Math.max(0, Math.min(9, schoolYear));
+  return 12 + 5 * Math.max(0, Math.min(9, schoolYear));
 }
 
 // The aim that always exists: from the child's measured writing speed if we have it,

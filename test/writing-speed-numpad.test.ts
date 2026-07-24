@@ -16,7 +16,7 @@ let pid: string;
 
 beforeAll(() => {
   const fam = repo.createFamily('bear+owl', 'b:o', 'b:x', NOW);
-  pid = repo.createPlayer(fam, 'bear', 3, NOW); // åk3 ⇒ defaultCeiling 40
+  pid = repo.createPlayer(fam, 'bear', 3, NOW); // åk3 ⇒ defaultCeiling(3) = 27
 });
 
 // The writing-speed probe now runs on the sprint numpad: server issues numbers, the
