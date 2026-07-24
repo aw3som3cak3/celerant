@@ -31,10 +31,23 @@ function parseRational(raw: string): { n: number; d: number } | null {
   return null;
 }
 
-// Grade a typed answer against the skill's canonical answer string.
+// A spelled word, normalised for comparison: trimmed and lower-cased, so exact-check
+// never depends on shift-state — a child who types SOL, Sol or sol all match the stored
+// lower-case canonical (A16). Internal spaces are NOT collapsed: a space is a
+// särskrivning decision, measured by its own item format, never silently forgiven here.
+function normaliseWord(s: string): string {
+  return s.trim().toLowerCase();
+}
+
+// Grade a typed answer against the skill's canonical answer string. A canonical that
+// parses as a rational is graded numerically (maths — unchanged); one that does not is a
+// spelled WORD (spelling) and graded by case-insensitive exact match. Real Swedish words
+// never parse as rationals, so the branch is unambiguous and maths is untouched.
 export function grade(given: string, answer: string): boolean {
-  const g = parseRational(given);
   const a = parseRational(answer);
-  if (!g || !a) return false;
-  return g.n === a.n && g.d === a.d;
+  if (a) {
+    const g = parseRational(given);
+    return !!g && g.n === a.n && g.d === a.d;
+  }
+  return normaliseWord(given) === normaliseWord(answer);
 }

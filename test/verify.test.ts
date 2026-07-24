@@ -41,6 +41,8 @@ const verifyItem = (it: Item): Result => {
     return { ok: true };
   }
 
+  if (answer.kind === 'word') return { ok: true }; // the maths graph has no word answers
+
   const v = answer.v;
   if (!Number.isInteger(v)) return { ok: false, why: `non-integer answer ${v}` };
 
@@ -100,8 +102,8 @@ describe('feature tags evaluate to the answer (instrumentation.md §2.4)', () =>
       const rng = mkRng(0xfea70 ^ [...s.code].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 3));
       for (let i = 0; i < 60; i++) {
         const it = s.generate(rng);
-        const ansStr = it.answer.kind === 'int' ? String(it.answer.v) : `${it.answer.n}/${it.answer.d}`;
-        const ansNum = it.answer.kind === 'int' ? it.answer.v : it.answer.n / it.answer.d;
+        const ansStr = it.answer.kind === 'int' ? String(it.answer.v) : it.answer.kind === 'frac' ? `${it.answer.n}/${it.answer.d}` : it.answer.text;
+        const ansNum = it.answer.kind === 'int' ? it.answer.v : it.answer.kind === 'frac' ? it.answer.n / it.answer.d : NaN;
         const f = extractFeatures(s.code, it.prompt, ansStr);
 
         // Pre-symbolic pictorial rungs (tier 0) carry no digit operands by design; the
@@ -134,7 +136,7 @@ describe('item properties (500 deterministic draws per skill)', () => {
         const res = verifyItem(it);
         expect(res.ok, res.why).toBe(true);
         expect(it.steps.length).toBeGreaterThan(0);
-        const key = it.answer.kind === 'int' ? String(it.answer.v) : `${it.answer.n}/${it.answer.d}`;
+        const key = it.answer.kind === 'int' ? String(it.answer.v) : it.answer.kind === 'frac' ? `${it.answer.n}/${it.answer.d}` : it.answer.text;
         seen.set(key, (seen.get(key) ?? 0) + 1);
       }
       const top = Math.max(...seen.values()) / N;

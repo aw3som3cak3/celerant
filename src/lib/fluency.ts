@@ -121,6 +121,16 @@ export function defaultCeiling(schoolYear: number): number {
   return 12 + 5 * Math.max(0, Math.min(9, schoolYear));
 }
 
+// Spelling's per-årskurs default LETTER ceiling (letters/min) — the sibling of
+// defaultCeiling for the letter pad, standing in for a NEW speller before any letter-tap
+// probe exists. PURE PLACEHOLDER, n=0 letter data: seeded LOW and to be re-anchored from
+// the first probes, exactly as the digit ceiling already was — trusting this past first
+// contact would repeat a mistake we've twice paid for. UNWIRED until the spelling subject
+// is threaded (letters/min must never share best_observed or a table with digits/min).
+export function defaultLetterCeiling(schoolYear: number): number {
+  return 10 + 3 * Math.max(0, Math.min(9, schoolYear));
+}
+
 // The aim that always exists: from the child's measured writing speed if we have it,
 // else the årskurs default ceiling. Additive and digit-adjusted — see above. `code`,
 // when given, budgets motor time for THAT skill's expected answer length; omit it only
