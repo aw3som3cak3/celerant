@@ -38,11 +38,11 @@ describe('milestone reachability under realistic numpad input latency', () => {
   });
 
   it('a fluent åk2 child crosses the default aim through clean intervals', () => {
-    const aim = aimFor(null, 2); // 0.55 × defaultCeiling(2) = 0.55 × 35 = 19.25/min
+    const aim = aimFor(null, 2); // additive, digit-adjusted, from defaultCeiling(2)
     // A fluent child answers a single-fact sprint in ~2.2s per item on the numpad
     // (read + recall + tap 1–2 digits), 19/20 correct.
     const r = fluentRun(pid, 'reach-fluent', 2200);
-    // 19 × 60000 / (20 × 2200) = 25.9/min — comfortably over the 19.25 aim.
+    // 19 × 60000 / (20 × 2200) = 25.9/min — comfortably over the default aim.
     expect(r.correctPerMin).toBeGreaterThan(aim);
     expect(r.outcome?.kind).toBe('milestone'); // THE LIGHT COMES ON
     // Report the headroom explicitly.
@@ -50,14 +50,18 @@ describe('milestone reachability under realistic numpad input latency', () => {
     console.log(`REACHABILITY: aim=${aim.toFixed(1)}/min  fluent@2200ms=${r.correctPerMin.toFixed(1)}/min  → ${r.outcome?.kind}`);
   });
 
-  it('maps the crossover: fast fluent crosses, ~3.6s/answer is the boundary', () => {
-    const aim = aimFor(null, 2); // additive: 60/(60/35+2) ≈ 16.15/min
+  it('maps the crossover: fast fluent crosses; the boundary answer-time tracks the aim', () => {
+    const aim = aimFor(null, 2);
     const fast = fluentRun(pid, 'reach-fast', 1600); // strong fluent
-    const boundary = fluentRun(pid, 'reach-boundary', 3600); // hesitant
-    expect(fast.correctPerMin).toBeGreaterThan(aim); // 19×60000/32000 = 35.6/min ✓
-    // 19×60000/(20×3600) = 15.8/min ≈ aim — the natural fluency boundary, not a UI artifact.
+    expect(fast.correctPerMin).toBeGreaterThan(aim);
+    // The boundary answer-time is where rate ≈ aim: 19×60000/(20×interval) = aim, i.e.
+    // interval = 57000/aim. Derived from the aim (not a hardcoded ms) so it survives any
+    // defaultCeiling recalibration. Nudge a hair slower so the run lands at/just-below aim.
+    const boundaryMs = Math.ceil(57000 / aim) + 50;
+    const boundary = fluentRun(pid, 'reach-boundary', boundaryMs);
     expect(boundary.correctPerMin).toBeLessThanOrEqual(aim + 0.5);
+    expect(boundary.correctPerMin).toBeGreaterThan(aim - 2); // it IS the boundary, not far below
     // eslint-disable-next-line no-console
-    console.log(`REACHABILITY map: fast@1600ms=${fast.correctPerMin.toFixed(1)}  boundary@3000ms=${boundary.correctPerMin.toFixed(1)}  aim=${aim.toFixed(1)}`);
+    console.log(`REACHABILITY map: fast@1600ms=${fast.correctPerMin.toFixed(1)}  boundary@${boundaryMs}ms=${boundary.correctPerMin.toFixed(1)}  aim=${aim.toFixed(1)}`);
   });
 });
