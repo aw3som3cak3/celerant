@@ -59,6 +59,8 @@ export function InputStage({
   idkLabel,
   armKey,
   promptOverride,
+  promptNode,
+  letters,
 }: {
   mode: 'session' | 'sprint';
   item: StageItem | null;
@@ -72,14 +74,28 @@ export function InputStage({
   // numpad + clock (so the input floor is measured on the surface the child actually
   // answers with): it passes the number to show here instead of a generated problem.
   promptOverride?: string;
+  // A non-string prompt (a picture, a play-audio button) rendered in place of the string
+  // prompt — so a caller with a pictured/dictated item (GROUND produce; spelling
+  // dictation) reuses THIS surface, its clock and its capture contract instead of
+  // hand-rolling a second pad. When set, no item.prompt is built (the code may be synthetic).
+  promptNode?: React.ReactNode;
+  // Present ⇒ render the LETTER pad with exactly these glyphs (the TIER's letters +
+  // distractors, incl. å ä ö) instead of the numpad. The same clock, capture and
+  // auto-submit path; completion counts letters, not digits. Absent ⇒ numpad, unchanged.
+  letters?: readonly string[];
 }) {
   const [value, setValue] = useState('');
   const valueRef = useRef(''); // authoritative current value (avoids stale-closure on fast taps)
   const startRef = useRef(0); // client clock start (item interactable), performance.now()
   const capturedRef = useRef(false);
 
-  const allowSign = item ? inputModeFor(item.family) === 'text' : false; // −,/ only for fractions/negatives/linear (session only)
-  const prompt = promptOverride ?? (item ? buildItem(item.code, item.seed).prompt : '');
+  const isLetter = !!letters && letters.length > 0;
+  const allowSign = !isLetter && item ? inputModeFor(item.family) === 'text' : false; // −,/ only for fractions/negatives/linear (session only)
+  // Only build a string prompt when there's no promptNode — the code may be synthetic
+  // (GROUND produce) and buildItem would throw on it.
+  const prompt = promptNode != null ? '' : promptOverride ?? (item ? buildItem(item.code, item.seed).prompt : '');
+  // Auto-submit boundary: letters complete at the word length, digits at the digit count.
+  const reachedLength = (nv: string) => (isLetter ? nv.length >= (item?.answerLength ?? 0) : isAnswerComplete(nv, item?.answerLength ?? 0));
 
   useWakeLock(!!item && !disabled);
 
@@ -132,13 +148,14 @@ export function InputStage({
       const nv = valueRef.current + ch;
       valueRef.current = nv;
       setValue(nv);
-      // Sprint auto-submit: the tap that completes the expected digit count captures
-      // immediately — no debounce, cleanest possible clock boundary.
-      if (mode === 'sprint' && isAnswerComplete(nv, item.answerLength)) {
+      // Sprint auto-submit: the tap that completes the expected answer length captures
+      // immediately — no debounce, cleanest possible clock boundary. Length is digits on
+      // the numpad, letters on the letter pad.
+      if (mode === 'sprint' && reachedLength(nv)) {
         capture(nv);
       }
     },
-    [item, disabled, mode, capture],
+    [item, disabled, mode, capture, reachedLength],
   );
 
   const backspace = useCallback(() => {
@@ -153,6 +170,22 @@ export function InputStage({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!item || capturedRef.current || disabled) return;
+      if (isLetter) {
+        // A physical letter is accepted only if it's on the pad (lower-cased to the
+        // canonical form); everything else on the letter pad is backspace/enter.
+        const ch = e.key.toLowerCase();
+        if (e.key.length === 1 && letters!.includes(ch)) {
+          press(ch);
+          e.preventDefault();
+        } else if (e.key === 'Backspace') {
+          backspace();
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          submit();
+          e.preventDefault();
+        }
+        return;
+      }
       if (/^[0-9]$/.test(e.key)) {
         press(e.key);
         e.preventDefault();
@@ -169,18 +202,24 @@ export function InputStage({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [item, disabled, allowSign, press, backspace, submit]);
+  }, [item, disabled, allowSign, isLetter, letters, press, backspace, submit]);
 
-  const keys = allowSign ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '−', '0', '/'] : ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
+  // The pad glyphs: the letter set on the letter pad, else the digit pad (with the two
+  // sign keys only in maths text-mode). `null` renders a spacer — letter pads have none.
+  const keys: (string | null)[] = isLetter
+    ? [...letters!]
+    : allowSign
+      ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '−', '0', '/']
+      : ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
 
   return (
     <div className="input-stage">
-      <div className="prompt">{renderPrompt(prompt)}</div>
+      <div className="prompt">{promptNode ?? renderPrompt(prompt)}</div>
       <div className="answer-display" aria-live="polite">
         {item?.family === 'linear' && <span className="answer-x">x =</span>}
         <span className="answer-value">{value || ' '}</span>
       </div>
-      <div className="numpad" role="group" aria-label="sifferknappar">
+      <div className={isLetter ? 'numpad letterpad' : 'numpad'} role="group" aria-label={isLetter ? 'bokstavsknappar' : 'sifferknappar'}>
         {keys.map((k, i) =>
           k == null ? (
             <span key={i} className="numpad-gap" aria-hidden />

@@ -6,6 +6,7 @@ import { postJSON } from '@/lib/client';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji } from '../_components/Emoji';
 import { buildGroundItem, sceneResult, sceneSymbol, type GroundStage, type GroundItem } from '@/lib/ground';
+import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
 
 // GROUND / acquisition — the scene surface (GROUND-phase spec §1). Two modes:
 //   ladder  climbs the acquisition rungs (meaning → count → numeral → sum), with a
@@ -91,10 +92,14 @@ function Ground() {
   );
 
   const choose = useCallback(
-    async (chosen: string | number) => {
+    // intervalOverride: the produce rung is answered through InputStage, which measures
+    // its OWN client interval on the shared contract — we take that, not GROUND's parent
+    // clock, so the produce RATE is comparable-by-construction with every other
+    // production measurement. The parent clock still times the recognition rungs below.
+    async (chosen: string | number, intervalOverride?: number) => {
       if (!items || !item || capturedRef.current) return;
       capturedRef.current = true;
-      const intervalMs = Math.max(0, Math.round(performance.now() - startRef.current));
+      const intervalMs = intervalOverride ?? Math.max(0, Math.round(performance.now() - startRef.current));
       const cur = items[idx];
 
       if (mode === 'speed') {
@@ -166,7 +171,7 @@ function Ground() {
       {item.stage === 'structure' ? (
         <StructureScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       ) : item.stage === 'produce' ? (
-        <ProduceScene key={idx} item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
+        <ProduceScene key={idx} item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} p={p} seed={items[idx].seed} />
       ) : (
         <ChoiceScene item={item} phase={phaseForScene} chosenRight={chosenRight} onChoose={choose} onNext={next} last={idx + 1 >= items.length} />
       )}
@@ -254,48 +259,48 @@ function ChoiceScene({ item, phase, chosenRight, onChoose, onNext, last }: Scene
   );
 }
 
-// ── Rung 5: produce — type the pictured sum on a numpad (bridge to symbolic) ──
-function ProduceScene({ item, phase, chosenRight, onChoose, onNext, last }: SceneProps<Extract<GroundItem, { stage: 'produce' }>>) {
+// ── Rung 5: produce — type the pictured sum (bridge to symbolic) ──
+// The PAD and the CLOCK are InputStage's — the one shared production surface and its
+// client-measured contract — not a hand-rolled second pad. So the produce rung's rate is
+// comparable-by-construction with every other production measurement (maths sessions,
+// sprints, the writing-speed probe). The recognition rungs (structure/count/numeral/sum)
+// keep GROUND's own parent clock: they are grounding evidence, never a fluency rate, so
+// they only need to be internally consistent, which a method-identical clock gives.
+function ProduceScene({ item, phase, chosenRight, onChoose, onNext, last, p, seed }: SceneProps<Extract<GroundItem, { stage: 'produce' }>> & { p: string; seed: number }) {
   const { t } = useI18n();
-  const [v, setV] = useState('');
-  const press = (d: string) => setV((s) => (s.length >= 2 ? s : s + d));
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
-  return (
-    <>
-      <div className="ground-stage">
-        {phase === 'ask' ? (
-          <div className="ground-prompt">
-            <Objects kind={item.kind} n={item.a} />
-            <span className="ground-plus">+</span>
-            <Objects kind={item.kind} n={item.b} />
-          </div>
-        ) : (
+  if (phase !== 'ask') {
+    return (
+      <>
+        <div className="ground-stage">
           <div className="ground-resolved">
             <Objects kind={item.kind} n={item.answer} className="settled" />
             <div className="ground-symbol">{item.a} + {item.b} = {item.answer}</div>
           </div>
-        )}
-      </div>
-      {phase === 'ask' ? (
-        <>
-          <p className="ground-q">{t('ground.howManyTogether')}</p>
-          <div className="ground-entry">{v || ' '}</div>
-          <div className="numpad" role="group">
-            {keys.map((k, i) =>
-              k == null ? (
-                <span key={i} className="numpad-gap" aria-hidden />
-              ) : (
-                <button key={i} className="numpad-key" type="button" onClick={() => press(k)}>{k}</button>
-              ),
-            )}
-            <button className="numpad-key numpad-back" type="button" aria-label="sudda" onClick={() => setV((s) => s.slice(0, -1))}>⌫</button>
-            <button className="numpad-key numpad-ok" type="button" aria-label="klar" disabled={v.length === 0} onClick={() => v.length && onChoose(v)}>✓</button>
-          </div>
-        </>
-      ) : (
+        </div>
         <Reveal right={chosenRight} onNext={onNext} last={last} />
-      )}
-    </>
+      </>
+    );
+  }
+  const stageItem: StageItem = { code: 'ground_produce', seed, family: 'ground', answerLength: String(item.answer).length };
+  return (
+    <InputStage
+      mode="session"
+      item={stageItem}
+      playerId={p}
+      onCapture={(c: Captured) => onChoose(c.given, c.intervalMs)}
+      promptNode={
+        <>
+          <div className="ground-stage">
+            <div className="ground-prompt">
+              <Objects kind={item.kind} n={item.a} />
+              <span className="ground-plus">+</span>
+              <Objects kind={item.kind} n={item.b} />
+            </div>
+          </div>
+          <p className="ground-q">{t('ground.howManyTogether')}</p>
+        </>
+      }
+    />
   );
 }
 
@@ -313,7 +318,7 @@ type SceneProps<T> = {
   item: T;
   phase: Phase;
   chosenRight: boolean | null;
-  onChoose: (c: string | number) => void;
+  onChoose: (c: string | number, intervalMs?: number) => void;
   onNext: () => void;
   last: boolean;
 };
