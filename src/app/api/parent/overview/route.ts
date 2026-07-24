@@ -54,8 +54,16 @@ export function GET(req: NextRequest) {
   const toolRate = repo.latestToolRate(playerId);
   const floor = repo.bestObservedDigitRate(playerId);
   const unlocked = computeUnlocked(buildStates(playerId, player.school_year));
+  // Two at-a-glance status badges for the skill table (parent request):
+  //   mastered — crossed the fluency aim / earned a diploma (durable: the milestone
+  //     set, so a later aim drift never un-masters it). Reuses the earned set the
+  //     fluency gate itself trusts.
+  //   working on now — a skill the child has practised in the recent window, is
+  //     unlocked, and hasn't yet mastered. The current frontier of effort.
+  const earnedSet = repo.everMilestonedSkills(playerId);
+  const recentSet = new Set(repo.recentAttemptSkillCodes(playerId, 30)); // ≈ the last few sessions
 
-  const rows: { code: string; year: number; depth: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean; unlocked: boolean }[] = [];
+  const rows: { code: string; year: number; depth: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean; unlocked: boolean; earned: boolean; active: boolean }[] = [];
   // Codes, not sentences — the client translates them (parent.diagCollapse /
   // parent.diagTrivial), so the diagnostic honours the chosen locale.
   const diagnostics: { code: 'collapse' | 'trivial' | 'underplaced'; skill: string }[] = [];
@@ -63,6 +71,11 @@ export function GET(req: NextRequest) {
   for (const ab of ability.values()) {
     const meta = META.get(ab.skill_code);
     if (!meta) continue;
+    const aim = meta.mode === 'component' ? aimFor(toolRate, seedGrade, ab.skill_code, floor) : null;
+    // Mastered (only components carry a fluency aim): earned a diploma, or a measured
+    // rate at/above the aim. Working on now: recently practised, unlocked, not mastered.
+    const earned = meta.mode === 'component' && (earnedSet.has(ab.skill_code) || (ab.rate_state === 'measured' && ab.rate != null && aim != null && ab.rate >= aim));
+    const unlockedNow = unlocked.get(ab.skill_code) ?? false;
     rows.push({
       code: ab.skill_code,
       year: meta.year,
@@ -71,12 +84,14 @@ export function GET(req: NextRequest) {
       mode: meta.mode,
       rate: ab.rate,
       rateState: ab.rate_state,
-      aim: meta.mode === 'component' ? aimFor(toolRate, seedGrade, ab.skill_code, floor) : null,
+      aim,
       // Seeded ≠ earned (bug-hunt-fluency.md §3/§4): a skill never served carries
       // only a cold-start seed. The client greys these so a parent reads an
       // untouched year-8 θ of -2.00 as "not practised", not "failed algebra".
       touched: ab.last_seen_at != null,
-      unlocked: unlocked.get(ab.skill_code) ?? false,
+      unlocked: unlockedNow,
+      earned,
+      active: recentSet.has(ab.skill_code) && unlockedNow && !earned,
     });
 
     const { acc, count } = repo.recentFirstTryAccuracy(playerId, ab.skill_code, 20);

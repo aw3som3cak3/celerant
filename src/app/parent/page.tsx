@@ -22,7 +22,7 @@ type Transfer = { component: string; beforeMedianMs: number; afterMedianMs: numb
 type Usage = { weekly: { weekStart: number; sessions: number }[]; lateEveningSessions: number; enTillRate: number; sessionsLast7: number; alarm: boolean };
 type SkillCalibration = { code: string; n: number; observed: number; verdict: 'ok' | 'too_hard' | 'too_easy' };
 type Fatigue = { curve: { pos: number; n: number; firstTry: number }[]; breakPos: number | null; currentTarget: number; enoughData: boolean };
-type SkillRow = { code: string; year: number; depth: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean; unlocked: boolean };
+type SkillRow = { code: string; year: number; depth: number; theta: number; mode: 'component' | 'compound'; rate: number | null; rateState: 'unknown' | 'provisional' | 'measured'; aim: number | null; touched: boolean; unlocked: boolean; earned: boolean; active: boolean };
 type Overview = {
   player: { id: string; icon: string; schoolYear: number; sessionTarget: number; seedGrade: number };
   attemptsLast7Days: number;
@@ -184,6 +184,7 @@ export default function Parent() {
             <table className="plain-table">
               <thead>
                 <tr>
+                  <th aria-label={t('parent.thStatus')}></th>
                   <th>{t('parent.thSkill')}</th>
                   <th>{t('parent.thYear')}</th>
                   <th>θ</th>
@@ -195,6 +196,10 @@ export default function Parent() {
                   // Untouched skills (seed only, never served) are greyed so a
                   // parent can tell assumed from demonstrated at a glance.
                   <tr key={s.code} style={s.touched ? undefined : { color: 'var(--muted, #999)', opacity: 0.6 }} title={s.touched ? undefined : t('parent.notPractisedRow')}>
+                    {/* At-a-glance status: 🏅 mastered (crossed the fluency aim), ✏️ working on now. */}
+                    <td className="skill-badge" title={s.earned ? t('parent.mastered') : s.active ? t('parent.workingOn') : undefined}>
+                      {s.earned ? '🏅' : s.active ? '✏️' : ''}
+                    </td>
                     <td>{s.code.replace(/_/g, ' ')}</td>
                     <td>{s.year}</td>
                     <td>{s.theta.toFixed(2)}</td>
@@ -203,6 +208,9 @@ export default function Parent() {
                 ))}
               </tbody>
             </table>
+            <p className="muted" style={{ fontSize: '0.85rem', marginTop: '0.4rem' }}>
+              🏅 {t('parent.mastered')} · ✏️ {t('parent.workingOn')}
+            </p>
           </div>
         </>
       )}

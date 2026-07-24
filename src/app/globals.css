@@ -1480,3 +1480,11 @@ table.plain-table th {
   align-items: center;
   gap: 0.9rem;
 }
+/* Parent skill-table status badge (🏅 mastered / ✏️ working on now) — a narrow,
+   centered leading column. */
+.plain-table td.skill-badge {
+  text-align: center;
+  width: 1.6rem;
+  padding-left: 0;
+  padding-right: 0;
+}
