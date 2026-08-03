@@ -1290,6 +1290,13 @@ table.plain-table th {
 .numpad-key:disabled { opacity: 0.4; }
 .numpad-gap { visibility: hidden; }
 .numpad-ok { grid-column: span 2; border-color: var(--accent); color: var(--accent); }
+/* LetterPad (spelling) — the alphabet variant: more, smaller keys, wider pad, lower-case
+   glyphs, and å ä ö. Same grid machinery as the numpad, so the ✓/⌫ keys behave the same. */
+.numpad.letterpad {
+  grid-template-columns: repeat(6, 1fr);
+  width: min(96vw, 460px);
+}
+.numpad.letterpad .numpad-key { font-size: 1.35rem; min-height: 52px; padding: 0.7rem 0; text-transform: lowercase; }
 
 .trophy-check { color: #e0a41f; }
 .trophy-sample { color: var(--ink-soft); white-space: nowrap; }
