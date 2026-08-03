@@ -3,6 +3,9 @@
 // never how hard.
 
 const EXACT: Record<string, string> = {
+  more_or_less: 'fler eller färre',
+  count_within_10: 'räkna till 10',
+  add_within_5: 'plus till 5',
   add_within_10: 'plus till 10',
   add_doubles: 'dubblor',
   sub_within_10: 'minus till 10',

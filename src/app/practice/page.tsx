@@ -243,7 +243,7 @@ function Practice() {
           ))}
         </div>
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <a className="quit-btn" href={`/shelf?p=${playerId}`}><Emoji e="🗺️" /> {t('practice.cards')}</a>
+          <a className="quit-btn" href={`/shelf?p=${playerId}`}><Emoji e="🏅" /> {t('home.diplomas')}</a>
           <a className="quit-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
         </div>
       </div>
