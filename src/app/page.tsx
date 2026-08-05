@@ -183,7 +183,6 @@ function Players({ me }: { me: Me }) {
   const { t } = useI18n();
   const [editing, setEditing] = useState(false);
   const [changing, setChanging] = useState<Player | null>(null);
-  const [sprinting, setSprinting] = useState<Player | null>(null);
   return (
     <>
       <TopBar authed />
@@ -205,32 +204,30 @@ function Players({ me }: { me: Me }) {
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            // In edit mode a tap opens the icon picker for THAT child. Otherwise it
-            // starts their session — unless the child has a skill in the fluency-
-            // building band (canSprint), in which case a tap offers the choice of a
-            // normal session OR a ⚡ sprint (a victory lap they can reach for, never
-            // forced). No grade on the tile (fix-grade-source-of-truth §2).
+            // One action per child (the single "Öva" track). In edit mode a tap opens the
+            // icon picker; otherwise a tap goes straight into practice. Two exceptions,
+            // both invisible to the child (still just "tap my icon and go"): a groundFirst
+            // beginner routes into Explore — her whole Öva until GROUND is folded into the
+            // graph (WS II) — and a child whose once-a-day writing-speed probe is due goes
+            // through /warmup first, which then flows into practice. No door, no menu, no
+            // ⚡ — speed is witnessed inside practice now, never chosen (one-ova-track spec).
             <button
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
               title={BY_KEY.get(p.icon)?.name}
-              // A beginner still before add-within-10 goes STRAIGHT into Explore — it's
-              // the only step for her; there is no separate Practice yet. Once she's
-              // climbed the ladder, groundFirst drops and the normal menu returns.
               onClick={() =>
                 editing
                   ? setChanging(p)
                   : p.groundFirst
                     ? (location.href = `/ground?p=${p.id}`)
-                    : p.canSprint || p.hasDiplomas || p.needsToolTest || p.canGround
-                      ? setSprinting(p)
+                    : p.needsToolTest
+                      ? (location.href = `/warmup?p=${p.id}`)
                       : (location.href = `/practice?p=${p.id}`)
               }
             >
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
               {!editing && p.groundFirst && <span className="tile-ground" aria-hidden><Emoji e="🌱" /></span>}
-              {!editing && !p.groundFirst && (p.canSprint || p.needsToolTest) && <span className="tile-zap" aria-hidden><Emoji e="⚡" /></span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not
@@ -253,52 +250,7 @@ function Players({ me }: { me: Me }) {
           onClose={() => setChanging(null)}
         />
       )}
-      {sprinting && <SprintChoiceModal player={sprinting} onClose={() => setSprinting(null)} />}
     </>
-  );
-}
-
-// A child taps their icon and gets their own little screen of choices: always
-// practice (the primary, larger action); a ⚡ sprint if a skill is in the fluency-
-// building band; their diplomas if any; and — at most once a day, until a few are
-// gathered — a warm one-off invitation to run the writing-speed test, which grounds
-// their fluency aims in a real hand speed. None is ever forced. (celerant sprint-
-// reward / tool-test wiring)
-function SprintChoiceModal({ player, onClose }: { player: Player; onClose: () => void }) {
-  const { t } = useI18n();
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="bigpair" style={{ margin: '0.2rem 0 1rem' }}><EmojiIcon iconKey={player.icon} /></div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-          {/* A groundFirst beginner never reaches this modal — she goes straight to
-              Explore. So Practice is simply the primary for everyone who does. */}
-          <a className="primary" href={`/practice?p=${player.id}`} style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}>{t('home.startPractice')}</a>
-          {/* Speed run. When the once-a-day writing-speed measure is due, it IS the
-              first speed run of the day: route through it, then flow into the real
-              sprint (then=1) if one is waiting. No separate "help the app" door. */}
-          {(player.canSprint || player.needsToolTest) && (
-            <a
-              className="next-btn"
-              href={player.needsToolTest ? `/warmup?p=${player.id}${player.canSprint ? '&then=1' : ''}` : `/sprint?p=${player.id}`}
-              style={{ margin: 0, fontSize: '1.15rem', padding: '0.9rem' }}
-            >
-              <Emoji e="⚡" /> {t('home.startSprint')}
-            </a>
-          )}
-          {player.hasDiplomas && (
-            <a className="next-btn" href={`/shelf?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🏅" /> {t('home.diplomas')}</a>
-          )}
-          {/* The quiet GROUND door — for a young kid who's PAST the beginner routing
-              (climbed the ladder / fluent) but may still want to replay Explore. A
-              groundFirst beginner never reaches this modal (she goes straight in). */}
-          {player.canGround && (
-            <a className="next-btn" href={`/ground?p=${player.id}`} style={{ margin: 0 }}><Emoji e="🌱" /> {t('home.ground')}</a>
-          )}
-          <button className="idk" onClick={onClose}>{t('common.close')}</button>
-        </div>
-      </div>
-    </div>
   );
 }
 

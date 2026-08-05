@@ -19,7 +19,6 @@ function Warmup() {
   const { t } = useI18n();
   const sp = useSearchParams();
   const p = sp.get('p') ?? '';
-  const then = sp.get('then') === '1'; // a real sprint is waiting → continue into it
   const [phase, setPhase] = useState<'run' | 'done'>('run');
   const [started, setStarted] = useState<Started | null>(null);
   const [idx, setIdx] = useState(0);
@@ -48,9 +47,11 @@ function Warmup() {
     if (!started || submittedRef.current) return;
     submittedRef.current = true;
     await postJSON('/api/tool/submit', { playerId: p, toolId: started.toolId, copies: copiesRef.current });
-    if (then) { location.href = `/sprint?p=${p}`; return; } // flow into the real sprint
-    setPhase('done');
-  }, [started, p, then]);
+    // One Öva track: the writing-speed probe is just the start of a normal practice turn
+    // (it grounds the fluency aims in a real hand speed), so it flows straight into practice
+    // — never into a separate sprint. No timer, no door; the child just carries on.
+    location.href = `/practice?p=${p}`;
+  }, [started, p]);
 
   const onCapture = useCallback(
     (c: Captured) => {
