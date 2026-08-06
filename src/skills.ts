@@ -832,6 +832,45 @@ const tierDecimals: Skill[] = [
       return { prompt: `${aw},${af} + ${bw},${bf} =`, answer: ans, steps: [`Tiondelarna växlar över: ${answerToString(ans)}`] };
     },
   }),
+  S({
+    // Add UNLIKE places: a tenths operand + a hundredths operand, aligned at the comma.
+    // The hundredths digit is nonzero, so the answer is always a genuine hundredths value —
+    // the seam is "give the tenths number a 0 in the hundredths place, then add".
+    code: "dec_add_align", family: "decimals", year: 6, mode: "component", requires: ["dec_add_carry"],
+    generate: (r) => {
+      const aT = until(() => r.int(1, 49), (v) => v % 10 !== 0); // tenths operand 0,1..4,9
+      const bH = until(() => r.int(1, 99), (v) => v % 10 !== 0); // hundredths operand 0,01..0,99
+      const ans = dec(aT * 10 + bH, 2);
+      const [x, y] = r.int(0, 1) === 0 ? [answerToString(dec(aT, 1)), answerToString(dec(bH, 2))] : [answerToString(dec(bH, 2)), answerToString(dec(aT, 1))];
+      return { prompt: `${x} + ${y} =`, answer: ans, steps: [`Ställ upp med kommat: ${answerToString(ans)}`] };
+    },
+  }),
+  S({
+    // Subtract UNLIKE places with a borrow across the comma: a tenths minuend minus a
+    // hundredths subtrahend (< 1). The minuend's hundredths digit is 0 and the subtrahend's
+    // is nonzero, so the hundredths place ALWAYS borrows — the canonical error site.
+    code: "dec_sub_borrow", family: "decimals", year: 6, mode: "component", requires: ["dec_sub_same", "sub_cross_10"],
+    generate: (r) => {
+      const mT = r.int(2, 49);          // minuend tenths → 0,2 .. 4,9
+      const M = mT * 10;                 // in hundredths
+      const S = until(() => r.int(1, Math.min(M - 1, 99)), (s) => s % 10 !== 0); // subtrahend 0,01..0,99, forces borrow
+      const ans = dec(M - S, 2);
+      return { prompt: `${answerToString(dec(mT, 1))} − ${answerToString(dec(S, 2))} =`, answer: ans, steps: [`Låna över kommat: ${answerToString(ans)}`] };
+    },
+  }),
+  S({
+    // Decimal × a whole number. Multiply as if there were no comma, then place it back:
+    // 0,3 × 4 = 1,2. The product may land whole (0,25 × 4 = 1) or stay decimal.
+    code: "dec_times_whole", family: "decimals", year: 6, mode: "component", requires: ["dec_add_carry", "mult_2d_by_1d_no_carry"],
+    generate: (r) => {
+      const scale = r.int(1, 2);
+      const v = until(() => r.int(1, 5 * 10 ** scale), (v) => v % 10 !== 0); // genuine decimal operand
+      const w = r.int(2, 9);
+      const ans = dec(v * w, scale);
+      const opStr = answerToString(dec(v, scale));
+      return { prompt: `${opStr} × ${w} =`, answer: ans, steps: [`${w} × ${opStr} = ${answerToString(ans)}`] };
+    },
+  }),
 ];
 
 /* ═══ export ══════════════════════════════════════════════════════════ */

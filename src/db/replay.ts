@@ -401,4 +401,13 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_decimals_2_v1');
   }
+
+  // Decimals increment 3 (dec_add_align / dec_sub_borrow / dec_times_whole): the last three
+  // new codes, completing the Standard strand. Same reason as inc 1/2 — replay all once so
+  // existing children get an ability row (else theta 0, out of band, never served). Runs
+  // once; no-op on a fresh DB. No MODEL_VERSION bump.
+  if (!done('bridge_decimals_3_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_decimals_3_v1');
+  }
 }
