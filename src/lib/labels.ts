@@ -3,6 +3,13 @@
 // never how hard.
 
 const EXACT: Record<string, string> = {
+  // GROUND recognition rungs (tap Fler/Färre or a number). Labelled by the question
+  // they ask, in Swedish — without these the picker showed the raw code ("ground
+  // structure") to a beginner, the "not proper locale" bug (one-ova-track WS II).
+  ground_structure: 'plus eller minus',
+  ground_count: 'räkna ihop',
+  ground_numeral: 'vilken siffra',
+  ground_sum: 'hur mycket blir det',
   more_or_less: 'fler eller färre',
   count_within_10: 'räkna till 10',
   add_within_5: 'plus till 5',

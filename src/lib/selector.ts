@@ -178,6 +178,11 @@ export type SelectOptions = {
   // Ignored (falls through to normal in-band selection) if there is no above-band
   // skill, i.e. the child is already at his ceiling.
   reachUp?: boolean;
+  // The child's placement grade (seedGradeFor). Governs the pre-symbolic floor:
+  // a child placed above it (seedGrade ≥ 1) who has real symbolic work is not
+  // served the year-0 on-ramp rungs. Default 0 → no suppression (beginner). See
+  // the floor block in selectItem.
+  seedGrade?: number;
 };
 
 export type SelectResult = { chosen: SelState | null; scores: SkillScore[]; introduced: boolean };
@@ -196,6 +201,23 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
     const score = -Math.abs(p - target) + 0.35 * d - 0.5 * r + 0.05 * opts.rand();
     return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score };
   });
+
+  // PLACEMENT-AWARE FLOOR (one-ova-track / number-sense-onramp). The year-0 rungs
+  // (ground_* recognition + the more→count→add on-ramp) exist as a DESCENT target
+  // for a child who can't yet work in the symbolic graph — not as spaced-review
+  // fodder for a child placed above them. seedTheta floors the entry tier at θ≈2.4
+  // (p≈0.92) for EVERY child, and the p-band's top edge is an unreachable p=1.0, so
+  // a seed-fluent floor rung would otherwise stay a PERMANENT review candidate: a
+  // fluent åk3 kept being served "räkna till 10". Suppress the floor for a child
+  // placed above it (seedGrade ≥ 1) who has real symbolic work available (an
+  // unlocked, in-band year≥1 skill). A child with no in-band symbolic work has
+  // genuinely regressed or not yet arrived — exactly who the on-ramp is for — so the
+  // floor stays. Mutates the eligible FIELD so every reader (the chooser too) agrees.
+  const isFloor = (code: string) => (byCode.get(code)?.year ?? 99) === 0;
+  const hasSymbolicWork = scores.some((s) => !isFloor(s.code) && s.unlocked && Math.abs(s.p - target) <= P_BAND);
+  if ((opts.seedGrade ?? 0) >= 1 && hasSymbolicWork && scores.some((s) => s.eligible && !isFloor(s.code))) {
+    for (const s of scores) if (isFloor(s.code)) s.eligible = false;
+  }
 
   // THE p-BAND GATE (handoff §6). The success target is a WALL, not a term: only
   // skills the child can actually do — |p − target| ≤ P_BAND — are candidates;
