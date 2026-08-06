@@ -37,8 +37,8 @@ describe('decimal canonical form (minimal scale, whole collapses to int)', () =>
 const DEC = SKILLS.filter((s) => s.family === 'decimals').map((s) => s.code);
 
 describe('decimals tier — skills present and self-consistent', () => {
-  it('increment 1 skills exist and are sprintable numpad components', () => {
-    expect(DEC).toEqual(['dec_read_tenths', 'dec_add_same', 'dec_sub_same']);
+  it('increments 1–2 skills exist and are sprintable numpad components', () => {
+    expect(DEC).toEqual(['dec_read_tenths', 'dec_add_same', 'dec_sub_same', 'dec_x10', 'dec_div10', 'dec_add_carry']);
     for (const code of DEC) {
       const s = BY_CODE.get(code)!;
       expect(s.mode, code).toBe('component');
@@ -53,9 +53,21 @@ describe('decimals tier — skills present and self-consistent', () => {
       for (let i = 0; i < 200; i++) {
         const it = generateCanon(code, rng);
         expect(grade(it.answer, it.answer), `${code}: ${it.prompt} → ${it.answer}`).toBe(true);
-        expect(it.answer.includes(','), `${code} answer is a decimal or whole int`).toBe(it.answer.includes(','));
       }
     }
+  });
+
+  it('place-shift and carry produce the values the seam intends', () => {
+    // dec_add_carry always carries into the ones (answer ≥ 1) and keeps a nonzero tenth.
+    const rc = mkRng(0xadd);
+    for (let i = 0; i < 200; i++) {
+      const it = generateCanon('dec_add_carry', rc);
+      expect(it.answer.includes(','), `carry answer decimal: ${it.answer}`).toBe(true);
+      expect(parseFloat(it.answer.replace(',', '.'))).toBeGreaterThanOrEqual(1);
+    }
+    // dec_div10 always yields a genuine decimal (never a whole).
+    const rd = mkRng(0xd10);
+    for (let i = 0; i < 200; i++) expect(generateCanon('dec_div10', rd).answer.includes(','), 'div10 decimal').toBe(true);
   });
 
   it('gradeBySeed round-trips the canonical answer for a decimal skill', () => {

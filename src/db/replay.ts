@@ -392,4 +392,13 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_decimals_v1');
   }
+
+  // Decimals increment 2 (dec_x10 / dec_div10 / dec_add_carry): three more new component
+  // codes. Without a replay an existing child has no ability row for them, so buildStates
+  // hands the selector theta 0 (p≈0.5, out of band) and they'd never be served. Replay all
+  // once to seed their provisional θ/rate. Runs once; no-op on a fresh DB. No MODEL_VERSION.
+  if (!done('bridge_decimals_2_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_decimals_2_v1');
+  }
 }
