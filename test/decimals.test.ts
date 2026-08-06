@@ -37,8 +37,12 @@ describe('decimal canonical form (minimal scale, whole collapses to int)', () =>
 const DEC = SKILLS.filter((s) => s.family === 'decimals').map((s) => s.code);
 
 describe('decimals tier — skills present and self-consistent', () => {
-  it('increments 1–2 skills exist and are sprintable numpad components', () => {
-    expect(DEC).toEqual(['dec_read_tenths', 'dec_add_same', 'dec_sub_same', 'dec_x10', 'dec_div10', 'dec_add_carry']);
+  it('the full Standard strand exists and is sprintable numpad components', () => {
+    expect(DEC).toEqual([
+      'dec_read_tenths', 'dec_add_same', 'dec_sub_same',
+      'dec_x10', 'dec_div10', 'dec_add_carry',
+      'dec_add_align', 'dec_sub_borrow', 'dec_times_whole',
+    ]);
     for (const code of DEC) {
       const s = BY_CODE.get(code)!;
       expect(s.mode, code).toBe('component');
@@ -68,6 +72,18 @@ describe('decimals tier — skills present and self-consistent', () => {
     // dec_div10 always yields a genuine decimal (never a whole).
     const rd = mkRng(0xd10);
     for (let i = 0; i < 200; i++) expect(generateCanon('dec_div10', rd).answer.includes(','), 'div10 decimal').toBe(true);
+
+    // dec_add_align / dec_sub_borrow mix unlike places → always a hundredths (2-place) answer.
+    for (const code of ['dec_add_align', 'dec_sub_borrow']) {
+      const r = mkRng(0xa11 ^ [...code].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 1));
+      for (let i = 0; i < 200; i++) {
+        const it = generateCanon(code, r);
+        expect(it.answer.split(',')[1]?.length, `${code} hundredths: ${it.prompt} → ${it.answer}`).toBe(2);
+      }
+    }
+    // dec_sub_borrow never goes negative.
+    const rs = mkRng(0x5b0);
+    for (let i = 0; i < 200; i++) expect(parseFloat(generateCanon('dec_sub_borrow', rs).answer.replace(',', '.'))).toBeGreaterThan(0);
   });
 
   it('gradeBySeed round-trips the canonical answer for a decimal skill', () => {
