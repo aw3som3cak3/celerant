@@ -5,6 +5,15 @@ import { expectedAnswerDigits, expectedPhysicalDigits } from './item';
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
 
+// WS III-a shadow trigger. Practice-rate runs ~half the sprint rate (a calm interleaved
+// item vs a warmed-up go-fast batch) — the prod shadow read found median practice/sprint
+// ≈ 0.49 across kids. This factor is NOT an award mechanism (the burst does the awarding
+// against the un-factored aim); it only decides WHEN a skill looks ready enough to offer a
+// burst. A false positive just means a burst offered slightly early, which the burst
+// adjudicates — so the factor's 0.39–0.92 spread is harmless here. Starting value; the
+// shadow log accumulates the data to refine it (global vs per-child).
+export const SHADOW_TRIGGER_FACTOR = 0.5;
+
 // --- Sprint OUTCOME classification (the reward/coaching fork) ---------------
 // A finished sprint is one of three ordered, total buckets, decided from the
 // rate (correct/min) vs the aim and the IN-SPRINT accuracy (correct/(correct+

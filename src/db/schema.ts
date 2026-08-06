@@ -298,4 +298,22 @@ CREATE TABLE IF NOT EXISTS ground_event (
   at          INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_ground_event_player ON ground_event(player_id, structure, at);
+
+-- shadow_fluency (one-ova-track WS III-a). The PASSIVE crossing detector's log — invisible,
+-- read by no user-facing path. When a mastered skill's clean practice rate first crosses the
+-- trigger (factor × the sprint-calibrated aim), one row is written with its inputs SNAPSHOTTED
+-- at fire time (the stored-crossing invariant — never a recomputation against a moving aim).
+-- PRIMARY KEY (player,skill) ⇒ only the FIRST fire is kept: "did it look ready, and WHEN".
+-- This is a SHADOW: it triggers nothing, awards nothing, is compared offline to known fluency.
+CREATE TABLE IF NOT EXISTS shadow_fluency (
+  player_id     TEXT NOT NULL REFERENCES player(id),
+  skill_code    TEXT NOT NULL,
+  at            INTEGER NOT NULL,   -- when it first crossed the trigger
+  practice_rate REAL NOT NULL,      -- the measured practice rate at fire (correct/min)
+  aim           REAL NOT NULL,      -- the sprint-calibrated aim it was judged against
+  factor        REAL NOT NULL,      -- the trigger factor applied (0.5 to start)
+  floor         REAL NOT NULL,      -- the demonstrated-throughput tap floor at fire
+  window_n      INTEGER NOT NULL,   -- clean first-try-correct attempts in the window
+  PRIMARY KEY (player_id, skill_code)
+);
 `;

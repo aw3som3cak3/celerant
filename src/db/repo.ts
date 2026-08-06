@@ -3,8 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from './index';
 import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
-import { SKILLS, ancestors } from '@/skills';
-import { aimFor, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR } from '@/lib/fluency';
+import { SKILLS, BY_CODE, ancestors } from '@/skills';
+import { aimFor, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE } from '@/lib/fluency';
 import { expectedPhysicalDigits } from '@/lib/item';
 import { seedGradeFor } from '@/lib/onboarding';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
@@ -1132,6 +1132,43 @@ export function bestObservedDigitRate(playerId: string): number {
   for (const ab of abilities(playerId).values())
     if (ab.rate_state === 'measured' && ab.rate != null) measured.push({ code: ab.skill_code, rate: ab.rate });
   return bestObservedFrom(measured);
+}
+
+const SHADOW_MIN_N = 8; // clean first-try-correct attempts before a practice rate is credible
+
+// WS III-a shadow detector (INVISIBLE). On a resolved practice attempt, notice whether a
+// MASTERED skill's clean practice rate has first crossed the trigger (factor × its sprint-
+// calibrated aim) — and if so, write ONE snapshotted row. It triggers nothing and awards
+// nothing; the burst (WS III-b) does the awarding, judged on the burst against the un-
+// factored aim. A pure downstream read of the attempt ledger + a write to its own log;
+// never touches the selector or θ (the Öva-spec stop-flag). Inputs are snapshotted at fire
+// time so aim drift can never rewrite the record (the stored-crossing invariant).
+export function recordShadowFluency(playerId: string, skillCode: string, now: number): void {
+  const skill = BY_CODE.get(skillCode);
+  if (!skill || !skill.sprintable) return; // fluency targets only — recognition/written rungs never burst
+  const db = getDb();
+  if (db.prepare('SELECT 1 FROM shadow_fluency WHERE player_id = ? AND skill_code = ?').get(playerId, skillCode)) return; // first fire only
+  // Mastered? — the existing accuracy gate over the post-demotion window.
+  const since = lastSprintDemotionAt(playerId, skillCode);
+  const { acc, count } = recentFirstTryAccuracySince(playerId, skillCode, SPRINT_ACCURACY_WINDOW, since);
+  if (count < SPRINT_ACCURACY_WINDOW || acc < SPRINT_ACCURACY_GATE) return;
+  // Clean practice rate: recent first-try-correct client intervals (interrupted ones excluded).
+  const rows = db
+    .prepare(
+      "SELECT latency_ms FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL AND warmup = 0 AND dont_know = 0 AND tries = 1 AND correct = 1 AND latency_ms BETWEEN 300 AND 30000 ORDER BY at DESC LIMIT 20",
+    )
+    .all(playerId, skillCode) as { latency_ms: number }[];
+  if (rows.length < SHADOW_MIN_N) return;
+  const practiceRate = (rows.length * 60000) / rows.reduce((a, r) => a + r.latency_ms, 0);
+  const player = playerById(playerId);
+  if (!player) return;
+  const floor = bestObservedDigitRate(playerId);
+  const aim = aimFor(latestToolRate(playerId), seedGradeFor(player.school_year), skillCode, floor);
+  if (practiceRate >= SHADOW_TRIGGER_FACTOR * aim) {
+    db.prepare(
+      'INSERT OR IGNORE INTO shadow_fluency (player_id, skill_code, at, practice_rate, aim, factor, floor, window_n) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(playerId, skillCode, now, practiceRate, aim, SHADOW_TRIGGER_FACTOR, floor, rows.length);
+  }
 }
 
 // Skills the child has EARNED fluency on — a durable, monotonic decision reconstructed
