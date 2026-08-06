@@ -8,6 +8,8 @@ import { Emoji } from '../_components/Emoji';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
+import { ChoiceStage } from '../_components/ChoiceStage';
+import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
 import { buildItem } from '@/lib/item';
 
@@ -207,6 +209,16 @@ function Practice() {
     [busy, item, sessionId, playerId, QUIET, advance],
   );
 
+  // A recognition (choice) rung reports (chosen, intervalMs) instead of a Captured; wrap
+  // it into the SAME answer path — the tapped value is graded by the same grade().
+  const onChoice = useCallback(
+    (chosen: string | number, intervalMs: number) => {
+      if (!item) return;
+      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: String(chosen), intervalMs, idk: false });
+    },
+    [item, playerId, onCapture],
+  );
+
   useEffect(() => {
     if (phase !== 'done' || !playerId) return;
     getJSON<{ offer: { code: string; label: string; family: string } | null }>(`/api/sprint/offer?playerId=${playerId}`).then((r) => {
@@ -281,6 +293,10 @@ function Practice() {
 
   if (!item) return <div className="stage" />;
 
+  // A recognition rung carries a `choice` spec (built deterministically from the seed) —
+  // render it on ChoiceStage; everything else is typed on InputStage.
+  const choiceItem = buildItem(item.code, item.seed).choice;
+
   return (
     <div className="stage">
       {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
@@ -297,6 +313,20 @@ function Practice() {
             ))}
           </div>
           <button className="next-btn" onClick={() => advance(revealNextRef.current)}>{t('practice.next')}</button>
+        </>
+      ) : choiceItem ? (
+        <>
+          <ChoiceStage
+            itemKey={`${item.code}:${item.seed}`}
+            prompt={choiceItem.prompt}
+            question={choiceItem.question}
+            options={choiceItem.options}
+            onCapture={onChoice}
+            disabled={busy || phase === 'correct'}
+            armKey={armKey}
+          />
+          <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
+          <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>
         </>
       ) : (
         <>

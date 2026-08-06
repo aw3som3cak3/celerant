@@ -112,7 +112,8 @@ describe('feature tags evaluate to the answer (instrumentation.md §2.4)', () =>
         if (/\d/.test(it.prompt)) {
           expect(f.operands.length, `${s.code}: no operands parsed from "${it.prompt}"`).toBeGreaterThan(0);
         }
-        expect(f.answer_magnitude).toBeCloseTo(Math.abs(ansNum), 9);
+        // A recognition rung's answer may be a WORD (combine/separate) — no numeric magnitude.
+        if (it.answer.kind !== 'word') expect(f.answer_magnitude).toBeCloseTo(Math.abs(ansNum), 9);
 
         // Direct two-operand arithmetic: the tagged operands, combined by the
         // tagged operation, must reproduce the stored answer.
@@ -131,16 +132,23 @@ describe('item properties (500 deterministic draws per skill)', () => {
     it(`${s.code}`, () => {
       const rng = mkRng(0xc0ffee ^ [...s.code].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 7));
       const seen = new Map<string, number>();
+      let choice = false;
       for (let i = 0; i < N; i++) {
         const it = s.generate(rng);
+        if (it.choice) choice = true;
         const res = verifyItem(it);
         expect(res.ok, res.why).toBe(true);
         expect(it.steps.length).toBeGreaterThan(0);
         const key = it.answer.kind === 'int' ? String(it.answer.v) : it.answer.kind === 'frac' ? `${it.answer.n}/${it.answer.d}` : it.answer.text;
         seen.set(key, (seen.get(key) ?? 0) + 1);
       }
-      const top = Math.max(...seen.values()) / N;
-      expect(top, `one answer appears in ${(top * 100).toFixed(0)}% of draws`).toBeLessThanOrEqual(0.4);
+      // Recognition rungs legitimately have few answer values (structure is a 2-way
+      // combine/separate at ~50% each) — the no-dominant-answer check is for the parametric
+      // typed skills, not a fixed-option tap.
+      if (!choice) {
+        const top = Math.max(...seen.values()) / N;
+        expect(top, `one answer appears in ${(top * 100).toFixed(0)}% of draws`).toBeLessThanOrEqual(0.4);
+      }
     });
   }
 });

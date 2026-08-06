@@ -41,10 +41,10 @@ describe('the probe is off the child path (fix-remove-probe §2, §5)', () => {
     const p = repo.createPlayer(familyId, 'newkid', 1, NOW);
     // the create flow -> session -> first item is a genuine problem, nothing before it
     const it = nextItem(p, 1, NOW, { warmupTarget: 0.95, baseTarget: 0.9 });
-    // A real problem — either symbolic arithmetic (a digit) or a pre-symbolic pictorial
-    // rung (emoji groups). Both are genuine items; neither is a probe.
-    expect(it.prompt.trim().length).toBeGreaterThan(0);
-    expect(/[0-9]/.test(it.prompt) || /\p{Extended_Pictographic}/u.test(it.prompt), `real item, got "${it.prompt}"`).toBe(true);
+    // A real item was produced — a typed problem (digit/emoji prompt) OR a recognition rung
+    // (whose string prompt is empty because its content is the tapped picture + options) —
+    // and NO probe intervened to reach it. The itemId proves a genuine pending item exists.
+    expect(it.itemId.length).toBeGreaterThan(0);
     expect(repo.probesForPlayer(p).length).toBe(0); // no probe was administered to reach it
   });
 });

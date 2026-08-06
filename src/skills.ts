@@ -16,6 +16,8 @@
  * Delivered as docs/skills.ts with the handoff; this is its home in the app.
  */
 
+import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
+
 export type Rng = {
   int(a: number, b: number): number; // inclusive
   pick<T>(xs: readonly T[]): T;
@@ -35,9 +37,13 @@ export type Answer =
 // data migration. Grading is case-insensitive against this canonical (see grade.ts).
 
 export type Item = {
-  prompt: string; // "3x + 7 = 22"  |  "47 + 28 ="
+  prompt: string; // "3x + 7 = 22"  |  "47 + 28 ="  (empty for a recognition rung)
   answer: Answer;
   steps: string[]; // shown on the second miss; genuine intermediate lines
+  // Present ⇒ a RECOGNITION rung: the picture prompt + tap-one-of-N options are rendered
+  // by ChoiceStage, and `answer` (an int for a numeral/group pick, the word combine/
+  // separate for structure) is graded by the same grade(). Absent ⇒ typed on a pad.
+  choice?: ChoiceSpec;
 };
 
 export type Skill = {
@@ -57,6 +63,11 @@ export type Skill = {
   // call here, alongside `year`. Single-carry 2-digit and 3-digit-carry-once are
   // deliberately KEPT sprintable as still-mental; tune the set to move the line.
   sprintable: boolean;
+  // The input surface a rung is answered on: a typed 'numpad' (the default — digits, and
+  // for a word-answer skill the letter pad reads it as text) or a 'choice' recognition
+  // pad (ChoiceStage). Choice rungs are never sprintable — a timer on a tap rewards fast
+  // guessing; they are timed only as grounding evidence.
+  format: "numpad" | "choice";
   requires: string[];
   generate(r: Rng): Item;
 };
@@ -137,16 +148,109 @@ const until = <T>(f: () => T, ok: (t: T) => boolean, tries = 400): T => {
   throw new Error("generator could not satisfy its constraint");
 };
 
-const S = (s: Omit<Skill, "family" | "sprintable" | "subject"> & { family?: string; subject?: Subject }): Skill => ({
+const S = (s: Omit<Skill, "family" | "sprintable" | "subject" | "format"> & { family?: string; subject?: Subject; format?: "numpad" | "choice" }): Skill => ({
   family: s.code.split("_")[0],
-  // A component is sprintable unless it's a written multi-column algorithm; a
-  // compound is never sprintable. One derived flag, one exception set.
-  sprintable: s.mode === "component" && !NON_SPRINTABLE.has(s.code),
+  // A component is sprintable unless it's a written multi-column algorithm OR a recognition
+  // (choice) rung. One derived flag, one exception set, one format gate.
+  sprintable: s.mode === "component" && !NON_SPRINTABLE.has(s.code) && (s.format ?? "numpad") !== "choice",
   ...s,
-  // Every skill authored via S() today is maths; spelling skills pass subject:"spelling".
-  // After the spread so the default always wins when the field is omitted.
+  // After the spread so the defaults always win when the fields are omitted.
   subject: s.subject ?? "maths",
+  format: s.format ?? "numpad",
 } as Skill);
+
+/* ═══ TIER −1 · GROUND — meaning before symbol (recognition) ════════ year 0 */
+// The pre-symbolic floor, absorbed from the old separate GROUND scene INTO the graph
+// (one-ova-track WS II). Recognition rungs — TAP, not type: the MEANING of + / − (Fler /
+// Färre), then how-many (count), name-the-amount (numeral), recognise-a-sum (sum).
+// format:"choice" ⇒ rendered by ChoiceStage, non-sprintable (grounding evidence, never a
+// fluency target — a timer on a tap rewards guessing). The old 'produce' rung is dropped:
+// the on-ramp add rungs ARE the "type the sum" bridge (audit). `answer` is the tapped
+// value — a word for structure, an int for the amount picks — graded by the same grade().
+const GKIND = ["apple", "fish", "duck", "star", "cookie", "cherries"] as const;
+
+// 4 distinct options in [1,max] including the answer, distractors drawn near it, shuffled.
+const choiceOptions = (r: Rng, answer: number, max = 10): number[] => {
+  const out = [answer];
+  const near = [answer - 1, answer + 1, answer - 2, answer + 2, answer + 3, answer - 3].filter((n) => n >= 1 && n <= max);
+  for (let i = near.length - 1; i > 0; i--) { const j = r.int(0, i); [near[i], near[j]] = [near[j], near[i]]; }
+  for (const n of near) { if (out.length >= 4) break; if (!out.includes(n)) out.push(n); }
+  for (let n = 1; out.length < 4 && n <= max; n++) if (!out.includes(n)) out.push(n);
+  for (let i = out.length - 1; i > 0; i--) { const j = r.int(0, i); [out[i], out[j]] = [out[j], out[i]]; }
+  return out;
+};
+
+const tierGround: Skill[] = [
+  S({
+    code: "ground_structure", year: 0, mode: "component", format: "choice", requires: [],
+    generate: (r) => {
+      const kind = r.pick(GKIND);
+      const combine = r.int(0, 1) === 0;
+      const a = combine ? r.int(2, 5) : r.int(3, 6);
+      const b = combine ? r.int(1, 4) : r.int(1, a - 1);
+      const structure: "combine" | "separate" = combine ? "combine" : "separate";
+      return {
+        prompt: "", answer: { kind: "word", text: structure },
+        steps: [combine ? "Fler kom till" : "Färre blev kvar"],
+        choice: {
+          prompt: { show: "structure", kind, a, b, structure },
+          question: "Kommer det fler eller färre?",
+          options: [
+            { value: "combine", render: "more", label: "Fler" },
+            { value: "separate", render: "fewer", label: "Färre" },
+          ],
+        },
+      };
+    },
+  }),
+  S({
+    code: "ground_count", year: 0, mode: "component", format: "choice", requires: ["ground_structure"],
+    generate: (r) => {
+      const kind = r.pick(GKIND);
+      const a = r.int(1, 5), b = r.int(1, Math.min(5, 10 - a));
+      const answer = a + b;
+      return {
+        prompt: "", answer: int(answer), steps: [`${a} + ${b} = ${answer}`],
+        choice: {
+          prompt: { show: "sum", kind, a, b },
+          question: "Hur många tillsammans?",
+          options: choiceOptions(r, answer).map((n): ChoiceOption => ({ value: n, render: "group", kind })),
+        },
+      };
+    },
+  }),
+  S({
+    code: "ground_numeral", year: 0, mode: "component", format: "choice", requires: ["ground_count"],
+    generate: (r) => {
+      const kind = r.pick(GKIND);
+      const a = r.int(2, 9);
+      return {
+        prompt: "", answer: int(a), steps: [`${a}`],
+        choice: {
+          prompt: { show: "group", kind, a },
+          question: "Hur många?",
+          options: choiceOptions(r, a).map((n): ChoiceOption => ({ value: n, render: "numeral" })),
+        },
+      };
+    },
+  }),
+  S({
+    code: "ground_sum", year: 0, mode: "component", format: "choice", requires: ["ground_numeral"],
+    generate: (r) => {
+      const kind = r.pick(GKIND);
+      const a = r.int(1, 5), b = r.int(1, Math.min(5, 10 - a));
+      const answer = a + b;
+      return {
+        prompt: "", answer: int(answer), steps: [`${a} + ${b} = ${answer}`],
+        choice: {
+          prompt: { show: "sum", kind, a, b },
+          question: "Hur många tillsammans?",
+          options: choiceOptions(r, answer).map((n): ChoiceOption => ({ value: n, render: "numeral" })),
+        },
+      };
+    },
+  }),
+];
 
 /* ═══ TIER 0 · number sense — the on-ramp into add-within-10 ═════════ year 0 */
 // A pre-reading beginner (a five-year-old) cannot START on add_within_10. It used to
@@ -169,7 +273,7 @@ const tier0: Skill[] = [
   S({
     // THE ROOT. The meaning of "more": two bunches, type how many the BIGGER holds.
     // "eller" (never "+"), so it can't be misread as an addition to sum.
-    code: "more_or_less", year: 0, mode: "component", requires: [],
+    code: "more_or_less", year: 0, mode: "component", requires: ["ground_sum"],
     generate: (r) => {
       const e = r.pick(PIC);
       const [x, y] = until(() => [r.int(1, 6), r.int(1, 6)], ([x, y]) => x !== y);
@@ -649,7 +753,7 @@ const tier8: Skill[] = [
 
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tier0, ...tier1, ...tier2, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
+export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 
@@ -715,11 +819,11 @@ export function answerToString(a: Answer): string {
   return a.kind === "int" ? String(a.v) : `${a.n}/${a.d}`;
 }
 
-export type CanonItem = { prompt: string; answer: string; steps: string[] };
+export type CanonItem = { prompt: string; answer: string; steps: string[]; choice?: ChoiceSpec };
 
 export function generateCanon(code: string, r: Rng): CanonItem {
   const it = skillByCode(code).generate(r);
-  return { prompt: it.prompt, answer: answerToString(it.answer), steps: it.steps };
+  return { prompt: it.prompt, answer: answerToString(it.answer), steps: it.steps, choice: it.choice };
 }
 
 /** Swedish school year for a child: year 1 begins the year they turn 7. */
