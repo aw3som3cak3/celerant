@@ -276,6 +276,9 @@ export function answer(
     repo.appendUsageEvent(playerId, 'card_earned', p.skill_code, now); // §4.3
   }
 
+  // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
+  repo.recordShadowFluency(playerId, p.skill_code, now);
+
   // The session counter advances on every resolved item, "vet inte" included.
   const session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
 
@@ -428,6 +431,8 @@ export function sessionAnswer(
     if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
       repo.appendUsageEvent(playerId, 'card_earned', code, now);
     }
+    // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
+    repo.recordShadowFluency(playerId, code, now);
     session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
   } else if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);
