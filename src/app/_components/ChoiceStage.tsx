@@ -1,6 +1,9 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import type { ChoicePromptData, ChoiceOption } from '@/lib/choice';
+
+export type { ChoicePromptData, ChoiceOption } from '@/lib/choice';
 
 // The RECOGNITION input surface: a picture prompt + tap-one-of-N options. The choice
 // sibling of the numpad (InputStage) and the letter pad — the third format the practice
@@ -22,16 +25,6 @@ function Objects({ kind, n, small }: { kind: string; n: number; small?: boolean 
   );
 }
 
-export type ChoicePromptData =
-  | { show: 'group'; kind: string; a: number } // one bunch — "how many?"
-  | { show: 'sum'; kind: string; a: number; b: number } // a + b — "how many together?"
-  | { show: 'structure'; kind: string; a: number; b: number; structure: 'combine' | 'separate' }; // things arrive / leave
-
-export type ChoiceOption =
-  | { value: number; render: 'numeral' } // tap the digit
-  | { value: number; render: 'group'; kind: string } // tap the picture-group of `value`
-  | { value: 'combine' | 'separate'; render: 'more' | 'fewer' }; // Fler / Färre
-
 export function ChoiceStage({
   itemKey,
   prompt,
@@ -39,6 +32,7 @@ export function ChoiceStage({
   options,
   onCapture,
   disabled = false,
+  armKey,
 }: {
   itemKey: string | number; // changes per item ⇒ resets and restarts the clock (mount-equivalent)
   prompt: ChoicePromptData;
@@ -46,6 +40,7 @@ export function ChoiceStage({
   options: ChoiceOption[];
   onCapture: (chosen: string | number, intervalMs: number) => void;
   disabled?: boolean;
+  armKey?: number; // bump to RE-ARM after a first-wrong tap — accept a second tap, KEEP the clock
 }) {
   const startRef = useRef(0);
   const capturedRef = useRef(false);
@@ -63,6 +58,15 @@ export function ChoiceStage({
       cancelAnimationFrame(r2);
     };
   }, [itemKey]);
+
+  // Re-arm the SAME item for a retry: accept another tap but DON'T reset the clock (its
+  // interval spans render→final tap, as with InputStage). Guarded so it never fires on mount.
+  const armedRef = useRef(armKey);
+  useEffect(() => {
+    if (armKey === armedRef.current) return;
+    armedRef.current = armKey;
+    capturedRef.current = false;
+  }, [armKey]);
 
   const pick = (value: string | number) => {
     if (capturedRef.current || disabled) return;
@@ -102,7 +106,7 @@ export function ChoiceStage({
             o.render === 'more' || o.render === 'fewer' ? (
               <button key={i} className={`ground-choice ${o.render === 'more' ? 'more' : 'fewer'}`} onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <span className="ground-choice-glyph">{o.render === 'more' ? '▲' : '▼'}</span>
-                {String(o.value)}
+                {o.label}
               </button>
             ) : null,
           )}

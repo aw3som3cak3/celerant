@@ -204,13 +204,13 @@ function Players({ me }: { me: Me }) {
 
         <div className="children-grid">
           {me.players!.map((p) => (
-            // One action per child (the single "Öva" track). In edit mode a tap opens the
-            // icon picker; otherwise a tap goes straight into practice. Two exceptions,
-            // both invisible to the child (still just "tap my icon and go"): a groundFirst
-            // beginner routes into Explore — her whole Öva until GROUND is folded into the
-            // graph (WS II) — and a child whose once-a-day writing-speed probe is due goes
-            // through /warmup first, which then flows into practice. No door, no menu, no
-            // ⚡ — speed is witnessed inside practice now, never chosen (one-ova-track spec).
+            // One action per child (the single "Öva" track): a tap goes straight into
+            // practice. The pre-symbolic Fler/Färre acquisition is now the graph's bottom
+            // rungs, so a beginner is served them inside /practice by the selector — no
+            // separate Explore scene, no door. The only exception is invisible: a child
+            // whose once-a-day writing-speed probe is due goes through /warmup first, which
+            // then flows into practice. No menu, no ⚡ — speed is witnessed inside practice
+            // now, never chosen (one-ova-track spec).
             <button
               key={p.id}
               className={`child-tile ${editing ? 'editing' : ''}`}
@@ -218,16 +218,13 @@ function Players({ me }: { me: Me }) {
               onClick={() =>
                 editing
                   ? setChanging(p)
-                  : p.groundFirst
-                    ? (location.href = `/ground?p=${p.id}`)
-                    : p.needsToolTest
-                      ? (location.href = `/warmup?p=${p.id}`)
-                      : (location.href = `/practice?p=${p.id}`)
+                  : p.needsToolTest
+                    ? (location.href = `/warmup?p=${p.id}`)
+                    : (location.href = `/practice?p=${p.id}`)
               }
             >
               <EmojiIcon iconKey={p.icon} />
               {editing && <span className="tile-edit"><Emoji e="✏️" /></span>}
-              {!editing && p.groundFirst && <span className="tile-ground" aria-hidden><Emoji e="🌱" /></span>}
             </button>
           ))}
           {/* Adding a child is a PARENT action — it lives in the parent view, not

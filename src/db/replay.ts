@@ -370,4 +370,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('tap_floor_v1');
   }
+
+  // GROUND rungs into the graph (one-ova-track WS II): ground_structure/count/numeral/sum
+  // are now real skills below the on-ramp, and more_or_less requires ground_sum. Every
+  // child needs an ability row for the new codes or buildStates hands the selector an
+  // 'unknown' rate that componentFluent throws on when it's a prerequisite. Replay all so
+  // the four recognition rungs get their provisional seed. Runs once; no-op on a fresh DB.
+  if (!done('ground_rungs_in_graph_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('ground_rungs_in_graph_v1');
+  }
 }

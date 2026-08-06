@@ -15,7 +15,7 @@ const ITEMS: Demo[] = [
   {
     prompt: { show: 'structure', kind: 'duck', a: 3, b: 2, structure: 'combine' },
     question: 'Kommer det fler eller färre?',
-    options: [{ value: 'combine', render: 'more' }, { value: 'separate', render: 'fewer' }],
+    options: [{ value: 'combine', render: 'more', label: 'Fler' }, { value: 'separate', render: 'fewer', label: 'Färre' }],
     answer: 'combine',
   },
   {
