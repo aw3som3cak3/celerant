@@ -26,7 +26,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean; canGround?: boolean; groundFirst?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
