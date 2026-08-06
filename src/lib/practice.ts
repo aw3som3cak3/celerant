@@ -116,6 +116,7 @@ export function sessionChoices(playerId: string, schoolYear: number, stretch: bo
     recentCodes: repo.recentAttemptSkillCodes(playerId, 8),
     rand: Math.random,
     target: stretch ? STRETCH_TARGET : undefined,
+    seedGrade: seedGradeFor(schoolYear),
   });
   // Only offer skills inside the band — never present the child a choice the
   // system expects them to miss (the p-band gate, applied to the chooser too).
@@ -163,6 +164,7 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
       // Reach-up never fires during warm-up or on the peak-end item — the opening
       // must stay easy and the session must end on a sure win.
       reachUp: warmup || opts.peakEnd ? false : opts.reachUp,
+      seedGrade: seedGradeFor(schoolYear),
     });
     scores = r.scores;
     introduced = r.introduced;
