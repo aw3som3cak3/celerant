@@ -55,6 +55,12 @@ function operationFor(code: string): Operation {
     if (code.includes('sub')) return 'sub';
     return 'add';
   }
+  if (family === 'decimals') {
+    if (code.includes('sub')) return 'sub';
+    if (code.includes('times') || code.includes('x10')) return 'mul';
+    if (code.includes('div') || code.includes('read')) return 'div'; // n/10 = n ÷ 10
+    return 'add';
+  }
   if (family === 'sub') return 'sub';
   if (family === 'missing') return code.includes('factor') ? 'div' : 'add';
   return 'add'; // add, bond
@@ -64,13 +70,16 @@ const num = (raw: string): number => {
   const s = raw.trim();
   const f = s.match(/^(-?\d+)\/(-?\d+)$/);
   if (f) return parseInt(f[1], 10) / parseInt(f[2], 10);
+  const d = s.match(/^(-?\d+)[.,](\d+)$/); // decimal, Swedish comma or point
+  if (d) return parseFloat(`${d[1]}.${d[2]}`);
   return parseInt(s, 10);
 };
 
-// Every integer literal in the prompt, signed (U+2212 minus normalised).
+// Every numeric literal in the prompt, signed (U+2212 minus normalised). Matches
+// decimals (comma or point) as one token so "0,3 + 0,4" reads as [0.3, 0.4], not four ints.
 function operandsOf(prompt: string): number[] {
   const norm = prompt.replace(/−/g, '-');
-  return (norm.match(/-?\d+/g) ?? []).map((n) => parseInt(n, 10));
+  return (norm.match(/-?\d+(?:[.,]\d+)?/g) ?? []).map((n) => parseFloat(n.replace(',', '.')));
 }
 
 function countCarries(a: number, b: number): number {
@@ -131,8 +140,9 @@ export function computeFeatures(operation: Operation, prompt: string, answerStr:
   if (negOperand) f.negative_operand = true;
   if (answer < 0) f.negative_result = true;
 
-  // additive structure — direct two-operand, non-negative items only
-  if ((operation === 'add' || operation === 'sub') && operands.length === 2 && operands.every((n) => n >= 0) && prompt.indexOf('□') === -1) {
+  // additive structure — direct two-operand, non-negative INTEGER items only (the
+  // digit-column carry/borrow counters are integer algorithms; decimal operands skip them)
+  if ((operation === 'add' || operation === 'sub') && operands.length === 2 && operands.every((n) => n >= 0 && Number.isInteger(n)) && prompt.indexOf('□') === -1) {
     const [a, b] = operands;
     if (operation === 'add') {
       f.carries = countCarries(a, b);

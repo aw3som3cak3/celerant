@@ -25,6 +25,18 @@ function parseRational(raw: string): { n: number; d: number } | null {
     return { n: (sign * n) / g, d: (sign * Math.abs(d)) / g };
   }
 
+  // Decimal notation — Swedish comma OR point (the on-screen pad types a comma; a physical
+  // keyboard may type either). A terminating decimal is an exact rational, so we parse it
+  // to {n, d} in lowest terms and grade by value — "3,5", "3.5", "3,50" and "7/2" all match.
+  const dec = s.match(/^(-?)(\d+)[.,](\d+)$/);
+  if (dec) {
+    const sign = dec[1] === '-' ? -1 : 1;
+    const n = sign * parseInt(dec[2] + dec[3], 10);
+    const d = 10 ** dec[3].length;
+    const g = gcd(n, d);
+    return { n: n / g, d: d / g };
+  }
+
   const int = s.match(/^-?\d+$/);
   if (int) return { n: parseInt(s, 10), d: 1 };
 

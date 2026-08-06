@@ -9,7 +9,7 @@
  * rate it can never have).
  */
 import { describe, it, expect } from 'vitest';
-import { SKILLS, BY_CODE, ancestors, type Rng, type Item } from '@/skills';
+import { SKILLS, BY_CODE, ancestors, answerToString, type Rng, type Item } from '@/skills';
 import { extractFeatures } from '@/lib/features';
 
 const N = 500;
@@ -21,7 +21,8 @@ const mkRng = (seed: number): Rng => {
 };
 
 const norm = (s: string) =>
-  s.replace(/−/g, '-').replace(/×/g, '*').replace(/·/g, '*').replace(/□/g, 'x').replace(/=$/, '').trim();
+  s.replace(/−/g, '-').replace(/×/g, '*').replace(/·/g, '*').replace(/÷/g, '/').replace(/□/g, 'x')
+    .replace(/(\d),(\d)/g, '$1.$2').replace(/=$/, '').trim(); // decimal comma → point for eval
 
 const evalExpr = (e: string): number => {
   if (!/^[-+*/(). 0-9]+$/.test(e)) throw new Error(`unsafe expr: ${e}`);
@@ -42,6 +43,14 @@ const verifyItem = (it: Item): Result => {
   }
 
   if (answer.kind === 'word') return { ok: true }; // the maths graph has no word answers
+
+  if (answer.kind === 'dec') {
+    const val = answer.v / 10 ** answer.scale;
+    const got = evalExpr(norm(prompt).replace(/(\d)\s*\(/g, '$1*(')); // comma→point handled in norm
+    if (Math.abs(got - val) > 1e-9) return { ok: false, why: `${prompt} → ${got}, answer says ${val}` };
+    const decStr = answerToString(answer);
+    return steps.at(-1)?.includes(decStr) ? { ok: true } : { ok: false, why: `final step omits ${decStr}` };
+  }
 
   const v = answer.v;
   if (!Number.isInteger(v)) return { ok: false, why: `non-integer answer ${v}` };
@@ -102,8 +111,12 @@ describe('feature tags evaluate to the answer (instrumentation.md §2.4)', () =>
       const rng = mkRng(0xfea70 ^ [...s.code].reduce((h, c) => (h * 31 + c.charCodeAt(0)) | 0, 3));
       for (let i = 0; i < 60; i++) {
         const it = s.generate(rng);
-        const ansStr = it.answer.kind === 'int' ? String(it.answer.v) : it.answer.kind === 'frac' ? `${it.answer.n}/${it.answer.d}` : it.answer.text;
-        const ansNum = it.answer.kind === 'int' ? it.answer.v : it.answer.kind === 'frac' ? it.answer.n / it.answer.d : NaN;
+        const ansStr = answerToString(it.answer);
+        const ansNum =
+          it.answer.kind === 'int' ? it.answer.v
+          : it.answer.kind === 'frac' ? it.answer.n / it.answer.d
+          : it.answer.kind === 'dec' ? it.answer.v / 10 ** it.answer.scale
+          : NaN;
         const f = extractFeatures(s.code, it.prompt, ansStr);
 
         // Pre-symbolic pictorial rungs (tier 0) carry no digit operands by design; the
@@ -139,7 +152,7 @@ describe('item properties (500 deterministic draws per skill)', () => {
         const res = verifyItem(it);
         expect(res.ok, res.why).toBe(true);
         expect(it.steps.length).toBeGreaterThan(0);
-        const key = it.answer.kind === 'int' ? String(it.answer.v) : it.answer.kind === 'frac' ? `${it.answer.n}/${it.answer.d}` : it.answer.text;
+        const key = answerToString(it.answer);
         seen.set(key, (seen.get(key) ?? 0) + 1);
       }
       // Recognition rungs legitimately have few answer values (structure is a 2-way

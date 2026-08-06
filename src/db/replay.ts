@@ -380,4 +380,16 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('ground_rungs_in_graph_v1');
   }
+
+  // Decimals tier (docs/decimals-tier-spec.md): dec_read_tenths / dec_add_same / dec_sub_same
+  // are new component skills. computeAbility seeds every SKILL, but the ability cache only
+  // GAINS the new codes' provisional rate on a replay — and buildStates hands the selector an
+  // 'unknown' rate for any un-seeded component, which componentFluent throws on when it's a
+  // prerequisite. Replay every child once so the new rungs seed. Runs once; no-op on a fresh
+  // DB (seeded at creation). Deliberately does NOT bump MODEL_VERSION (that re-runs the stale
+  // hardcoded grade sets — see the on-ramp deploy note).
+  if (!done('bridge_decimals_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_decimals_v1');
+  }
 }

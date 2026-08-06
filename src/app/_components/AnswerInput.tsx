@@ -2,10 +2,10 @@
 
 import React from 'react';
 
-// Families whose answers can be negative or a fraction need the full keyboard
-// (for "-" and "/"); the rest get a digit-only numeric keypad on mobile.
+// Families whose answers can be negative, a fraction, or a decimal need the full
+// keyboard (for "-", "/", ","); the rest get a digit-only numeric keypad on mobile.
 export function inputModeFor(family: string): 'numeric' | 'text' {
-  return family === 'fractions' || family === 'negatives' || family === 'linear' ? 'text' : 'numeric';
+  return family === 'fractions' || family === 'negatives' || family === 'linear' || family === 'decimals' ? 'text' : 'numeric';
 }
 
 // The child's answer row — the ONE place an answer is typed and submitted, shared
