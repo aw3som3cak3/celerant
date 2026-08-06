@@ -46,10 +46,11 @@ const TRAILING_ZERO_COST = 0.25; // a trailing zero costs a quarter-digit of mot
 // trailing zeros, which are discounted. (Signs / slashes are ignored — the tap rate is
 // digits/min.) Never below one — every answer takes at least one keystroke-time.
 function motorDigitsOf(answer: string): number {
+  const commas = (answer.match(/,/g) ?? []).length; // decimal separator: a cheap patterned key
   const ds = answer.replace(/[^0-9]/g, '');
-  if (ds.length <= 1) return 1;
+  if (ds.length <= 1) return 1 + commas * TRAILING_ZERO_COST;
   const tz = ds.match(/0+$/)?.[0].length ?? 0;
-  return Math.max(1, ds.length - tz + tz * TRAILING_ZERO_COST);
+  return Math.max(1, ds.length - tz + tz * TRAILING_ZERO_COST) + commas * TRAILING_ZERO_COST;
 }
 
 // Expected MOTOR cost of a skill's answer, in digit-times, averaged over its OWN
@@ -85,7 +86,12 @@ export function expectedPhysicalDigits(code: string): number {
   if (cached != null) return cached;
   const N = 400;
   let sum = 0;
-  for (let i = 0; i < N; i++) sum += Math.max(1, answerLengthOf(code, (0x5eed + i * 0x9e3779b1) >>> 0));
+  for (let i = 0; i < N; i++) {
+    const ans = buildItem(code, (0x5eed + i * 0x9e3779b1) >>> 0).answer;
+    // Digits PLUS the decimal comma — the child physically presses the separator too, so
+    // it counts toward demonstrated keystroke throughput (the tap-ceiling floor).
+    sum += Math.max(1, (ans.match(/[0-9]/g)?.length ?? 0) + (ans.match(/,/g)?.length ?? 0));
+  }
   const avg = sum / N;
   _physicalDigits.set(code, avg);
   return avg;

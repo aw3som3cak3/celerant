@@ -32,6 +32,10 @@ export type Subject = "maths" | "spelling";
 export type Answer =
   | { kind: "int"; v: number }
   | { kind: "frac"; n: number; d: number } // always in lowest terms
+  | { kind: "dec"; v: number; scale: number } // exact value = v / 10^scale (scale ≥ 1); a
+  // terminating decimal IS an exact rational, so "never a decimal" (line 14) is honoured in
+  // spirit — never an INEXACT answer, never a float. Notation is decimal only in what the
+  // child reads and types; storage and grading stay exact (see dec() and grade.ts).
   | { kind: "word"; text: string }; // spelling: the CANONICAL lower-case form (A16); the
 // displayed pad glyphs are a separate concern, so a versaler pad is a view swap, not a
 // data migration. Grading is case-insensitive against this canonical (see grade.ts).
@@ -91,6 +95,14 @@ const gcd = (a: number, b: number): number => (b === 0 ? Math.abs(a) : gcd(b, a 
 const frac = (n: number, d: number): Answer => {
   const g = gcd(n, d) || 1;
   return { kind: "frac", n: n / g, d: d / g };
+};
+
+// An exact decimal answer, normalised to the MINIMAL scale so the canonical form is
+// natural: dec(70, 2) → "0,7" not "0,70", and a whole result collapses to an int so it
+// grades/reads like one (0,4 × 10 → int 4). value = v / 10^scale, always exact.
+const dec = (v: number, scale: number): Answer => {
+  while (scale > 0 && v % 10 === 0) { v /= 10; scale -= 1; }
+  return scale === 0 ? { kind: "int", v } : { kind: "dec", v, scale };
 };
 
 /** "+ 7" or "− 7"; the minus is U+2212, not a hyphen. */
@@ -751,9 +763,43 @@ const tier8: Skill[] = [
   }),
 ];
 
+/* ═══ TIER · decimals ═══════════════════════════════════════ year 4 – 6 */
+// Tal i decimalform (Lgr22 åk4–6). Answers are EXACT rationals shown/typed in decimal
+// notation — never a float (see the dec() constructor and the Answer comment). Hangs off
+// place value + mult_by_powers_of_ten + the cross-10 carry/borrow seams, NOT behind
+// fractions (which are year 5–6 and would invert the year order). Standard scope,
+// increment 1: the notation gate + same-place add/sub. (Spec: docs/decimals-tier-spec.md.)
+const tierDecimals: Skill[] = [
+  S({
+    // The notation-and-meaning gate: a decimal IS tenths. Shown a tenths fraction, type
+    // the decimal. n∈1..9 → 0,1..0,9 uniform (no dominant answer). 6/10 = 6÷10 = 0,6, so
+    // the offline feature tag reads it as division — mathematically exact.
+    code: "dec_read_tenths", family: "decimals", year: 4, mode: "component", requires: ["add_2d_no_carry"],
+    generate: (r) => { const n = r.int(1, 9);
+      return { prompt: `${n}/10 =`, answer: dec(n, 1), steps: [`${n} tiondelar = 0,${n}`] }; },
+  }),
+  S({
+    // Add decimals with the SAME number of places, no carry across the comma: tenths whose
+    // tenths-sum stays < 10. Draw the tenths so no single sum dominates.
+    code: "dec_add_same", family: "decimals", year: 5, mode: "component", requires: ["dec_read_tenths"],
+    generate: (r) => {
+      const [a, b] = until(() => [r.int(1, 8), r.int(1, 8)], ([a, b]) => (a % 10) + (b % 10) <= 9 && a !== b);
+      return { prompt: `0,${a} + 0,${b} =`, answer: dec(a + b, 1), steps: [`${a} + ${b} tiondelar = ${a + b}`, `= 0,${a + b}`] };
+    },
+  }),
+  S({
+    // Subtract decimals, same places, no borrow across the comma.
+    code: "dec_sub_same", family: "decimals", year: 5, mode: "component", requires: ["dec_add_same"],
+    generate: (r) => {
+      const [a, b] = until(() => [r.int(2, 9), r.int(1, 8)], ([a, b]) => a - b >= 1);
+      return { prompt: `0,${a} − 0,${b} =`, answer: dec(a - b, 1), steps: [`${a} − ${b} tiondelar = ${a - b}`, `= 0,${a - b}`] };
+    },
+  }),
+];
+
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
+export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 
@@ -816,7 +862,12 @@ export function skillByCode(code: string): Skill {
 /** Canonical answer string for storage and grading. */
 export function answerToString(a: Answer): string {
   if (a.kind === "word") return a.text; // already canonical lower-case (A16)
-  return a.kind === "int" ? String(a.v) : `${a.n}/${a.d}`;
+  if (a.kind === "int") return String(a.v);
+  if (a.kind === "dec") {
+    const p = 10 ** a.scale, abs = Math.abs(a.v);
+    return `${a.v < 0 ? "-" : ""}${Math.floor(abs / p)},${String(abs % p).padStart(a.scale, "0")}`;
+  }
+  return `${a.n}/${a.d}`;
 }
 
 export type CanonItem = { prompt: string; answer: string; steps: string[]; choice?: ChoiceSpec };

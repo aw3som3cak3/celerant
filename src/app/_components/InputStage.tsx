@@ -90,7 +90,8 @@ export function InputStage({
   const capturedRef = useRef(false);
 
   const isLetter = !!letters && letters.length > 0;
-  const allowSign = !isLetter && item ? inputModeFor(item.family) === 'text' : false; // −,/ only for fractions/negatives/linear (session only)
+  const allowDecimal = !isLetter && !!item && item.family === 'decimals'; // comma key, non-negative
+  const allowSign = !isLetter && !allowDecimal && item ? inputModeFor(item.family) === 'text' : false; // −,/ for fractions/negatives/linear
   // Only build a string prompt when there's no promptNode — the code may be synthetic
   // (GROUND produce) and buildItem would throw on it.
   const prompt = promptNode != null ? '' : promptOverride ?? (item ? buildItem(item.code, item.seed).prompt : '');
@@ -192,6 +193,9 @@ export function InputStage({
       } else if ((e.key === '-' || e.key === '/') && allowSign) {
         press(e.key);
         e.preventDefault();
+      } else if ((e.key === ',' || e.key === '.') && allowDecimal) {
+        press(','); // canon is a comma; a physical '.' is accepted and stored as ','
+        e.preventDefault();
       } else if (e.key === 'Backspace') {
         backspace();
         e.preventDefault();
@@ -202,7 +206,7 @@ export function InputStage({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [item, disabled, allowSign, isLetter, letters, press, backspace, submit]);
+  }, [item, disabled, allowSign, allowDecimal, isLetter, letters, press, backspace, submit]);
 
   // The pad glyphs: the letter set on the letter pad, else the digit pad (with the two
   // sign keys only in maths text-mode). `null` renders a spacer — letter pads have none.
@@ -210,7 +214,9 @@ export function InputStage({
     ? [...letters!]
     : allowSign
       ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '−', '0', '/']
-      : ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
+      : allowDecimal
+        ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', ',']
+        : ['1', '2', '3', '4', '5', '6', '7', '8', '9', null, '0', null];
 
   return (
     <div className="input-stage">
