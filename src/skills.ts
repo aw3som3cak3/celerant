@@ -795,6 +795,43 @@ const tierDecimals: Skill[] = [
       return { prompt: `0,${a} − 0,${b} =`, answer: dec(a - b, 1), steps: [`${a} − ${b} tiondelar = ${a - b}`, `= 0,${a - b}`] };
     },
   }),
+  S({
+    // ×10 / ×100 shifts the comma LEFT. The operand is a genuine decimal (tenths or
+    // hundredths, last digit nonzero so it never reads as a whole); the answer may land
+    // whole (0,4 × 10 = 4) or stay decimal (0,35 × 10 = 3,5).
+    code: "dec_x10", family: "decimals", year: 5, mode: "component", requires: ["dec_read_tenths", "mult_by_powers_of_ten"],
+    generate: (r) => {
+      const scale = r.int(1, 2);
+      const v = until(() => r.int(1, 6 * 10 ** scale), (v) => v % 10 !== 0);
+      const pow = r.pick([10, 100] as const);
+      const ans = dec(v * pow, scale);
+      return { prompt: `${answerToString(dec(v, scale))} × ${pow} =`, answer: ans, steps: [`Flytta kommat: ${answerToString(ans)}`] };
+    },
+  }),
+  S({
+    // ÷10 / ÷100 shifts the comma RIGHT. The dividend is a whole NOT divisible by the
+    // power, so the quotient is a genuine decimal (tenths for ÷10, hundredths for ÷100).
+    code: "dec_div10", family: "decimals", year: 5, mode: "component", requires: ["dec_x10"],
+    generate: (r) => {
+      const pow = r.pick([10, 100] as const);
+      const scale = pow === 10 ? 1 : 2;
+      const dividend = until(() => r.int(1, 6 * pow), (d) => d % pow !== 0);
+      const ans = dec(dividend, scale);
+      return { prompt: `${dividend} ÷ ${pow} =`, answer: ans, steps: [`Flytta kommat: ${answerToString(ans)}`] };
+    },
+  }),
+  S({
+    // Add decimals with the SAME places but a tenths-sum that CARRIES into the ones. af+bf
+    // ≥ 11 keeps a nonzero tenth in the answer, so the carry is always visible (never 1,0).
+    code: "dec_add_carry", family: "decimals", year: 5, mode: "component", requires: ["dec_add_same", "add_cross_10"],
+    generate: (r) => {
+      const af = r.int(2, 9);
+      const bf = until(() => r.int(2, 9), (bf) => af + bf >= 11);
+      const aw = r.int(0, 3), bw = r.int(0, 3);
+      const ans = dec((aw * 10 + af) + (bw * 10 + bf), 1);
+      return { prompt: `${aw},${af} + ${bw},${bf} =`, answer: ans, steps: [`Tiondelarna växlar över: ${answerToString(ans)}`] };
+    },
+  }),
 ];
 
 /* ═══ export ══════════════════════════════════════════════════════════ */
