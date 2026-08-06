@@ -1,9 +1,10 @@
 # Decimals tier — implementation spec
 
-Status: **approved; increment 1 SHIPPED 2026-08-06** (deploy 5a06fbe). All 5 open
-decisions approved as recommended. Scope: **Standard** (9 skills, Lgr22 åk4–6).
-**Increment 1 done** (infra + `dec_read_tenths`, `dec_add_same`, `dec_sub_same`);
-**increments 2–3 pending** (×/÷10, carry/borrow, align, ×whole — see §11).
+Status: **approved; increments 1–2 SHIPPED 2026-08-06** (deploy 5a06fbe, 79dd61d). All
+5 open decisions approved as recommended. Scope: **Standard** (9 skills, Lgr22 åk4–6).
+**Done:** infra + `dec_read_tenths`, `dec_add_same`, `dec_sub_same` (inc 1) + `dec_x10`,
+`dec_div10`, `dec_add_carry` (inc 2). **Increment 3 pending:** `dec_add_align`,
+`dec_sub_borrow`, `dec_times_whole` (see §11).
 
 The maths graph runs GROUND → additive → place value → mult → div → order-of-ops →
 negatives → fractions → linear, and has **no decimals** — excluded at the type level
