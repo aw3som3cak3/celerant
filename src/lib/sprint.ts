@@ -120,7 +120,7 @@ function finalize(s: SprintSession, now: number): SprintResult {
         // makes the skill measured-fluent → sprint-ineligible, so it can't recur.
         const player = repo.playerById(s.playerId);
         if (player) {
-          const target = rewardState(player.family_id).sharedTarget;
+          const target = rewardState(player.family_id, s.playerId).sharedTarget; // this child's own default
           repo.setBonusAllocation(sprintId, s.playerId, player.family_id, target.kind, target.id, MILESTONE_BONUS, now);
           repo.appendUsageEvent(s.playerId, 'sprint_milestone', s.skillCode, now);
           bonus = { sprintId, units: MILESTONE_BONUS };
@@ -249,7 +249,7 @@ export function ingestSprint(
       if (outcome.kind === 'milestone' && credible) {
         const player = repo.playerById(playerId);
         if (player) {
-          const target = rewardState(player.family_id).sharedTarget;
+          const target = rewardState(player.family_id, playerId).sharedTarget; // this child's own default
           repo.setBonusAllocation(sprintId, playerId, player.family_id, target.kind, target.id, MILESTONE_BONUS, now);
           repo.appendUsageEvent(playerId, 'sprint_milestone', code, now);
           bonus = { sprintId, units: MILESTONE_BONUS };

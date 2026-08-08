@@ -1007,6 +1007,21 @@ export function getSharedTarget(familyId: string): SharedTargetRow | undefined {
     .get(familyId) as SharedTargetRow | undefined;
 }
 
+// Per-child default target (Model A: personal steering, shared cats). Latest-wins.
+export function setPlayerTarget(playerId: string, kind: 'cat' | 'family' | 'prop', targetId: string, at: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO player_target (player_id, target_kind, target_id, at) VALUES (?, ?, ?, ?)
+       ON CONFLICT(player_id) DO UPDATE SET target_kind = excluded.target_kind, target_id = excluded.target_id, at = excluded.at`,
+    )
+    .run(playerId, kind, targetId, at);
+}
+export function getPlayerTarget(playerId: string): SharedTargetRow | undefined {
+  return getDb()
+    .prepare('SELECT target_kind, target_id FROM player_target WHERE player_id = ?')
+    .get(playerId) as SharedTargetRow | undefined;
+}
+
 // --- event ledgers (instrumentation.md §4) ----------------------------------
 
 export function appendGoalEvent(
