@@ -12,9 +12,21 @@ type RewardData = { progress: Record<string, number>; unlockedCats: string[]; un
 type CatAnim = 'idle' | 'walk' | 'sit' | 'sleep';
 
 // What an unlocked prop invites a cat to do when it wanders over: curl up in a bed /
-// carrier, or sit and nibble at the food. (The cat-tree is skipped — it's elevated,
-// so a cat walking up to it would read as floating.)
+// carrier, or sit and nibble at the food.
 const PROP_ANIM: Record<string, 'sleep' | 'sit'> = { bed: 'sleep', carrier: 'sleep', fish: 'sit', catfood: 'sit' };
+
+// The cat-tree earns its own behaviour: a cat walks to its BASE on the floor (so it never
+// appears to walk through the air), then hops up to one of these perches and sits. Coords
+// are stage-% (center-anchored like every actor); the tree sprite sits at slot {83,56},
+// so the perches track its platforms and cubbies. Tune on-device if a cat sits slightly off.
+const TREE_ID = 'playground';
+const TREE_BASE = { x: 83, y: 78 }; // floor spot in front of the tree — where the walk ends
+const TREE_PERCHES = [
+  { x: 79, y: 46 }, // top-left platform (under the dangling toy)
+  { x: 88, y: 50 }, // right tower top
+  { x: 85, y: 60 }, // right cubby
+  { x: 80, y: 62 }, // left cubby
+];
 
 // The cat, from the ToffeeCraft sprite sheets (src/reward/sprites.ts). A 32×32
 // frame window over /cats/<spriteId>/<anim>.png, stepped by CSS; scaled up with
@@ -56,8 +68,9 @@ function Room() {
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
   const heartId = useRef(0);
   // Interactive props (id + floor position + what a cat does there), kept in a ref so
-  // the wander loop reads the latest without re-creating its interval.
-  const propsRef = useRef<{ id: string; x: number; y: number; anim: 'sleep' | 'sit' }[]>([]);
+  // the wander loop reads the latest without re-creating its interval. `perches`, when
+  // present (the cat-tree), are elevated spots the cat hops to after reaching the base.
+  const propsRef = useRef<{ id: string; x: number; y: number; anim: 'sleep' | 'sit'; perches?: { x: number; y: number }[] }[]>([]);
 
   const load = useCallback(() => getJSON<RewardData>('/api/reward').then(setData), []);
   useEffect(() => {
@@ -77,11 +90,15 @@ function Room() {
     });
   }, [data]);
 
-  // Keep the interactive-prop list current for the wander loop.
+  // Keep the interactive-prop list current for the wander loop. Floor props (bed/food)
+  // are used at their own slot; the cat-tree is walked-to at its base, then climbed.
   useEffect(() => {
-    propsRef.current = (data?.unlockedProps ?? [])
+    const unlocked = data?.unlockedProps ?? [];
+    const floor = unlocked
       .filter((id) => PROP_ANIM[id])
-      .map((id) => { const it = ROSTER_BY_ID.get(id); return { id, x: it?.slot?.x ?? 50, y: it?.slot?.y ?? 85, anim: PROP_ANIM[id] }; });
+      .map((id) => { const it = ROSTER_BY_ID.get(id); return { id, x: it?.slot?.x ?? 50, y: it?.slot?.y ?? 85, anim: PROP_ANIM[id] as 'sleep' | 'sit' }; });
+    const tree = unlocked.includes(TREE_ID) ? [{ id: TREE_ID, x: TREE_BASE.x, y: TREE_BASE.y, anim: 'sit' as const, perches: TREE_PERCHES }] : [];
+    propsRef.current = [...floor, ...tree];
   }, [data]);
 
   // The wander loop: every couple of seconds each cat strolls, settles, or heads to a
@@ -91,19 +108,25 @@ function Room() {
     const iv = setInterval(() => {
       setWanderers((ws) =>
         ws.map((w) => {
-          // Using a prop: hold the pose for a few ticks, then get up and roam.
+          // Using a prop: hold the pose for a few ticks, then get up and roam. A cat coming
+          // down from a tree perch (y up in the sprite) drops back to the floor band first,
+          // so it never strolls off through the air.
           if (w.act === 'rest') {
-            if (w.rest <= 1) return { ...w, act: 'roam', anim: 'idle', rest: 0, target: undefined };
+            if (w.rest <= 1) return { ...w, act: 'roam', anim: 'idle', rest: 0, target: undefined, y: Math.max(w.y, 66) };
             return { ...w, rest: w.rest - 1 };
           }
           const props = propsRef.current;
-          // Walking to a chosen prop: step toward it; on arrival, settle into its pose.
+          // Walking to a chosen prop: step toward it; on arrival, settle into its pose. For
+          // the cat-tree the arrival point is the floor base — the cat then HOPS to a perch.
           if (w.act === 'goto' && w.target) {
             const pr = props.find((pp) => pp.id === w.target);
             if (!pr) return { ...w, act: 'roam', anim: 'idle', target: undefined };
             const dx = pr.x - w.x, dy = pr.y - w.y;
             const dist = Math.hypot(dx, dy);
-            if (dist < 5) return { ...w, x: pr.x, y: pr.y, anim: pr.anim, act: 'rest', rest: 2 + Math.floor(Math.random() * 3) };
+            if (dist < 5) {
+              const spot = pr.perches ? pr.perches[Math.floor(Math.random() * pr.perches.length)] : { x: pr.x, y: pr.y };
+              return { ...w, x: spot.x, y: spot.y, anim: pr.anim, act: 'rest', rest: 2 + Math.floor(Math.random() * 3) };
+            }
             const step = Math.min(dist, 22);
             const nx = w.x + (dx / dist) * step, ny = w.y + (dy / dist) * step;
             return { ...w, x: nx, y: Math.max(60, Math.min(90, ny)), anim: 'walk', flip: nx < w.x, act: 'goto' };
