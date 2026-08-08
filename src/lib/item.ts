@@ -97,6 +97,24 @@ export function expectedPhysicalDigits(code: string): number {
   return avg;
 }
 
+// Expected LETTER count of a spelling skill's answer, averaged over its generator (the
+// letters sibling of expectedAnswerDigits). Used only by the spelling aim (letterAimFor);
+// a maths skill never reaches it. Deterministic + memoized, same shape as the digit count.
+const _expectedLetters = new Map<string, number>();
+export function expectedAnswerLetters(code: string): number {
+  const cached = _expectedLetters.get(code);
+  if (cached != null) return cached;
+  const N = 200;
+  let sum = 0;
+  for (let i = 0; i < N; i++) {
+    const ans = buildItem(code, (0x5eed + i * 0x9e3779b1) >>> 0).answer;
+    sum += Math.max(1, (ans.match(/\p{L}/gu)?.length ?? 0)); // Unicode letters (å ä ö included)
+  }
+  const avg = sum / N;
+  _expectedLetters.set(code, avg);
+  return avg;
+}
+
 // The sprint auto-submit boundary: the entered answer has reached the server-issued
 // digit count, so the tap that completes it can capture and stop the clock. Pure so
 // it's unit-testable independent of the DOM.

@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto';
 import { getDb } from './index';
 import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
-import { SKILLS, BY_CODE, ancestors } from '@/skills';
-import { aimFor, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE } from '@/lib/fluency';
+import { BY_CODE, ancestors, type Subject } from '@/skills';
+import { skillsForSubject } from '@/lib/subjects';
+import { aimFor, aimForSkill, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE } from '@/lib/fluency';
 import { expectedPhysicalDigits } from '@/lib/item';
 import { seedGradeFor } from '@/lib/onboarding';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
@@ -1264,7 +1265,7 @@ export type SignalRow = {
   nBefore: number;
   nAfter: number;
 };
-export function applicationSignal(playerId: string): SignalRow[] {
+export function applicationSignal(playerId: string, subject: Subject = 'maths'): SignalRow[] {
   const player = playerById(playerId);
   if (!player) return [];
   const tr = latestToolRate(playerId);
@@ -1278,10 +1279,10 @@ export function applicationSignal(playerId: string): SignalRow[] {
     .all(playerId) as { skill_code: string; latency_ms: number; at: number; dont_know: number }[];
 
   const out: SignalRow[] = [];
-  for (const c of SKILLS) {
+  for (const c of skillsForSubject(subject)) {
     if (c.mode !== 'component') continue;
-    // earliest sprint on this component that met its (digit-adjusted) aim
-    const aim = aimFor(tr, player.school_year, c.code, floor);
+    // earliest sprint on this component that met its aim (in the skill's own subject units)
+    const aim = aimForSkill(c, tr, player.school_year, floor);
     let crossed: number | null = null;
     for (const sp of sprints) {
       if (sp.skill_code !== c.code) continue;
@@ -1291,8 +1292,10 @@ export function applicationSignal(playerId: string): SignalRow[] {
       }
     }
     if (crossed == null) continue;
-    // compounds that (transitively) require this component
-    const compounds = new Set(SKILLS.filter((s) => s.mode === 'compound' && ancestors(s.code).has(c.code)).map((s) => s.code));
+    // compounds of the SAME subject that (transitively) require this component. (requires
+    // never cross subjects, so the ancestors check already keeps this in-subject; scoping the
+    // pool makes it explicit and cheap.)
+    const compounds = new Set(skillsForSubject(subject).filter((s) => s.mode === 'compound' && ancestors(s.code).has(c.code)).map((s) => s.code));
     if (!compounds.size) continue;
     const before: number[] = [];
     const after: number[] = [];

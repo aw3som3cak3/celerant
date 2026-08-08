@@ -1,6 +1,7 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { SKILLS, generateCanon } from '@/skills';
+import { SKILLS, generateCanon, type Subject } from '@/skills';
+import { skillsForSubject } from './subjects';
 import { skillLabel } from './labels';
 import { makeRng, randomSeed } from './rng';
 import { positions, skillEdges, extent } from './graph';
@@ -20,19 +21,19 @@ export type Edge = { from: string; to: string };
 // frontier : unlockable right now (the model gate) and not yet reached.
 // near     : one graph-step beyond — every prerequisite is reached or frontier.
 // Everything else is fog: absent from the child's payload, not merely hidden.
-function rings(playerId: string, schoolYear: number): {
+function rings(playerId: string, schoolYear: number, subject: Subject = 'maths'): {
   reached: Set<string>;
   frontier: Set<string>;
   near: Set<string>;
 } {
   const reached = new Set(repo.cardsForPlayer(playerId).map((c) => c.skillCode));
-  const unlocked = computeUnlocked(buildStates(playerId, schoolYear));
+  const unlocked = computeUnlocked(buildStates(playerId, schoolYear, subject));
 
   const frontier = new Set<string>();
-  for (const s of SKILLS) if ((unlocked.get(s.code) ?? false) && !reached.has(s.code)) frontier.add(s.code);
+  for (const s of skillsForSubject(subject)) if ((unlocked.get(s.code) ?? false) && !reached.has(s.code)) frontier.add(s.code);
 
   const near = new Set<string>();
-  for (const s of SKILLS) {
+  for (const s of skillsForSubject(subject)) {
     if (reached.has(s.code) || frontier.has(s.code) || s.requires.length === 0) continue;
     if (s.requires.every((r) => reached.has(r) || frontier.has(r))) near.add(s.code);
   }
@@ -42,8 +43,8 @@ function rings(playerId: string, schoolYear: number): {
 // The frontier is exactly the set the session-start chooser draws from
 // (motivation §3.2) — unlockable-and-not-yet-reached — from the same
 // computeUnlocked gate. Exposed so the two can be asserted to agree.
-export function frontierCodes(playerId: string, schoolYear: number): Set<string> {
-  return rings(playerId, schoolYear).frontier;
+export function frontierCodes(playerId: string, schoolYear: number, subject: Subject = 'maths'): Set<string> {
+  return rings(playerId, schoolYear, subject).frontier;
 }
 
 // ── child map (§2, §5) ──────────────────────────────────────────────────────
@@ -68,10 +69,10 @@ export type ChildNode =
 
 export type ChildMap = { nodes: ChildNode[]; edges: Edge[]; cols: number; rows: number };
 
-export function buildChildMap(playerId: string, schoolYear: number): ChildMap {
-  const { reached, frontier, near } = rings(playerId, schoolYear);
+export function buildChildMap(playerId: string, schoolYear: number, subject: Subject = 'maths'): ChildMap {
+  const { reached, frontier, near } = rings(playerId, schoolYear, subject);
   const cards = new Map(repo.cardsForPlayer(playerId).map((c) => [c.skillCode, c]));
-  const pos = positions();
+  const pos = positions(subject);
 
   // A silhouette's opaque id reveals only its position, never its identity.
   const nearId = (code: string) => `near:${pos.get(code)!.x},${pos.get(code)!.y}`;
@@ -82,7 +83,7 @@ export function buildChildMap(playerId: string, schoolYear: number): ChildMap {
   };
 
   const nodes: ChildNode[] = [];
-  for (const s of SKILLS) {
+  for (const s of skillsForSubject(subject)) {
     const p = pos.get(s.code)!;
     if (reached.has(s.code)) {
       const c = cards.get(s.code)!;
@@ -105,7 +106,7 @@ export function buildChildMap(playerId: string, schoolYear: number): ChildMap {
   }
 
   const edges: Edge[] = [];
-  for (const s of SKILLS) {
+  for (const s of skillsForSubject(subject)) {
     const to = idOf(s.code);
     if (!to) continue;
     for (const r of s.requires) {
@@ -136,18 +137,22 @@ export type CardShelf = {
   active: { node: ShelfCard; from: ShelfCard[]; coming: number }[];
 };
 
-export function buildCardShelf(playerId: string, schoolYear: number): CardShelf {
-  const { reached, frontier, near } = rings(playerId, schoolYear);
+export function buildCardShelf(playerId: string, schoolYear: number, subject: Subject = 'maths'): CardShelf {
+  const { reached, frontier, near } = rings(playerId, schoolYear, subject);
 
-  // trophies: every completed skill, in the order they were earned, each carrying
-  // the actual problem the child solved.
-  const trophies = repo.cardsForPlayer(playerId).map((c) => ({
-    code: c.skillCode,
-    label: skillLabel(c.skillCode),
-    family: META.get(c.skillCode)?.family ?? '',
-    prompt: c.prompt,
-    given: c.given,
-  }));
+  // trophies: every completed skill OF THIS SUBJECT, in the order they were earned, each
+  // carrying the actual problem the child solved. Cards are per-subject (a maths shelf never
+  // shows a spelling trophy) — filter by the card's skill subject.
+  const trophies = repo
+    .cardsForPlayer(playerId)
+    .filter((c) => META.get(c.skillCode)?.subject === subject)
+    .map((c) => ({
+      code: c.skillCode,
+      label: skillLabel(c.skillCode),
+      family: META.get(c.skillCode)?.family ?? '',
+      prompt: c.prompt,
+      given: c.given,
+    }));
 
   const asCard = (code: string): ShelfCard => {
     let sample = '';
@@ -165,7 +170,7 @@ export function buildCardShelf(playerId: string, schoolYear: number): CardShelf 
   const active = [...frontier].map((f) => {
     const meta = META.get(f)!;
     const from = meta.requires.filter((r) => reached.has(r)).map(asCard);
-    const coming = SKILLS.filter((s) => s.requires.includes(f) && near.has(s.code)).length;
+    const coming = skillsForSubject(subject).filter((s) => s.requires.includes(f) && near.has(s.code)).length;
     return { node: asCard(f), from, coming };
   });
 
@@ -187,14 +192,14 @@ export type ParentNode = {
 };
 export type ParentMap = { nodes: ParentNode[]; edges: Edge[]; cols: number; rows: number };
 
-export function buildParentMap(playerId: string): ParentMap {
+export function buildParentMap(playerId: string, subject: Subject = 'maths'): ParentMap {
   const player = repo.playerById(playerId);
   if (!player) return { nodes: [], edges: [], cols: 0, rows: 0 };
-  const { reached, frontier } = rings(playerId, player.school_year);
+  const { reached, frontier } = rings(playerId, player.school_year, subject);
   const ability = repo.abilities(playerId);
-  const pos = positions();
+  const pos = positions(subject);
 
-  const nodes: ParentNode[] = SKILLS.map((s) => {
+  const nodes: ParentNode[] = skillsForSubject(subject).map((s) => {
     const p = pos.get(s.code)!;
     const state: ParentNode['state'] = reached.has(s.code) ? 'reached' : frontier.has(s.code) ? 'frontier' : 'locked';
     return {
@@ -208,6 +213,6 @@ export function buildParentMap(playerId: string): ParentMap {
       label: skillLabel(s.code),
     };
   });
-  const { cols, rows } = extent();
-  return { nodes, edges: skillEdges(), cols, rows };
+  const { cols, rows } = extent(subject);
+  return { nodes, edges: skillEdges(subject), cols, rows };
 }

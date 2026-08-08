@@ -1,6 +1,7 @@
 // Fluency math: the aim, celeration fit, and the accuracy gate constant.
 // See addendum §3, §4, §5, §9.
-import { expectedAnswerDigits, expectedPhysicalDigits } from './item';
+import { expectedAnswerDigits, expectedPhysicalDigits, expectedAnswerLetters } from './item';
+import type { Subject } from '@/skills';
 
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
@@ -150,6 +151,31 @@ export function defaultLetterCeiling(schoolYear: number): number {
 export function aimFor(latestToolRate: number | null, schoolYear: number, code?: string, floorRate = 0): number {
   const tapRate = Math.max(latestToolRate ?? defaultCeiling(schoolYear), floorRate);
   return aimFromTapRate(tapRate, code ? expectedAnswerDigits(code) : 1);
+}
+
+// The spelling sibling of aimFor: an additive LETTERS/min aim — motor time to write the
+// word (letters × sec/letter) plus the shared retrieval budget. Uses defaultLetterCeiling
+// as the tap until a real letter-tap probe exists (letters/min seed stays provisional, per
+// the spelling plan). Kept unit-separate from digits/min on purpose: a spelling skill must
+// NEVER be judged by a digit aim, nor a maths skill by a letter aim.
+export function letterAimFor(schoolYear: number, code: string): number {
+  const perMin = defaultLetterCeiling(schoolYear);
+  const motorS = (expectedAnswerLetters(code) * 60) / perMin;
+  return 60 / (motorS + RETRIEVAL_BUDGET_S);
+}
+
+// Dispatch the aim to the skill's OWN subject units (spelling increment 3 — the highest-
+// stakes scoping site: the replay seed and the transfer signal both call this so a skill is
+// never seeded/measured in the wrong units). This does NOT make the selector/θ/gate reason
+// about subject — the gate still compares a scalar rate to a scalar aim, subject-blind; only
+// the aim's UNITS are chosen here by subject. See A11.
+export function aimForSkill(
+  skill: { code: string; subject: Subject },
+  latestToolRate: number | null,
+  schoolYear: number,
+  floorRate = 0,
+): number {
+  return skill.subject === 'spelling' ? letterAimFor(schoolYear, skill.code) : aimFor(latestToolRate, schoolYear, skill.code, floorRate);
 }
 
 export type SprintPoint = { day: number; correctPerMin: number; errorsPerMin: number };

@@ -1,6 +1,6 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { SKILLS, skillDepth } from '@/skills';
+import { SKILLS, skillDepth, type Subject } from '@/skills';
 import { buildStates } from './practice';
 import { computeUnlocked } from './selector';
 import { SPRINT_ACCURACY_GATE, SPRINT_ACCURACY_WINDOW } from './fluency';
@@ -51,10 +51,10 @@ export type SprintEligibility = {
 // Classify every sprintable, unlocked component for a child. Non-sprintable skills
 // (compounds; multi-column written algorithms) are never in this list — a clock
 // never belongs on them (Skill.sprintable).
-export function skillEligibility(playerId: string): SprintEligibility[] {
+export function skillEligibility(playerId: string, subject: Subject = 'maths'): SprintEligibility[] {
   const player = repo.playerById(playerId);
   if (!player) return [];
-  const states = buildStates(playerId, player.school_year);
+  const states = buildStates(playerId, player.school_year, subject); // subject-scoped pool → per-subject eligibility
   const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
   const attemptCounts = repo.nonWarmupCountsBySkill(playerId); // for the practised-dependent tie-breaker

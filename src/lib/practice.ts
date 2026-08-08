@@ -1,9 +1,10 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import * as repo from '@/db/repo';
-import { SKILLS, generateCanon } from '@/skills';
+import { SKILLS, generateCanon, type Subject } from '@/skills';
+import { skillsForSubject } from './subjects';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
-import { aimFor } from './fluency';
+import { aimForSkill } from './fluency';
 import { seedGradeFor, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
 import { rewardState } from './reward';
 import { makeRng, randomSeed } from './rng';
@@ -24,7 +25,7 @@ function rateEvidence(rateState: string, rate: number | null): RateEvidence {
 // Per-player selector state, from the ability cache. There is no gate: a player
 // is seeded with provisional rates at creation (ui-lifecycle §4.5), so the
 // fluency gate is already satisfied and the first screen is a problem.
-export function buildStates(playerId: string, schoolYear: number): SelState[] {
+export function buildStates(playerId: string, schoolYear: number, subject: Subject = 'maths'): SelState[] {
   const ability = repo.abilities(playerId);
   const toolRate = repo.latestToolRate(playerId);
   // Aim uses the SEED grade (seedGradeFor), the same grade the cache's provisional
@@ -40,7 +41,7 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
   // monotonic grant — see componentFluent's invariant; a drifting aim never revokes it.
   const earned = repo.everMilestonedSkills(playerId);
 
-  return SKILLS.map((s) => {
+  return skillsForSubject(subject).map((s) => {
     const ab = ability.get(s.code);
     const rate: RateEvidence =
       s.mode === 'component' ? rateEvidence(ab?.rate_state ?? 'unknown', ab?.rate ?? null) : { source: 'unknown' };
@@ -54,7 +55,7 @@ export function buildStates(playerId: string, schoolYear: number): SelState[] {
       lastSeenAt: ab ? ab.last_seen_at : null,
       requires: s.requires,
       rate,
-      aim: aimFor(toolRate, seedGrade, s.code, floor),
+      aim: aimForSkill(s, toolRate, seedGrade, floor),
       volatility: ab?.volatility,
       // The seed's own fluency decision, recoverable from grade + skill year (the
       // provisional rate was seeded ≥ aim iff seedGrade ≥ year — replay.ts). Lets
