@@ -1035,8 +1035,10 @@ table.plain-table th {
   background:
     linear-gradient(180deg, #b9d4e8 0%, #cfe6d8 55%, #e7d7b8 55%, #d8c39a 100%);
   box-shadow: inset 0 0 0 4px #efe3c8;
+  isolation: isolate; /* own stacking context so the rug/props/cats layer only against each other */
 }
-/* a simple pixel "rug" band on the floor */
+/* a simple pixel "rug" band on the floor — floor decoration, so it sits at the BOTTOM
+   layer (z-index 0). Without this the ::after (last in DOM) painted over the props. */
 .room-stage::after {
   content: '';
   position: absolute;
@@ -1044,6 +1046,7 @@ table.plain-table th {
   background: repeating-linear-gradient(45deg, #e7b7a6 0 12px, #e0a892 12px 24px);
   opacity: 0.5;
   border-radius: 40%;
+  z-index: 0;
 }
 .cat-actor {
   position: absolute;
@@ -1108,6 +1111,7 @@ table.plain-table th {
   width: auto;
   pointer-events: none;
   user-select: none;
+  z-index: 1; /* above the floor rug (0); cats ride higher still on their y-based z-index */
 }
 
 /* The approach cue, now a banner UNDER the room (not an overlay) so it never covers
