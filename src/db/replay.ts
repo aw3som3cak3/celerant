@@ -410,4 +410,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_decimals_3_v1');
   }
+
+  // count_to_5 split from count_within_10 (prod: a åk0 beginner dead-ended on 7–10 counts).
+  // count_to_5 is a NEW component below count_within_10 (now 6–10) and a prereq of add_within_5,
+  // so every child needs an ability row for it or buildStates hands the selector an 'unknown'
+  // rate that componentFluent throws on. Replay all once to seed it. Runs once; no-op on a
+  // fresh DB. No MODEL_VERSION bump.
+  if (!done('bridge_count_to_5_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_count_to_5_v1');
+  }
 }

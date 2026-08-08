@@ -295,18 +295,35 @@ const tier0: Skill[] = [
     },
   }),
   S({
-    // Cardinality: how many in one bunch (up to ten).
-    code: "count_within_10", year: 0, mode: "component", requires: ["more_or_less"],
+    // Subitizing / early counting: how many in one SMALL bunch (≤5). The true entry to
+    // counting — a starting counter reliably reads ≤5 at a glance. Split from count_within_10
+    // (prod: dog, åk0, counted ≤4 fine but stalled 20s+ then "vet inte" on 7–10). As its own
+    // skill its θ tracks this range alone, so success here keeps it in-band while the harder
+    // 6–10 rung can fall out of band independently — the p-band adapting at the right grain.
+    code: "count_to_5", year: 0, mode: "component", requires: ["more_or_less"],
     generate: (r) => {
       const e = r.pick(PIC);
-      const n = r.int(1, 10);
+      const n = r.int(1, 5);
+      return { prompt: `${e.repeat(n)} =`, answer: int(n), steps: [`Räkna: ${n}`] };
+    },
+  }),
+  S({
+    // Cardinality into the harder range (6–10) — counting past a glance. Requires count_to_5,
+    // so a child meets small counts first; if the big counts are still beyond them, this rung's
+    // own θ drops out of their band and it stops being served until they're ready.
+    code: "count_within_10", year: 0, mode: "component", requires: ["count_to_5"],
+    generate: (r) => {
+      const e = r.pick(PIC);
+      const n = r.int(6, 10);
       return { prompt: `${e.repeat(n)} =`, answer: int(n), steps: [`Räkna: ${n}`] };
     },
   }),
   S({
     // First symbolic addition, pictured and tiny (sum ≤ 5): the step before add_within_10.
-    // Draw the SUM uniformly, then split it, so no single answer dominates the draws.
-    code: "add_within_5", year: 0, mode: "component", requires: ["count_within_10"],
+    // Draw the SUM uniformly, then split it, so no single answer dominates the draws. Needs
+    // counting to 5 (count_to_5) — NOT counting to 10, so a beginner who can add within 5
+    // isn't gated behind the harder 6–10 rung she may not have yet.
+    code: "add_within_5", year: 0, mode: "component", requires: ["count_to_5"],
     generate: (r) => {
       const e = r.pick(PIC);
       const sum = r.int(2, 5);

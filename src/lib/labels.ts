@@ -20,6 +20,7 @@ const EXACT: Record<string, string> = {
   dec_sub_borrow: 'decimalminus med lån',
   dec_times_whole: 'decimaltal gånger heltal',
   more_or_less: 'fler eller färre',
+  count_to_5: 'räkna till 5',
   count_within_10: 'räkna till 10',
   add_within_5: 'plus till 5',
   add_within_10: 'plus till 10',
