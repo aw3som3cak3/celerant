@@ -2,15 +2,17 @@
 // computed from `skills.ts` alone, never from which nodes a child has reached, so
 // a node sits in the same place before and after it is earned. No db, no player.
 
-import { SKILLS } from '@/skills';
+import { SKILLS, type Subject } from '@/skills';
+import { skillsForSubject } from './subjects';
 
 export type Pos = { x: number; y: number };
 
-const byCode = new Map(SKILLS.map((s) => [s.code, s]));
+const byCode = new Map(SKILLS.map((s) => [s.code, s])); // keyed lookup (all subjects); .get() only
 
-// Longest-path depth from a root (a skill with no requires). The tier a node
-// sits in: tier-1 arithmetic at the root, linear equations at the leaves.
-function computeDepths(): Map<string, number> {
+// Longest-path depth from a root (a skill with no requires), within ONE subject. The tier
+// a node sits in: tier-1 arithmetic at the root, linear equations at the leaves. Requires
+// never cross subjects, so byCode.get on a requirement stays in-subject.
+function computeDepths(subject: Subject): Map<string, number> {
   const depth = new Map<string, number>();
   const visiting = new Set<string>();
   const d = (code: string): number => {
@@ -24,21 +26,21 @@ function computeDepths(): Map<string, number> {
     depth.set(code, val);
     return val;
   };
-  for (const s of SKILLS) d(s.code);
+  for (const s of skillsForSubject(subject)) d(s.code);
   return depth;
 }
 
-let _positions: Map<string, Pos> | null = null;
+const _positions = new Map<Subject, Map<string, Pos>>(); // per-subject memo — one map per subject
 
-// Stable positions: x = tier (longest-path depth), y = order within the tier,
-// grouped by family so each subject clusters (multiplication, negatives,
-// fractions each form a lane) — the child learns the shape of the subject, not
-// just their path. Deterministic; memoised.
-export function positions(): Map<string, Pos> {
-  if (_positions) return _positions;
-  const depth = computeDepths();
+// Stable positions for one subject: x = tier (longest-path depth), y = order within the
+// tier, grouped by family so each family clusters into a lane. Deterministic; memoised per
+// subject so a maths map and a spelling map are laid out on their own separate grids.
+export function positions(subject: Subject = 'maths'): Map<string, Pos> {
+  const cached = _positions.get(subject);
+  if (cached) return cached;
+  const depth = computeDepths(subject);
   const tiers = new Map<number, string[]>();
-  for (const s of SKILLS) {
+  for (const s of skillsForSubject(subject)) {
     const dp = depth.get(s.code)!;
     if (!tiers.has(dp)) tiers.set(dp, []);
     tiers.get(dp)!.push(s.code);
@@ -52,24 +54,24 @@ export function positions(): Map<string, Pos> {
     });
     codes.forEach((code, i) => pos.set(code, { x: dp, y: i }));
   }
-  _positions = pos;
+  _positions.set(subject, pos);
   return pos;
 }
 
-// Extent of the grid, for the client to size its canvas.
-export function extent(): { cols: number; rows: number } {
+// Extent of one subject's grid, for the client to size its canvas.
+export function extent(subject: Subject = 'maths'): { cols: number; rows: number } {
   let cols = 0;
   let rows = 0;
-  for (const { x, y } of positions().values()) {
+  for (const { x, y } of positions(subject).values()) {
     cols = Math.max(cols, x + 1);
     rows = Math.max(rows, y + 1);
   }
   return { cols, rows };
 }
 
-// Every prerequisite edge, prerequisite -> skill.
-export function skillEdges(): { from: string; to: string }[] {
+// Every prerequisite edge within ONE subject, prerequisite -> skill.
+export function skillEdges(subject: Subject = 'maths'): { from: string; to: string }[] {
   const edges: { from: string; to: string }[] = [];
-  for (const s of SKILLS) for (const r of s.requires) edges.push({ from: r, to: s.code });
+  for (const s of skillsForSubject(subject)) for (const r of s.requires) edges.push({ from: r, to: s.code });
   return edges;
 }

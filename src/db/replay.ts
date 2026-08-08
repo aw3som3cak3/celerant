@@ -2,7 +2,7 @@ import 'server-only';
 import { getDb } from './index';
 import { SKILLS, seedTheta } from '@/skills';
 import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
-import { aimFor, bestObservedDigitRate } from '@/lib/fluency';
+import { aimForSkill, bestObservedDigitRate } from '@/lib/fluency';
 import { seedGradeFor } from '@/lib/onboarding';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
@@ -62,7 +62,10 @@ export function computeAbility(
       volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
-      rate: component ? aimFor(toolRate, seedGrade, s.code, floor) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
+      // Seed each skill in ITS OWN subject's units (aimForSkill: letters/min for spelling,
+      // digits/min for maths) — a spelling skill must never get a digit-shaped seed. This is
+      // a units dispatch, not an engine change: the gate still compares rate to aim blindly.
+      rate: component ? aimForSkill(s, toolRate, seedGrade, floor) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
       rate_state: component ? 'provisional' : 'unknown',
     });
   }

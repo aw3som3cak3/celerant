@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as repo from '@/db/repo';
 import { parentFamilyFromRequest } from '@/lib/auth';
-import { SKILLS, skillDepth } from '@/skills';
+import { SKILLS, skillDepth, type Subject } from '@/skills';
 import { aimFor } from '@/lib/fluency';
 import { seedGradeFor } from '@/lib/onboarding';
 import { buildStates } from '@/lib/practice';
@@ -45,6 +45,11 @@ export function GET(req: NextRequest) {
   if (!repo.playerBelongsToFamily(playerId, familyId)) return json({ error: 'not_found' }, 404);
   const player = repo.playerById(playerId)!;
 
+  // Per-subject view: the overview is ONE subject at a time (default maths). The ability
+  // table holds rows for every subject a child practises, so scope the loop by the skill's
+  // subject or a spelling row would surface in the maths table.
+  const subject: Subject = req.nextUrl.searchParams.get('subject') === 'spelling' ? 'spelling' : 'maths';
+
   const ability = repo.abilities(playerId);
   // Aim uses the SEED grade — the SAME grade the fluency layer gates milestones and
   // diplomas on (buildStates / fix-grade-source-of-truth §1). The old raw-school_year
@@ -53,7 +58,7 @@ export function GET(req: NextRequest) {
   const seedGrade = seedGradeFor(player.school_year);
   const toolRate = repo.latestToolRate(playerId);
   const floor = repo.bestObservedDigitRate(playerId);
-  const unlocked = computeUnlocked(buildStates(playerId, player.school_year));
+  const unlocked = computeUnlocked(buildStates(playerId, player.school_year, subject));
   // Two at-a-glance status badges for the skill table (parent request):
   //   mastered — crossed the fluency aim / earned a diploma (durable: the milestone
   //     set, so a later aim drift never un-masters it). Reuses the earned set the
@@ -70,7 +75,7 @@ export function GET(req: NextRequest) {
 
   for (const ab of ability.values()) {
     const meta = META.get(ab.skill_code);
-    if (!meta) continue;
+    if (!meta || meta.subject !== subject) continue; // subject scope: one subject's table only
     const aim = meta.mode === 'component' ? aimFor(toolRate, seedGrade, ab.skill_code, floor) : null;
     // Mastered (only components carry a fluency aim): earned a diploma, or a measured
     // rate at/above the aim. Working on now: recently practised, unlocked, not mastered.
@@ -127,7 +132,7 @@ export function GET(req: NextRequest) {
     // The transfer signal (evidence-and-theses §2.4): median latency on compounds
     // containing a component, before vs after that component crossed its fluency
     // aim. A drop is transfer — the cheapest real evidence, from the ledger.
-    transfer: repo.applicationSignal(playerId),
+    transfer: repo.applicationSignal(playerId, subject),
     // The displacement safeguard (quasi-experimental §5): usage to keep LOW and
     // FLAT, with a calm ceiling alarm — never an engagement metric, no target.
     usage: displacement(playerId, now),
