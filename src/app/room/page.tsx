@@ -72,7 +72,7 @@ function Room() {
   // present (the cat-tree), are elevated spots the cat hops to after reaching the base.
   const propsRef = useRef<{ id: string; x: number; y: number; anim: 'sleep' | 'sit'; perches?: { x: number; y: number }[] }[]>([]);
 
-  const load = useCallback(() => getJSON<RewardData>('/api/reward').then(setData), []);
+  const load = useCallback(() => getJSON<RewardData>(`/api/reward${p ? `?p=${encodeURIComponent(p)}` : ''}`).then(setData), [p]);
   useEffect(() => {
     load();
   }, [load]);
@@ -162,8 +162,10 @@ function Room() {
     setTimeout(() => setHearts((hs) => hs.filter((h) => h.id !== hid)), 900);
   }
 
+  // Set THIS child's personal default (Model A) when we know who's here (?p=); without a
+  // player it falls back to the family-wide default.
   async function setSharedTarget(target: Target) {
-    const r = await postJSON<{ reward?: RewardData }>('/api/reward/shared-target', { target });
+    const r = await postJSON<{ reward?: RewardData }>('/api/reward/shared-target', p ? { target, p } : { target });
     if (r.reward) setData(r.reward);
   }
 

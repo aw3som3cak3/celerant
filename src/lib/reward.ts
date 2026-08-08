@@ -29,7 +29,22 @@ export function resolveSharedTarget(familyId: string, unlockedIds: string[]): Ta
   return nextCat ? { kind: 'cat', id: nextCat.id } : { kind: 'family', id: 'family' };
 }
 
-export function rewardState(familyId: string): RewardState {
+// The child's OWN default target (Model A). Their set choice if still unresolved (a cat
+// already unlocked is skipped so we advance to the next), else the family default, else
+// the next uncollected cat. So each kid steers their own sessions while the cats stay
+// shared and pooled — and two kids who pick the same target co-collect it ("together").
+export function resolvePlayerTarget(playerId: string, familyId: string, unlockedIds: string[]): Target {
+  const row = repo.getPlayerTarget(playerId);
+  if (row) {
+    const resolved = row.target_kind === 'cat' && unlockedIds.includes(row.target_id);
+    if (!resolved) return { kind: row.target_kind, id: row.target_id };
+  }
+  return resolveSharedTarget(familyId, unlockedIds);
+}
+
+// Family-wide reward state; `playerId`, when given, resolves `sharedTarget` to THAT child's
+// personal default (progress and unlocks stay family-pooled — cats are shared).
+export function rewardState(familyId: string, playerId?: string): RewardState {
   const counts = repo.targetAllocationCounts(familyId); // cats + props, sessions + bonus units
   const progress: Record<string, number> = {};
 
@@ -51,5 +66,6 @@ export function rewardState(familyId: string): RewardState {
   progress['family'] = goal ? repo.familyGoalProgress(familyId, goal.created_at) : 0;
   const familyGoalOpen = goal != null && goal.reached_at == null;
 
-  return { progress, unlockedCats, unlockedProps, sharedTarget: resolveSharedTarget(familyId, unlockedCats), familyGoalOpen, familyGoalLabel: goal?.label ?? null };
+  const sharedTarget = playerId ? resolvePlayerTarget(playerId, familyId, unlockedCats) : resolveSharedTarget(familyId, unlockedCats);
+  return { progress, unlockedCats, unlockedProps, sharedTarget, familyGoalOpen, familyGoalLabel: goal?.label ?? null };
 }

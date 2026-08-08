@@ -5,7 +5,7 @@ import { SKILLS, generateCanon } from '@/skills';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimFor } from './fluency';
 import { seedGradeFor, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
-import { rewardState, resolveSharedTarget } from './reward';
+import { rewardState } from './reward';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
 import { skillLabel } from './labels';
@@ -302,7 +302,7 @@ function advanceSession(playerId: string, sessionId: number, now: number): Sessi
     repo.appendUsageEvent(playerId, 'session_ended', 'completed', now);
     const player = repo.playerById(playerId);
     if (player) {
-      const shared = resolveSharedTarget(player.family_id, rewardState(player.family_id).unlockedCats);
+      const shared = rewardState(player.family_id, playerId).sharedTarget; // this child's own default
       repo.setAllocation(sessionId, playerId, player.family_id, shared.kind, shared.id, now);
     }
     checkFamilyGoal(playerId, now);

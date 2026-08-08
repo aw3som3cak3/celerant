@@ -232,6 +232,17 @@ CREATE TABLE IF NOT EXISTS family_shared_target (
   at          INTEGER NOT NULL
 );
 
+-- Per-child DEFAULT target ("what I'm collecting for"). Latest-wins, not a ledger.
+-- Each kid steers their own sessions; the cats stay family-shared and progress stays
+-- pooled (targetAllocationCounts by family), so "personal steering, shared cats". A kid
+-- with no row falls back to the family_shared_target, then the next uncollected cat.
+CREATE TABLE IF NOT EXISTS player_target (
+  player_id   TEXT PRIMARY KEY REFERENCES player(id),
+  target_kind TEXT NOT NULL CHECK (target_kind IN ('cat','family','prop')),
+  target_id   TEXT NOT NULL,
+  at          INTEGER NOT NULL
+);
+
 -- LEDGER (instrumentation.md §4.3). Append-only stream of motivational-layer
 -- events (not attempts/sprints/goals) to correlate against usage. Invisible to
 -- the child; changes no behaviour; in the export. NOT engagement instrumentation
