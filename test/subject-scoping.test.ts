@@ -60,21 +60,26 @@ describe('subject scoping — anti-contamination', () => {
     expect(fx).not.toBeCloseTo(aimFor(null, sg, FIXTURE_CODE, 0) * prov, 2); // NOT the digit aim
   });
 
-  it('buildStates yields only the requested subject', () => {
+  it('buildStates yields only the requested subject (with a REAL spelling skill present)', () => {
     const maths = buildStates(pid, YEAR, 'maths').map((s) => s.code);
     const spelling = buildStates(pid, YEAR, 'spelling').map((s) => s.code);
     expect(maths).not.toContain(FIXTURE_CODE);
+    expect(maths).not.toContain('spelling_t2'); // the real spelling skill never leaks into maths
     expect(maths.length).toBeGreaterThan(30); // the real maths graph
-    expect(spelling).toEqual([FIXTURE_CODE]); // only the fixture
+    expect(spelling).toContain(FIXTURE_CODE);
+    expect(spelling).toContain('spelling_t2'); // both spelling skills present, no maths
+    expect(spelling).not.toContain('add_within_10');
   });
 
   it('the child map, parent map, graph layout and edges are per-subject', () => {
     expect(buildChildMap(pid, YEAR, 'maths').nodes.map((n) => n.id)).not.toContain(FIXTURE_CODE);
     expect(buildChildMap(pid, YEAR, 'spelling').nodes.map((n) => n.id)).toContain(FIXTURE_CODE);
     expect(buildParentMap(pid, 'maths').nodes.map((n) => n.code)).not.toContain(FIXTURE_CODE);
-    expect(buildParentMap(pid, 'spelling').nodes.map((n) => n.code)).toEqual([FIXTURE_CODE]);
+    const spellingParent = buildParentMap(pid, 'spelling').nodes.map((n) => n.code);
+    expect(spellingParent).toContain(FIXTURE_CODE);
+    expect(spellingParent).not.toContain('add_within_10'); // no maths in the spelling map
     expect([...positions('maths').keys()]).not.toContain(FIXTURE_CODE);
-    expect([...positions('spelling').keys()]).toEqual([FIXTURE_CODE]);
+    expect([...positions('spelling').keys()]).toContain(FIXTURE_CODE);
     expect(skillEdges('maths').flatMap((e) => [e.from, e.to])).not.toContain(FIXTURE_CODE);
   });
 

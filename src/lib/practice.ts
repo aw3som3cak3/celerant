@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import * as repo from '@/db/repo';
 import { SKILLS, generateCanon, type Subject } from '@/skills';
 import { skillsForSubject } from './subjects';
+import { SPELLING_POOLS, encodeSpellingSeed, type SpellingPhase } from './spelling-content';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimForSkill } from './fluency';
 import { seedGradeFor, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
@@ -344,8 +345,30 @@ export type IssuedItem = {
 
 export function issueNext(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): IssuedItem {
   const { pick, novel, level } = pickNext(playerId, schoolYear, now, opts);
-  const seed = randomSeed();
+  // Word choice is downstream of skill selection (A11): the selector picked `pick.code`;
+  // for a spelling skill the PROVIDER now picks the seed (an unseen practice word), else a
+  // random seed as before. issueNext is the practice path → phase 'practice'.
+  const seed = SKILL_META.get(pick.code)?.subject === 'spelling' ? nextSpellingWord(playerId, pick.code, 'practice') : randomSeed();
   return { code: pick.code, seed, family: pick.family, answerLength: answerLengthOf(pick.code, seed), novel, level, warmup: opts.warmupTarget != null };
+}
+
+// The A13/A14 content-side item provider: choose the seed encoding an UNSEEN word from the
+// right pool (practice vs holdout by phase) for this child. Strictly downstream of skill
+// selection — the selector never reasons about words. On exhaustion (A14) it recycles the
+// least-recently-seen word (spacing). NOTE: holdout exhaustion would ideally mark the skill
+// measurement-complete and let it leave the eligible pool via the existing fluent-drop, but
+// that needs the eligibility layer to reason about word-state — an A11 boundary — so it is
+// FLAGGED and deferred; recycling keeps the sprint flow safe until that's designed.
+export function nextSpellingWord(playerId: string, code: string, phase: SpellingPhase): number {
+  const pool = SPELLING_POOLS[code];
+  if (!pool || !pool[phase].length) return randomSeed();
+  const words = pool[phase];
+  const seen = repo.spellingSeenWords(playerId, code);
+  const unseen = words.map((w, i) => ({ w, i })).filter((x) => !seen.has(x.w));
+  if (unseen.length) return encodeSpellingSeed(phase, unseen[Math.floor(Math.random() * unseen.length)].i);
+  let lru = { i: 0, at: Infinity };
+  words.forEach((w, i) => { const at = seen.get(w) ?? 0; if (at < lru.at) lru = { i, at }; });
+  return encodeSpellingSeed(phase, lru.i);
 }
 
 // The per-item selection options (target, reach-up, peak-end, warm-up ramp/retreat)

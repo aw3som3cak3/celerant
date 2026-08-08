@@ -1,6 +1,7 @@
-import { generateCanon, type CanonItem } from '@/skills';
+import { generateCanon, BY_CODE, type CanonItem } from '@/skills';
 import { makeRng } from './rng';
 import { grade } from './grade';
+import { wordForSeed } from './spelling-content';
 
 // The ONE shared item builder (input-timing guardrail 2a). Client and server MUST
 // produce an item by calling THIS — same generateCanon, same RNG, one module — so
@@ -9,6 +10,16 @@ import { grade } from './grade';
 // screen. Deterministic from (code, seed); the seed is always server-issued
 // (guardrail 2b) so a client can't fish for easy items.
 export function buildItem(code: string, seed: number): CanonItem {
+  // Spelling: the (code, seed) denotes a specific WORD (the server-side provider chose the
+  // seed to pick an unseen word). Decode it here — the shared client/grader path — so both
+  // reproduce the same word with no player state on the client. Empty prompt: a dictation
+  // shows the letter pad and PLAYS the word (TTS/audio), never displays it. The reveal step
+  // shows the spelling after a miss (the teaching).
+  const skill = BY_CODE.get(code);
+  if (skill?.subject === 'spelling') {
+    const word = wordForSeed(code, seed) ?? '';
+    return { prompt: '', answer: word, steps: word ? [word] : [] };
+  }
   return generateCanon(code, makeRng(seed));
 }
 
@@ -17,7 +28,11 @@ export function buildItem(code: string, seed: number): CanonItem {
 // is tapped. A negligible leak ("56 is two digits" tells a cheater nothing) and
 // grading still happens server-side.
 export function answerLengthOf(code: string, seed: number): number {
-  return buildItem(code, seed).answer.replace(/[^0-9]/g, '').length;
+  const item = buildItem(code, seed);
+  // Spelling answers are words on the LETTER pad — the auto-submit boundary is the word's
+  // letter count, not a digit count (the pad completes on nv.length, not digitCount).
+  if (BY_CODE.get(code)?.subject === 'spelling') return item.answer.length;
+  return item.answer.replace(/[^0-9]/g, '').length;
 }
 
 // Server-side authoritative grading: re-generate the item from its seed and grade
