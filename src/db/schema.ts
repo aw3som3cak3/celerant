@@ -115,6 +115,19 @@ CREATE TABLE IF NOT EXISTS session (
   expires_at INTEGER NOT NULL
 );
 
+-- Per-child READ token (fluency-signal-contract v0.2). Authorises reading exactly ONE
+-- child's flytsignal — least privilege vs a family session (which could read every
+-- sibling). Minted once by the guardian (parent-PIN gated) at account creation; the raw
+-- token is shown once and only its SHA-256 is stored. Non-expiring (a term-long
+-- credential), revocable when consent is withdrawn. player.id (a stable uuid) is the
+-- identifier the consumer stores; this token is the separate, rotatable secret.
+CREATE TABLE IF NOT EXISTS player_read_token (
+  token_hash TEXT PRIMARY KEY,
+  player_id  TEXT NOT NULL REFERENCES player(id),
+  created_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+
 -- Ephemeral scratch, NOT a ledger: the served item's answer key, held
 -- server-side so the client never sees it (§6.7). PERSISTED rather than in
 -- memory so a machine suspend/restart can't orphan an in-flight answer (which

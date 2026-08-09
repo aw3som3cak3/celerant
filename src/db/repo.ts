@@ -676,6 +676,24 @@ export function deleteSession(tokenHash: string): void {
   getDb().prepare('DELETE FROM session WHERE token_hash = ?').run(tokenHash);
 }
 
+// Per-child read token (fluency signal, least privilege). The caller generates the token and
+// passes its hash (mirrors createSession); only the hash is stored.
+export function createPlayerReadToken(tokenHash: string, playerId: string, now: number): void {
+  getDb()
+    .prepare('INSERT INTO player_read_token (token_hash, player_id, created_at) VALUES (?, ?, ?)')
+    .run(tokenHash, playerId, now);
+}
+// The player a live (non-revoked) read token authorises, or null.
+export function playerIdForReadToken(tokenHash: string): string | null {
+  const row = getDb()
+    .prepare('SELECT player_id FROM player_read_token WHERE token_hash = ? AND revoked_at IS NULL')
+    .get(tokenHash) as { player_id: string } | undefined;
+  return row?.player_id ?? null;
+}
+export function revokePlayerReadToken(tokenHash: string, now: number): void {
+  getDb().prepare('UPDATE player_read_token SET revoked_at = ? WHERE token_hash = ?').run(now, tokenHash);
+}
+
 // --- motivation layer (strictly downstream; replay() never reads these) -----
 
 export type SessionRunRow = {
