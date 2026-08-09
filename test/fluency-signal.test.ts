@@ -10,6 +10,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 import * as repo from '@/db/repo';
 import { replay } from '@/db/replay';
 import { fluencySignal } from '@/lib/fluency-signal';
+import { newSessionToken, hashToken } from '@/lib/session';
 
 const NOW = Date.UTC(2026, 7, 9);
 const attempt = (pid: string, code: string, at: number) =>
@@ -60,5 +61,34 @@ describe('outward fluency signal (contract v0.1)', () => {
     const fam = repo.createFamily('bare', 'a:b', 'a:c', NOW);
     const bare = repo.createPlayer(fam, 'owl', 4, NOW); // created but NOT replayed
     expect(() => fluencySignal(bare, 'add_within_10')).not.toThrow();
+  });
+});
+
+describe('per-child read token (least privilege)', () => {
+  let a: string, b: string;
+  beforeEach(() => {
+    const fam = repo.createFamily(`t+i-${Math.random().toString(36).slice(2)}`, 'x:y', 'x:z', NOW);
+    a = repo.createPlayer(fam, 'mouse', 3, NOW);
+    b = repo.createPlayer(fam, 'duck', 0, NOW); // a sibling
+  });
+
+  it('a minted token resolves to exactly its own child', () => {
+    const { token, tokenHash } = newSessionToken();
+    repo.createPlayerReadToken(tokenHash, a, NOW);
+    expect(repo.playerIdForReadToken(hashToken(token))).toBe(a); // resolves from the raw token
+    expect(repo.playerIdForReadToken('deadbeef')).toBeNull(); // an unknown token authorises nothing
+  });
+
+  it("one child's token never resolves to a sibling", () => {
+    const { token } = newSessionToken();
+    repo.createPlayerReadToken(hashToken(token), a, NOW);
+    expect(repo.playerIdForReadToken(hashToken(token))).not.toBe(b); // a's token is not b's
+  });
+
+  it('a revoked token authorises nothing (consent withdrawn)', () => {
+    const { token } = newSessionToken();
+    repo.createPlayerReadToken(hashToken(token), a, NOW);
+    repo.revokePlayerReadToken(hashToken(token), NOW + 1000);
+    expect(repo.playerIdForReadToken(hashToken(token))).toBeNull();
   });
 });
