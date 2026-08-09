@@ -69,7 +69,7 @@ export type SkillScore = {
 // (fluency does not apply) OR its rate — measured or provisional — meets its
 // aim. Every branch is explicit on the evidence source; `unknown` is a bug,
 // because a prerequisite should never be evaluated before placement seeds it.
-function componentFluent(s: SelState): boolean {
+export function componentFluent(s: SelState): boolean {
   if (s.mode === 'compound') return true;
   if (s.rate.source === 'unknown')
     throw new Error(`fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`);

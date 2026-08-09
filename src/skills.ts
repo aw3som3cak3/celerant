@@ -888,6 +888,22 @@ const tierDecimals: Skill[] = [
       return { prompt: `${opStr} × ${w} =`, answer: ans, steps: [`${w} × ${opStr} = ${answerToString(ans)}`] };
     },
   }),
+  S({
+    // Compare two decimals of UNLIKE length as points on one number line, then type the LARGER.
+    // The misconception "more digits ⇒ bigger" (0,45 > 0,5) lives in the PAIR drawn: half the
+    // draws are the trap (the longer number is smaller), half honest (the longer is bigger), so
+    // "pick the shortest" never works — the child must read place value. Typed, not choice, so
+    // it stays sprintable → reaches a measured rate (the reading must be earned, not guessed).
+    code: "dec_compare", family: "decimals", year: 5, mode: "component", requires: ["dec_read_tenths"],
+    generate: (r) => {
+      const aN = r.int(1, 9);                                                     // tenths value aN/10
+      const bN = until(() => r.int(1, 99), (b) => b % 10 !== 0 && b !== aN * 10); // hundredths, distinct value
+      const bigger = aN * 10 > bN ? dec(aN, 1) : dec(bN, 2);
+      const aStr = answerToString(dec(aN, 1)), bStr = answerToString(dec(bN, 2));
+      const [x, y] = r.int(0, 1) === 0 ? [aStr, bStr] : [bStr, aStr];
+      return { prompt: `${x} eller ${y} =`, answer: bigger, steps: [`Störst: ${answerToString(bigger)}`] };
+    },
+  }),
 ];
 
 /* ═══ export ══════════════════════════════════════════════════════════ */

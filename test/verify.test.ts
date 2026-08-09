@@ -46,6 +46,13 @@ const verifyItem = (it: Item): Result => {
 
   if (answer.kind === 'dec') {
     const val = answer.v / 10 ** answer.scale;
+    // Comparison ("0,5 eller 0,45 =" → type the larger): not an evaluable expression; the answer
+    // must be the MAX of the two operands.
+    if (/eller/.test(prompt)) {
+      const nums = (norm(prompt).match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
+      if (Math.abs(Math.max(...nums) - val) > 1e-9) return { ok: false, why: `${prompt}: ${val} is not the larger` };
+      return steps.at(-1)?.includes(answerToString(answer)) ? { ok: true } : { ok: false, why: `final step omits ${answerToString(answer)}` };
+    }
     const got = evalExpr(norm(prompt).replace(/(\d)\s*\(/g, '$1*(')); // comma→point handled in norm
     if (Math.abs(got - val) > 1e-9) return { ok: false, why: `${prompt} → ${got}, answer says ${val}` };
     const decStr = answerToString(answer);

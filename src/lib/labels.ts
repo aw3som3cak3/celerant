@@ -19,6 +19,7 @@ const EXACT: Record<string, string> = {
   dec_add_align: 'plus, olika decimaler',
   dec_sub_borrow: 'decimalminus med lån',
   dec_times_whole: 'decimaltal gånger heltal',
+  dec_compare: 'störst av decimaltal',
   more_or_less: 'fler eller färre',
   count_to_5: 'räkna till 5',
   count_within_10: 'räkna till 10',

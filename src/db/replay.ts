@@ -423,4 +423,13 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_count_to_5_v1');
   }
+
+  // dec_compare: new decimals component (read two unlike-length decimals, type the larger) — a
+  // real maths skill AND the measurable node behind the workshop's decimal-comparison consumer.
+  // Existing players need an ability row or buildStates hands the selector an 'unknown' rate.
+  // Replay all once to seed it. Runs once; no-op on a fresh DB. No MODEL_VERSION bump.
+  if (!done('bridge_dec_compare_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_dec_compare_v1');
+  }
 }

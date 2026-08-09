@@ -41,7 +41,7 @@ describe('decimals tier — skills present and self-consistent', () => {
     expect(DEC).toEqual([
       'dec_read_tenths', 'dec_add_same', 'dec_sub_same',
       'dec_x10', 'dec_div10', 'dec_add_carry',
-      'dec_add_align', 'dec_sub_borrow', 'dec_times_whole',
+      'dec_add_align', 'dec_sub_borrow', 'dec_times_whole', 'dec_compare',
     ]);
     for (const code of DEC) {
       const s = BY_CODE.get(code)!;
@@ -84,6 +84,25 @@ describe('decimals tier — skills present and self-consistent', () => {
     // dec_sub_borrow never goes negative.
     const rs = mkRng(0x5b0);
     for (let i = 0; i < 200; i++) expect(parseFloat(generateCanon('dec_sub_borrow', rs).answer.replace(',', '.'))).toBeGreaterThan(0);
+
+    // dec_compare: two distinct decimals joined by "eller"; the answer is the LARGER, and BOTH
+    // longer-is-smaller and longer-is-bigger cases occur (so "pick the shortest" can't work).
+    const rcmp = mkRng(0xc0c);
+    let trap = 0, honest = 0;
+    for (let i = 0; i < 300; i++) {
+      const it = generateCanon('dec_compare', rcmp);
+      const nums = it.prompt.match(/\d+,\d+/g)!.map((n) => parseFloat(n.replace(',', '.')));
+      expect(nums.length).toBe(2);
+      expect(nums[0]).not.toBe(nums[1]);
+      const larger = Math.max(...nums);
+      expect(parseFloat(it.answer.replace(',', '.'))).toBeCloseTo(larger, 9); // answer is the max
+      // was the LONGER-written number the smaller (trap) or the bigger (honest)?
+      const [a, b] = it.prompt.match(/\d+,\d+/g)!;
+      const longer = a.length >= b.length ? parseFloat(a.replace(',', '.')) : parseFloat(b.replace(',', '.'));
+      if (longer === larger) honest++; else trap++;
+    }
+    expect(trap).toBeGreaterThan(20); // both patterns appear — not just "longer is bigger"
+    expect(honest).toBeGreaterThan(20);
   });
 
   it('gradeBySeed round-trips the canonical answer for a decimal skill', () => {
