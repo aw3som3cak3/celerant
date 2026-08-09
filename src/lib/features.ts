@@ -12,7 +12,7 @@ import { BY_CODE } from '@/skills';
 
 export const FEATURES_VERSION = 1;
 
-export type Operation = 'add' | 'sub' | 'mul' | 'div' | 'linear' | 'fraction' | 'order';
+export type Operation = 'add' | 'sub' | 'mul' | 'div' | 'linear' | 'fraction' | 'order' | 'compare';
 
 export type ItemFeatures = {
   operands: number[];
@@ -56,6 +56,7 @@ function operationFor(code: string): Operation {
     return 'add';
   }
   if (family === 'decimals') {
+    if (code.includes('compare')) return 'compare'; // "störst" — not an arithmetic reproduction
     if (code.includes('sub')) return 'sub';
     if (code.includes('times') || code.includes('x10')) return 'mul';
     if (code.includes('div') || code.includes('read')) return 'div'; // n/10 = n ÷ 10

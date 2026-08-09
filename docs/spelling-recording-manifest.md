@@ -54,7 +54,13 @@ spread of both spellings.
 
 ## T4 · e/ä — vowel quality  *(batch now)*
 - **ä-spelled:** häst · träd · äta · bär · väg · känna · säng · näsa
-- **e-spelled:** ben · sten · hel · ren · se · vem · det · fem
+- **e-spelled:** ben · sten · hel · ren · se · vem · tre · fem
+
+> **Excluded on purpose — de / dem / det / dom.** In speech "de"/"dem" are both /dɔm/ and
+> "det" is /deː/ (silent t): the sound doesn't determine the spelling — grammar does (subject
+> vs object; neuter pronoun). Dictation ("spell what you hear") is unanswerable for them, so
+> they are NOT audio assets. If we ever teach de/dem/dom, it's a sentence-context usage/cloze
+> skill, never a T4 vowel-quality clip. (`det` was here; replaced with `tre`.)
 
 16 clips.
 
