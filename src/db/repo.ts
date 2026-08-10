@@ -706,16 +706,24 @@ export type SessionRunRow = {
   ended_early: number;
   started_at: number;
   subject: 'maths' | 'spelling';
+  subjects: string | null; // JSON array of active subjects for a MIXED session; NULL = single (use `subject`)
 };
 
-export function createSessionRun(playerId: string, target: number, now: number, subject: 'maths' | 'spelling' = 'maths'): number {
+export function createSessionRun(
+  playerId: string,
+  target: number,
+  now: number,
+  subject: 'maths' | 'spelling' = 'maths',
+  subjects?: readonly ('maths' | 'spelling')[], // pass the SET for a mixed Öva; omit for single-subject
+): number {
   // An accidental open with no answered question is NOT a session (a wrong icon +
   // "tillbaka"). Clear the player's prior empty, still-open runs so they never
   // linger or get counted as a started/abandoned session.
   getDb().prepare('DELETE FROM session_run WHERE player_id = ? AND completed = 0 AND ended_at IS NULL').run(playerId);
+  const set = subjects && subjects.length > 1 ? JSON.stringify(subjects) : null;
   const info = getDb()
-    .prepare('INSERT INTO session_run (player_id, target, started_at, subject) VALUES (?, ?, ?, ?)')
-    .run(playerId, target, now, subject);
+    .prepare('INSERT INTO session_run (player_id, target, started_at, subject, subjects) VALUES (?, ?, ?, ?, ?)')
+    .run(playerId, target, now, subject, set);
   return Number(info.lastInsertRowid);
 }
 // The most recent still-open session for a player, if it started within the

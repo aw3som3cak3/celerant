@@ -9,7 +9,12 @@ import { json } from '@/lib/api';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const Body = z.object({ playerId: z.string().min(1), again: z.boolean().optional(), subject: z.enum(['maths', 'spelling']).optional() });
+const Body = z.object({
+  playerId: z.string().min(1),
+  again: z.boolean().optional(),
+  subject: z.enum(['maths', 'spelling']).optional(), // an explicit single-subject entry (e.g. a map deep-link)
+  headphones: z.boolean().optional(), // the mixed-Öva "har du hörlurar?" answer — spelling joins only when true
+});
 
 // Open a session and offer three eligible skills to start with (§3.2). The
 // session length is the child's own target (default 20; shorter for young ones).
@@ -20,9 +25,18 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  const subject = parsed.data.subject ?? 'maths';
+  // A mixed Öva (no explicit subject) interleaves maths with spelling, but spelling needs audio
+  // so it only joins when the child said they have headphones (asked once per session). An
+  // explicit subject (map deep-link) stays single-subject, byte-identical to before.
+  const explicit = parsed.data.subject;
+  const subjects: ('maths' | 'spelling')[] = explicit
+    ? [explicit]
+    : parsed.data.headphones
+      ? ['maths', 'spelling']
+      : ['maths'];
+  const subject = subjects[0];
   const target = player.session_target;
-  const sessionId = repo.createSessionRun(player.id, target, now, subject);
+  const sessionId = repo.createSessionRun(player.id, target, now, subject, subjects);
   // 'session_started' is logged on the FIRST answered item (advanceSession), not
   // here — a session with no answered question doesn't count as started (a wrong
   // icon + "tillbaka"). 'en_till' (the "en till?" button) still marks a return.

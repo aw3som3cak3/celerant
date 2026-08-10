@@ -48,10 +48,19 @@ describe('issueNext — mixed session interleaves; single subject stays pure', (
   });
 
   const optsFor = (subjects?: ('maths' | 'spelling')[]) => {
-    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
-    const base = sessionSelectOpts({ id: pid, school_year: 3, stretch: 0 }, sid, NOW);
-    return subjects ? { ...base, subjects } : base;
+    const sid = repo.createSessionRun(pid, 10, NOW, subjects ? subjects[0] : 'maths', subjects);
+    return sessionSelectOpts({ id: pid, school_year: 3, stretch: 0 }, sid, NOW);
   };
+
+  it('a mixed session_run carries the subject SET through to sessionSelectOpts', () => {
+    expect(optsFor(['maths', 'spelling']).subjects).toEqual(['maths', 'spelling']);
+  });
+
+  it('a single-subject run leaves subjects undefined (byte-identical selector path)', () => {
+    const opts = optsFor();
+    expect(opts.subjects).toBeUndefined();
+    expect(opts.subject).toBe('maths');
+  });
 
   it('a single-subject (maths) session NEVER issues a spelling item', () => {
     const opts = optsFor();

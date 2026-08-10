@@ -82,6 +82,9 @@ const MIGRATIONS = [
   // Subject scoping: which subject a session practises (maths | spelling). Legacy sessions
   // default to maths, so existing behaviour is unchanged.
   "ALTER TABLE session_run ADD COLUMN subject TEXT NOT NULL DEFAULT 'maths'",
+  // Mixed Öva (one-ova-track): the SET of subjects a session interleaves. NULL on legacy rows
+  // and on single-subject sessions — the selector falls back to the scalar `subject`.
+  'ALTER TABLE session_run ADD COLUMN subjects TEXT',
 ];
 
 export function getDb(): Database.Database {

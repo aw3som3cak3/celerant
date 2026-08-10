@@ -231,32 +231,13 @@ function Players({ me }: { me: Me }) {
               on this shared screen the kids see. */}
         </div>
 
-        {/* Spelling door — open to all children (me.spelling). A tap starts a SPELLING
-            session (subject=spelling); the same child, the same reward economy, just
-            dictation instead of the numpad. */}
-        {me.spelling && !editing && (
-          <>
-            <div className="or-divider"><Emoji e="✏️" /> Stava</div>
-            <div className="children-grid">
-              {me.players!.map((p) => (
-                <button
-                  key={`sp-${p.id}`}
-                  className="child-tile"
-                  title={`Stava — ${BY_KEY.get(p.icon)?.name ?? ''}`}
-                  onClick={() => (location.href = `/practice?p=${p.id}&subject=spelling`)}
-                >
-                  <EmojiIcon iconKey={p.icon} />
-                  <span className="tile-edit"><Emoji e="🎧" /></span>
-                </button>
-              ))}
-            </div>
-            {/* The word-review tool reveals the words — vetting instrument, test family only. */}
-            {me.spellingReview && (
-              <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
-                <Emoji e="🔍" /> Granska orden (lyssna)
-              </button>
-            )}
-          </>
+        {/* Spelling is no longer a separate door — it interleaves into the single Öva track,
+            gated by the "har du hörlurar?" prompt at session start. Only the word-review tool
+            remains on the home screen, for the test family. */}
+        {me.spellingReview && !editing && (
+          <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
+            <Emoji e="🔍" /> Granska orden (lyssna)
+          </button>
         )}
 
         <div className="family-actions">

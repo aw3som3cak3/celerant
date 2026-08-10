@@ -161,7 +161,8 @@ CREATE TABLE IF NOT EXISTS session_run (
   ended_at    INTEGER,
   ended_early INTEGER NOT NULL DEFAULT 0,
   started_at  INTEGER NOT NULL,
-  subject     TEXT NOT NULL DEFAULT 'maths'  -- which subject this session practises (spelling scoping)
+  subject     TEXT NOT NULL DEFAULT 'maths',  -- primary subject (= subjects[0]; spelling scoping)
+  subjects    TEXT                            -- JSON array of ACTIVE subjects for a MIXED Ova; NULL = single-subject (falls back to subject)
 );
 CREATE INDEX IF NOT EXISTS idx_session_run_player ON session_run(player_id, started_at);
 

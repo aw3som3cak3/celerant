@@ -439,10 +439,14 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
   let peakEnd = false;
   let warmupTarget: number | undefined;
   let subject: Subject = 'maths';
+  let subjects: Subject[] | undefined;
   if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);
     if (run && run.player_id === player.id && run.ended_at == null) {
-      subject = run.subject; // the whole session stays in its subject — first item and every folded next
+      subject = run.subject; // the primary subject (= subjects[0])
+      // A MIXED Öva carries the active SET; the selector interleaves them (increment 1). A
+      // single-subject session leaves run.subjects NULL and stays scalar, byte-identical.
+      subjects = run.subjects ? (JSON.parse(run.subjects) as Subject[]) : undefined;
       peakEnd = run.completed === run.target - 1;
       const ramp = rampLen(completed, run.target);
       if (run.completed < ramp) {
@@ -452,7 +456,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
       }
     }
   }
-  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp, subject };
+  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp, subject, subjects };
 }
 
 export type SessionAnswerResult =

@@ -32,9 +32,10 @@ function Practice() {
   const QUIET = QUIET_WORDS[locale] ?? QUIET_WORDS.sv;
   const sp = useSearchParams();
   const playerId = sp.get('p') ?? '';
-  const subject = sp.get('subject') === 'spelling' ? 'spelling' : 'maths'; // spelling test flow
+  const subjectParam = sp.get('subject'); // explicit single-subject entry; null = the mixed Öva
+  const subject = subjectParam === 'spelling' ? 'spelling' : 'maths';
   const startCode = sp.get('start'); // arrive here from a frontier node on the map
-  const [phase, setPhase] = useState<'loading' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
+  const [phase, setPhase] = useState<'loading' | 'headphones' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [target, setTarget] = useState(10);
   const [completed, setCompleted] = useState(0);
@@ -53,6 +54,8 @@ function Practice() {
   const triesRef = useRef(1); // client-tracked try count for the CURRENT item (1, then 2 on a retry)
   const autoStarted = useRef(false);
   const resumingRef = useRef(false);
+  const againRef = useRef(false); // carry the "en till?" intent through the headphone prompt
+  const [spellingAvailable, setSpellingAvailable] = useState(false);
 
   // Show whose session this is (their own icon).
   useEffect(() => {
@@ -94,9 +97,13 @@ function Practice() {
     [playerId, sessionId],
   );
 
-  const startSession = useCallback(async (again = false) => {
-    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again, subject });
+  const startSession = useCallback(async (again = false, headphones?: boolean) => {
+    // A mixed Öva sends the headphone answer (spelling joins only with headphones); an explicit
+    // subject entry (map deep-link) sends the subject and stays single-subject.
+    const body = subjectParam ? { playerId, again, subject } : { playerId, again, headphones };
+    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', body);
     if (r.error) return void (location.href = '/');
+    againRef.current = false;
     autoStarted.current = false;
     resumingRef.current = false;
     setRamp(r.rampLen ?? 0);
@@ -105,10 +112,24 @@ function Practice() {
     setCompleted(0);
     setChoices(r.choices);
     setPhase('choose');
-  }, [playerId, subject]);
+  }, [playerId, subject, subjectParam]);
+
+  // "En till?" restart: for a mixed Öva, re-ask headphones (once per pass); else start directly.
+  const restart = useCallback(() => {
+    if (spellingAvailable && !subjectParam && !startCode) {
+      againRef.current = true;
+      setPhase('headphones');
+    } else {
+      startSession(true);
+    }
+  }, [spellingAvailable, subjectParam, startCode, startSession]);
 
   const resumeOrStart = useCallback(async () => {
-    const cur = await getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`);
+    const [cur, me] = await Promise.all([
+      getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`),
+      getJSON<{ spelling?: boolean }>('/api/me'),
+    ]);
+    setSpellingAvailable(!!me.spelling); // in both paths, so a later "en till" re-asks headphones
     if (cur.session) {
       autoStarted.current = false;
       resumingRef.current = true;
@@ -118,10 +139,17 @@ function Practice() {
       setRamp(0);
       setChoices([]);
       setPhase('choose'); // blank; the auto-load effect loads the next item
+      return;
+    }
+    // Fresh session. The mixed Öva (no explicit subject, not a map deep-link) asks "har du
+    // hörlurar?" first — spelling only interleaves in when the child has them.
+    if (me.spelling && !subjectParam && !startCode) {
+      againRef.current = false;
+      setPhase('headphones');
     } else {
       startSession();
     }
-  }, [playerId, startSession]);
+  }, [playerId, startSession, subjectParam, startCode]);
 
   useEffect(() => {
     if (!playerId) return void (location.href = '/');
@@ -242,6 +270,28 @@ function Practice() {
 
   if (phase === 'loading') return <div className="stage" />;
 
+  if (phase === 'headphones') {
+    return (
+      <div className="stage">
+        {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
+        <p className="prompt" style={{ fontSize: '1.7rem', marginBottom: '1.8rem' }}>Har du hörlurar?</p>
+        <div style={{ display: 'flex', gap: '1.2rem', justifyContent: 'center' }}>
+          <button className="choice-btn" onClick={() => startSession(againRef.current, true)}>
+            <span className="choice-sample" style={{ fontSize: '2.6rem' }}><Emoji e="🎧" /></span>
+            <span className="choice-label">Ja</span>
+          </button>
+          <button className="choice-btn" onClick={() => startSession(againRef.current, false)}>
+            <span className="choice-sample" style={{ fontSize: '2.6rem' }}><HeadphonesOff /></span>
+            <span className="choice-label">Nej</span>
+          </button>
+        </div>
+        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+          <a className="quit-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === 'choose') {
     if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />;
     return (
@@ -284,7 +334,7 @@ function Practice() {
           </div>
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-          <button className="next-btn" onClick={() => startSession(true)}>{t('common.again')}</button>
+          <button className="next-btn" onClick={restart}>{t('common.again')}</button>
           {hasDiplomas && <a className="next-btn" href={`/shelf?p=${playerId}`}><Emoji e="🏅" /> {t('home.diplomas')}</a>}
           <a className="next-btn" href={`/room?p=${playerId}`}><Emoji e="🐱" /> {t('room.title')}</a>
           <a className="next-btn primary" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
