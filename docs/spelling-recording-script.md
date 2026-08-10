@@ -17,9 +17,14 @@ lists — nothing invented, nothing dropped.
 
 - **Read straight down, in order, one word per breath.** The line number is the clip number —
   if you skip one, every later clip mislabels, so don't reorder or skip.
-- **Leave ~1 second of real silence between items** — a clear, deliberate gap, longer than any
-  pause inside a word. That silence is how the splitter finds clean boundaries later. Start and
-  end the whole recording with ~1 second of silence too.
+- **Leave a CONSISTENT ~1.5 second silence between items** — the same clear beat every time
+  (say the word, then silently think *"tusen-ett, tusen-två"* before the next). Consistency
+  matters more than length: a gap that's sometimes short merges two clips into one. Start and
+  end the whole recording with ~1.5 seconds of silence too.
+- **Don't rush items 55–78** (the single phonemes) — they're short, so give them the *same*
+  full gap; they're the easiest to run together.
+- **Set the phone down at a fixed distance and don't touch it mid-take** — handling noise
+  between words looks like speech to the splitter.
 - **Read only the bold word.** The grey cue to the right is for your eye, never spoken.
 - **Child-directed voice:** natural, warm, how you'd say it *to* a kid — not a dictionary
   citation. Do **not** over-stress the doubled consonant in T3; the only difference the child
