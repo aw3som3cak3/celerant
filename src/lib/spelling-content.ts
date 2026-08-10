@@ -57,13 +57,25 @@ export const SPELLING_LETTERS: readonly string[] = 'abdefghiklmnoprstuvyåäö'.
 // How a spelling item's word is delivered to the ear. T3 (vowel LENGTH) needs the recorded
 // human voice (TTS can't be trusted — A12); T2 (transparent) ships on browser TTS. The client
 // plays this and NEVER shows the word (it's dictation). The word comes from buildItem.
+// T3 words that keep Erik's HUMAN recording instead of the Sofie clip — the per-pair fallback
+// for any minimal pair where the neural voice doesn't render the vowel-length contrast cleanly.
+// Add BOTH members of a pair together (never split a pair across voices — the voice difference
+// would cue the answer). Empty = all-Sofie, pending Erik's full ear-vet of the 11 pairs.
+const HUMAN_T3 = new Set<string>([]);
+
 export function spellingAudio(code: string, word: string): { kind: 'file'; url: string } | { kind: 'tts' } {
   const w = encodeURIComponent(word); // robust for å/ä/ö in the static path
-  // T3 (vowel LENGTH) is a HUMAN recording — TTS can't be trusted there (A12). T2 (transparent)
-  // is a PRE-GENERATED neural clip (Sofie, sv-SE) served as a file, so every device hears the
-  // identical word — no per-device browser-TTS variance. Nothing ships on live browser TTS now;
-  // the 'tts' branch remains only as a fallback for a spelling code with no audio yet.
-  if (code === 'spelling_t3') return { kind: 'file', url: `/audio/spelling/t3/${w}.wav` };
+  // Both tiers ship PRE-GENERATED neural clips (Sofie, sv-SE) served as files, so every device
+  // hears the identical word — no per-device browser-TTS variance. Sofie was ear-vetted on the
+  // T3 vowel-length pairs (vit/vitt …) and renders the contrast the old browser TTS couldn't
+  // (A12 relaxed by measurement, not assumption). Erik's human .wav recordings are kept in the
+  // repo as a per-pair fallback — HUMAN_T3 flips any word back to the recorded take. The 'tts'
+  // branch remains only as a fallback for a spelling code with no audio yet.
+  if (code === 'spelling_t3') {
+    return HUMAN_T3.has(word)
+      ? { kind: 'file', url: `/audio/spelling/t3/${w}.wav` }
+      : { kind: 'file', url: `/audio/spelling/t3/${w}.mp3` };
+  }
   if (code === 'spelling_t2') return { kind: 'file', url: `/audio/spelling/t2/${w}.mp3` };
   return { kind: 'tts' };
 }
