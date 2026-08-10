@@ -28,7 +28,7 @@ function rememberFamily(pair: string): void {
 
 type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
-type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
+type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; spellingReview?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
 
 export default function Home() {
@@ -231,12 +231,12 @@ function Players({ me }: { me: Me }) {
               on this shared screen the kids see. */}
         </div>
 
-        {/* Spelling test door — shown ONLY to the test family (me.spelling), gated in
-            /api/me. A tap starts a SPELLING session (subject=spelling); the same child,
-            the same reward economy, just dictation instead of the numpad. */}
+        {/* Spelling door — open to all children (me.spelling). A tap starts a SPELLING
+            session (subject=spelling); the same child, the same reward economy, just
+            dictation instead of the numpad. */}
         {me.spelling && !editing && (
           <>
-            <div className="or-divider"><Emoji e="✏️" /> Stava (test)</div>
+            <div className="or-divider"><Emoji e="✏️" /> Stava</div>
             <div className="children-grid">
               {me.players!.map((p) => (
                 <button
@@ -250,9 +250,12 @@ function Players({ me }: { me: Me }) {
                 </button>
               ))}
             </div>
-            <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
-              <Emoji e="🔍" /> Granska orden (lyssna)
-            </button>
+            {/* The word-review tool reveals the words — vetting instrument, test family only. */}
+            {me.spellingReview && (
+              <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
+                <Emoji e="🔍" /> Granska orden (lyssna)
+              </button>
+            )}
           </>
         )}
 

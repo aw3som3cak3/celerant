@@ -39,8 +39,8 @@ function WordGrid({ code, words }: { code: string; words: readonly string[] }) {
 export default function GranskaPage() {
   const [state, setState] = useState<'loading' | 'ok' | 'denied'>('loading');
   useEffect(() => {
-    getJSON<{ spelling?: boolean }>('/api/me')
-      .then((me) => setState(me?.spelling ? 'ok' : 'denied'))
+    getJSON<{ spellingReview?: boolean }>('/api/me')
+      .then((me) => setState(me?.spellingReview ? 'ok' : 'denied'))
       .catch(() => setState('denied'));
   }, []);
 
