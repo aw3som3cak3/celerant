@@ -79,6 +79,9 @@ const MIGRATIONS = [
   // Position-in-session analysis (the calibration monitor): link each attempt to its
   // session so accuracy-by-position is reliable, not reconstructed by timestamp.
   'ALTER TABLE attempt ADD COLUMN session_run_id INTEGER',
+  // Subject scoping: which subject a session practises (maths | spelling). Legacy sessions
+  // default to maths, so existing behaviour is unchanged.
+  "ALTER TABLE session_run ADD COLUMN subject TEXT NOT NULL DEFAULT 'maths'",
 ];
 
 export function getDb(): Database.Database {

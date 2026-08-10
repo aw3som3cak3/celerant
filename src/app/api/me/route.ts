@@ -21,9 +21,14 @@ export function GET(req: NextRequest) {
   const family = repo.familyById(s.familyId)!;
   const [a, b] = familyIcons(family.icon_display || family.icon_pair); // entered order (icon objects)
   const goalRow = repo.getGoal(s.familyId);
+  // Spelling is in test: the "Stava" door is shown ONLY to the test family (fox+hotdog),
+  // never the real writers, so we can tablet-test it in prod without exposing unvetted
+  // dictation. Flip this one predicate (or remove it) to open spelling to everyone.
+  const spellingEnabled = family.icon_pair.includes('fox') && family.icon_pair.includes('hotdog');
   return json({
     authenticated: true,
     parent: parentFamilyFromRequest(req, now) === s.familyId,
+    spelling: spellingEnabled, // gate the Stava door to the test family
     icons: [a.key, b.key], // KEYS, so the client renders the bundled 3D image
     // No per-child activity on this shared screen: two siblings' rows side by
     // side is a comparison surface (§4.1). The 7-day record is private, shown

@@ -160,7 +160,8 @@ CREATE TABLE IF NOT EXISTS session_run (
   completed   INTEGER NOT NULL DEFAULT 0,
   ended_at    INTEGER,
   ended_early INTEGER NOT NULL DEFAULT 0,
-  started_at  INTEGER NOT NULL
+  started_at  INTEGER NOT NULL,
+  subject     TEXT NOT NULL DEFAULT 'maths'  -- which subject this session practises (spelling scoping)
 );
 CREATE INDEX IF NOT EXISTS idx_session_run_player ON session_run(player_id, started_at);
 

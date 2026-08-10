@@ -11,6 +11,7 @@ const EXACT: Record<string, string> = {
   ground_numeral: 'vilken siffra',
   ground_sum: 'hur mycket blir det',
   spelling_t2: 'ljudenligt',
+  spelling_t3: 'lång eller kort vokal',
   dec_read_tenths: 'tiondelar som decimal',
   dec_add_same: 'decimaltal plus',
   dec_sub_same: 'decimaltal minus',

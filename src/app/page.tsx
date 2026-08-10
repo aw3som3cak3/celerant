@@ -28,7 +28,7 @@ function rememberFamily(pair: string): void {
 
 type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
-type Me = { authenticated: boolean; parent?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
+type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
 type Families = { pairs: string[]; empty: boolean };
 
 export default function Home() {
@@ -230,6 +230,28 @@ function Players({ me }: { me: Me }) {
           {/* Adding a child is a PARENT action — it lives in the parent view, not
               on this shared screen the kids see. */}
         </div>
+
+        {/* Spelling test door — shown ONLY to the test family (me.spelling), gated in
+            /api/me. A tap starts a SPELLING session (subject=spelling); the same child,
+            the same reward economy, just dictation instead of the numpad. */}
+        {me.spelling && !editing && (
+          <>
+            <div className="or-divider"><Emoji e="✏️" /> Stava (test)</div>
+            <div className="children-grid">
+              {me.players!.map((p) => (
+                <button
+                  key={`sp-${p.id}`}
+                  className="child-tile"
+                  title={`Stava — ${BY_KEY.get(p.icon)?.name ?? ''}`}
+                  onClick={() => (location.href = `/practice?p=${p.id}&subject=spelling`)}
+                >
+                  <EmojiIcon iconKey={p.icon} />
+                  <span className="tile-edit"><Emoji e="🎧" /></span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="family-actions">
           {/* The shared cat room — a real button, not a faint link. */}

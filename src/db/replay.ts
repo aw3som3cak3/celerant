@@ -432,4 +432,13 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_dec_compare_v1');
   }
+
+  // Spelling tier (spelling_t2, spelling_t3) enters the graph. Existing players need ability
+  // rows or buildStates('spelling') hands the selector an 'unknown' rate that componentFluent
+  // throws on (spelling_t3 requires spelling_t2). Replay all once to seed them. Runs once; no
+  // MODEL_VERSION bump. Maths is untouched (spelling is subject-scoped out of the maths flow).
+  if (!done('bridge_spelling_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_spelling_v1');
+  }
 }

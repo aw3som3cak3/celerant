@@ -101,6 +101,7 @@ export type NextOpts = {
   warmupTarget?: number; // onboarding ramp (§2): serve near this predicted success, marks warmup
   baseTarget?: number; // start-from-below (§4): the honest target for this player (0.90 new -> 0.80)
   reachUp?: boolean; // reach-up (fix-reach-up.md §3): serve the next rung above the band for a coasting child
+  subject?: Subject; // which subject's pool to select from (default maths) — spelling scoping
 };
 
 // Three eligible skills near the success target, for the child to choose from at
@@ -109,8 +110,8 @@ export type NextOpts = {
 // still recognises the kind of maths. Order is randomised; none is recommended.
 export type SkillChoice = { code: string; label: string; sample: string };
 
-export function sessionChoices(playerId: string, schoolYear: number, stretch: boolean, now: number): SkillChoice[] {
-  const states = buildStates(playerId, schoolYear);
+export function sessionChoices(playerId: string, schoolYear: number, stretch: boolean, now: number, subject: Subject = 'maths'): SkillChoice[] {
+  const states = buildStates(playerId, schoolYear, subject);
   const target = stretch ? STRETCH_TARGET : TARGET_SUCCESS;
   const { scores } = selectItem(states, {
     now,
@@ -138,7 +139,7 @@ type Picked = { pick: SelState; novel: boolean; level: number; scores: unknown; 
 // path (issueNext), so the ADAPTIVE SELECTOR behaves identically on both and there
 // is no second implementation to drift (input-timing Phase A invariant).
 function pickNext(playerId: string, schoolYear: number, now: number, opts: NextOpts): Picked {
-  const states = buildStates(playerId, schoolYear);
+  const states = buildStates(playerId, schoolYear, opts.subject ?? 'maths'); // subject-scoped pool
   const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
   const recentCodes = repo.recentAttemptSkillCodes(playerId, 8);
@@ -388,9 +389,11 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
 
   let peakEnd = false;
   let warmupTarget: number | undefined;
+  let subject: Subject = 'maths';
   if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);
     if (run && run.player_id === player.id && run.ended_at == null) {
+      subject = run.subject; // the whole session stays in its subject — first item and every folded next
       peakEnd = run.completed === run.target - 1;
       const ramp = rampLen(completed, run.target);
       if (run.completed < ramp) {
@@ -400,7 +403,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
       }
     }
   }
-  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp };
+  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp, subject };
 }
 
 export type SessionAnswerResult =

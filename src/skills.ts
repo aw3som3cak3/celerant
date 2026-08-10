@@ -17,7 +17,7 @@
  */
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
-import { T2_WORDS } from "./lib/spelling-content";
+import { T2_WORDS, T3_WORDS } from "./lib/spelling-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -919,6 +919,12 @@ const tierSpelling: Skill[] = [
   S({
     code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: [],
     generate: (r) => { const w = r.pick(T2_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
+  }),
+  S({
+    // T3 vowel length / consonant doubling (vit/vitt …). Dictated from RECORDED audio (A12);
+    // the child hears the word and types the spelling, so the doubling is a real discrimination.
+    code: "spelling_t3", subject: "spelling", family: "sp_double", year: 3, mode: "component", requires: ["spelling_t2"],
+    generate: (r) => { const w = r.pick(T3_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
 ];
 

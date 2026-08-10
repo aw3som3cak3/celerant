@@ -43,10 +43,24 @@ export const T3_WORDS: WordPool = {
 };
 
 // Which pool backs each spelling skill code. A skill absent here is not a word-dictation
-// skill. (T3 is authored but only enters this registry — and the graph — with its audio.)
+// skill. T3 is now registered — its recorded audio is in public/audio/spelling/t3/.
 export const SPELLING_POOLS: Record<string, WordPool> = {
   spelling_t2: T2_WORDS,
+  spelling_t3: T3_WORDS,
 };
+
+// The LETTER pad's glyphs for a spelling item (A6.1): the TIER's letters PLUS distractors,
+// never the item's exact letters (no permutation-puzzle leak). A fixed Swedish lower-case set
+// covers T2/T3 and hides which letters the answer uses.
+export const SPELLING_LETTERS: readonly string[] = 'abdefghiklmnoprstuvyåäö'.split('');
+
+// How a spelling item's word is delivered to the ear. T3 (vowel LENGTH) needs the recorded
+// human voice (TTS can't be trusted — A12); T2 (transparent) ships on browser TTS. The client
+// plays this and NEVER shows the word (it's dictation). The word comes from buildItem.
+export function spellingAudio(code: string, word: string): { kind: 'file'; url: string } | { kind: 'tts' } {
+  if (code === 'spelling_t3') return { kind: 'file', url: `/audio/spelling/t3/${word}.wav` };
+  return { kind: 'tts' };
+}
 
 export type SpellingPhase = 'practice' | 'holdout';
 

@@ -9,8 +9,9 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { buildItem, gradeBySeed, answerLengthOf } from '@/lib/item';
-import { nextSpellingWord } from '@/lib/practice';
+import { nextSpellingWord, issueNext, sessionSelectOpts } from '@/lib/practice';
 import { sprintBatch } from '@/lib/sprint';
+import { replay } from '@/db/replay';
 import {
   T2_WORDS, T3_WORDS, T3_PAIRS, encodeSpellingSeed, decodeSpellingSeed, wordForSeed,
 } from '@/lib/spelling-content';
@@ -101,6 +102,16 @@ describe('item provider (A13/A14) — unseen-first, then LRU recycle', () => {
     T2_WORDS.practice.forEach((_, i) => serve(encodeSpellingSeed('practice', i), NOW + (i === 0 ? 0 : 10_000 + i)));
     const seed = nextSpellingWord(pid, 'spelling_t2', 'practice');
     expect(wordForSeed('spelling_t2', seed)).toBe(T2_WORDS.practice[0]); // the oldest
+  });
+
+  it('a subject:spelling session issues SPELLING items end-to-end (run subject → issueNext)', () => {
+    replay(pid); // seed the player's ability rows (incl spelling) so buildStates never throws
+    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
+    const opts = sessionSelectOpts({ id: pid, school_year: 3, stretch: 0 }, sid, NOW);
+    expect(opts.subject).toBe('spelling'); // carried off the run
+    const item = issueNext(pid, 3, NOW, opts);
+    expect(item.code.startsWith('spelling')).toBe(true); // a spelling skill, never a maths one
+    expect(wordForSeed(item.code, item.seed)).toBeTruthy(); // the seed decodes to a real word
   });
 
   it('a spelling sprint batch draws distinct HOLDOUT words', () => {

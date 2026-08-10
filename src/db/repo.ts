@@ -705,16 +705,17 @@ export type SessionRunRow = {
   ended_at: number | null;
   ended_early: number;
   started_at: number;
+  subject: 'maths' | 'spelling';
 };
 
-export function createSessionRun(playerId: string, target: number, now: number): number {
+export function createSessionRun(playerId: string, target: number, now: number, subject: 'maths' | 'spelling' = 'maths'): number {
   // An accidental open with no answered question is NOT a session (a wrong icon +
   // "tillbaka"). Clear the player's prior empty, still-open runs so they never
   // linger or get counted as a started/abandoned session.
   getDb().prepare('DELETE FROM session_run WHERE player_id = ? AND completed = 0 AND ended_at IS NULL').run(playerId);
   const info = getDb()
-    .prepare('INSERT INTO session_run (player_id, target, started_at) VALUES (?, ?, ?)')
-    .run(playerId, target, now);
+    .prepare('INSERT INTO session_run (player_id, target, started_at, subject) VALUES (?, ?, ?, ?)')
+    .run(playerId, target, now, subject);
   return Number(info.lastInsertRowid);
 }
 // The most recent still-open session for a player, if it started within the

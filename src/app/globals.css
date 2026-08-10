@@ -181,6 +181,18 @@ input {
   cursor: pointer;
   display: inline-block;
 }
+
+/* Spelling DICTATION: the big headphone button that plays the word. It IS the prompt —
+   large, obvious, and re-tappable, since a child with no sound sees nothing else. */
+.dictation { display: flex; justify-content: center; margin: 0.4rem 0 0.6rem; }
+.listen-btn {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  font-size: 1.35rem; font-weight: 600;
+  padding: 0.9rem 1.6rem; border-radius: 16px;
+  border: none; background: var(--accent); color: #fff; cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.listen-btn:active { transform: scale(0.97); }
 .quit-btn:hover {
   border-color: var(--accent);
   color: var(--accent);

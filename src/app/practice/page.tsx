@@ -12,6 +12,7 @@ import { ChoiceStage } from '../_components/ChoiceStage';
 import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
 import { buildItem } from '@/lib/item';
+import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
 type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
@@ -31,6 +32,7 @@ function Practice() {
   const QUIET = QUIET_WORDS[locale] ?? QUIET_WORDS.sv;
   const sp = useSearchParams();
   const playerId = sp.get('p') ?? '';
+  const subject = sp.get('subject') === 'spelling' ? 'spelling' : 'maths'; // spelling test flow
   const startCode = sp.get('start'); // arrive here from a frontier node on the map
   const [phase, setPhase] = useState<'loading' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -93,7 +95,7 @@ function Practice() {
   );
 
   const startSession = useCallback(async (again = false) => {
-    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again });
+    const r = await postJSON<{ sessionId: number; target: number; choices: Choice[]; rampLen?: number; error?: string }>('/api/session/start', { playerId, again, subject });
     if (r.error) return void (location.href = '/');
     autoStarted.current = false;
     resumingRef.current = false;
@@ -103,7 +105,7 @@ function Practice() {
     setCompleted(0);
     setChoices(r.choices);
     setPhase('choose');
-  }, [playerId]);
+  }, [playerId, subject]);
 
   const resumeOrStart = useCallback(async () => {
     const cur = await getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`);
@@ -337,8 +339,14 @@ function Practice() {
             onCapture={onCapture}
             disabled={busy || phase === 'correct'}
             showIdk
-            idkLabel={t('practice.dontKnow')}
+            // Spelling is DICTATION: the letter pad + a headphone control that plays the word
+            // (the answer is never shown), and the "don't know" button becomes "Jag hör inte"
+            // — the skip for a child with no headphones.
+            idkLabel={item.family.startsWith('sp_') ? '🎧 Jag hör inte' : t('practice.dontKnow')}
             armKey={armKey}
+            {...(item.family.startsWith('sp_')
+              ? { letters: SPELLING_LETTERS, promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
+              : {})}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
           <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>
@@ -352,6 +360,39 @@ function Practice() {
 // shared generator the server graded against.
 function buildItemPrompt(item: { code: string; seed: number }): string {
   return buildItem(item.code, item.seed).prompt;
+}
+
+// Dictation prompt for a spelling item: a big headphone button that PLAYS the word (T3 from
+// the recorded clip, T2 from browser TTS) and never shows it. Auto-plays on a new item, and
+// replays on tap. The child types the spelling on the letter pad; "Jag hör inte" (the idk
+// button) skips it for a child without headphones.
+function Dictation({ itemKey, code, seed }: { itemKey: string; code: string; seed: number }) {
+  const play = useCallback(() => {
+    const word = buildItem(code, seed).answer; // the client derives it, same as maths
+    const audio = spellingAudio(code, word);
+    if (audio.kind === 'file') {
+      new Audio(audio.url).play().catch(() => {});
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = 'sv-SE';
+      u.rate = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+  }, [code, seed]);
+  // Auto-play each new word (the chooser tap / previous answer is the user gesture that
+  // unlocks audio); the button is the reliable replay.
+  useEffect(() => {
+    const id = setTimeout(play, 250);
+    return () => clearTimeout(id);
+  }, [itemKey, play]);
+  return (
+    <div className="dictation">
+      <button type="button" className="listen-btn" onClick={play} aria-label="Lyssna igen">
+        <Emoji e="🎧" /> Lyssna igen
+      </button>
+    </div>
+  );
 }
 
 function SessionBar({ completed, target }: { completed: number; target: number }) {
