@@ -102,7 +102,39 @@ export type NextOpts = {
   baseTarget?: number; // start-from-below (§4): the honest target for this player (0.90 new -> 0.80)
   reachUp?: boolean; // reach-up (fix-reach-up.md §3): serve the next rung above the band for a coasting child
   subject?: Subject; // which subject's pool to select from (default maths) — spelling scoping
+  subjects?: Subject[]; // a MIXED session: interleave these subjects (laggard up-weighted). When
+  // absent or length<=1 the selector is single-subject and byte-identical to before.
 };
+
+// Order the active subjects for the NEXT item when a session spans several (a mixed Öva).
+// Pure + rand-injected. Weights each subject inversely to its share of recent attempts, so the
+// UNDER-represented (lagging) subject tends to come first — this is the imbalance fix, and the
+// full ordering doubles as the eligibility-fallback order (try the laggard; if it has nothing
+// in-band, fall through to the next). A single-subject list returns as-is (no weighting).
+export function orderSubjectsForNext(recentCodes: string[], subjects: Subject[], rand: () => number): Subject[] {
+  if (subjects.length <= 1) return [...subjects];
+  const counts = new Map<Subject, number>(subjects.map((s) => [s, 0]));
+  for (const code of recentCodes) {
+    const subj = SKILL_META.get(code)?.subject;
+    if (subj && counts.has(subj)) counts.set(subj, counts.get(subj)! + 1);
+  }
+  const pool = [...subjects];
+  const out: Subject[] = [];
+  while (pool.length) {
+    const max = Math.max(...pool.map((s) => counts.get(s)!));
+    const weights = pool.map((s) => max + 1 - counts.get(s)!); // laggard → highest weight
+    const total = weights.reduce((a, b) => a + b, 0);
+    let r = rand() * total;
+    let idx = pool.length - 1;
+    for (let i = 0; i < pool.length; i++) {
+      r -= weights[i];
+      if (r < 0) { idx = i; break; }
+    }
+    out.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return out;
+}
 
 // Three eligible skills near the success target, for the child to choose from at
 // the start of a session (§3.2). Difficulty is never an axis. Each carries a
@@ -139,8 +171,6 @@ type Picked = { pick: SelState; novel: boolean; level: number; scores: unknown; 
 // path (issueNext), so the ADAPTIVE SELECTOR behaves identically on both and there
 // is no second implementation to drift (input-timing Phase A invariant).
 function pickNext(playerId: string, schoolYear: number, now: number, opts: NextOpts): Picked {
-  const states = buildStates(playerId, schoolYear, opts.subject ?? 'maths'); // subject-scoped pool
-  const unlocked = computeUnlocked(states);
   const ability = repo.abilities(playerId);
   const recentCodes = repo.recentAttemptSkillCodes(playerId, 8);
   const previousCode = recentCodes[0] ?? null;
@@ -149,14 +179,29 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
   const warmup = opts.warmupTarget != null;
   const target = warmup ? opts.warmupTarget : opts.stretch ? STRETCH_TARGET : opts.baseTarget;
 
-  // The child's session-start choice serves as the first item, if still eligible.
+  // A mixed session interleaves several subjects; a normal session has exactly one. The
+  // ordering up-weights the lagging subject AND is the eligibility-fallback order: try each
+  // subject's in-band pick in turn, take the first that yields one. With a single subject the
+  // loop runs once, byte-identical to the pre-mixed selector.
+  const activeSubjects = opts.subjects && opts.subjects.length > 1 ? opts.subjects : [opts.subject ?? 'maths'];
+  const order = orderSubjectsForNext(recentCodes, activeSubjects, Math.random);
+
   let pick: SelState | undefined;
   let scores: unknown;
   let introduced = false;
-  if (!warmup && opts.chosenCode && unlocked.get(opts.chosenCode)) {
-    pick = states.find((s) => s.code === opts.chosenCode);
-  }
-  if (!pick) {
+  let firstStates: SelState[] | undefined;
+  let chosenStates: SelState[] | undefined;
+
+  for (const subject of order) {
+    const states = buildStates(playerId, schoolYear, subject); // subject-scoped pool
+    if (!firstStates) firstStates = states;
+    const unlocked = computeUnlocked(states);
+    // The child's session-start choice serves as the first item, if still eligible — but only
+    // within its own subject.
+    if (!warmup && opts.chosenCode && unlocked.get(opts.chosenCode)) {
+      const c = states.find((s) => s.code === opts.chosenCode);
+      if (c) { pick = c; chosenStates = states; break; }
+    }
     const r = selectItem(states, {
       now,
       previousCode,
@@ -171,12 +216,16 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
     });
     scores = r.scores;
     introduced = r.introduced;
-    pick = r.chosen ?? states.find((s) => s.requires.length === 0)!;
+    if (r.chosen) { pick = r.chosen; chosenStates = states; break; }
   }
+  // Nothing in-band in any active subject → the floor of the first subject (unchanged fallback).
+  if (!pick) { pick = firstStates!.find((s) => s.requires.length === 0)!; chosenStates = firstStates; }
+  const states = chosenStates!;
 
   // "Något nytt" marks a genuinely new unlock, not the session-1 flood where every
   // skill is new. Only cue it once the player is past their first burst.
   const novel = (ability.get(pick.code)?.last_seen_at ?? null) === null && repo.totalAttempts(playerId) >= 15;
+  const unlocked = computeUnlocked(states);
   const unlockedCount = states.filter((s) => unlocked.get(s.code)).length;
   const level = Math.max(1, Math.min(8, Math.round((unlockedCount / states.length) * 8)));
   return { pick, novel, level, scores, introduced };
