@@ -33,7 +33,7 @@ export const T2_WORDS: WordPool = {
 export const T3_PAIRS: readonly { short: string; long: string }[] = [
   { short: 'vitt', long: 'vit' }, { short: 'matt', long: 'mat' }, { short: 'hall', long: 'hal' },
   { short: 'tack', long: 'tak' }, { short: 'full', long: 'ful' }, { short: 'sill', long: 'sil' },
-  { short: 'lamm', long: 'lam' }, { short: 'kall', long: 'kal' }, { short: 'villa', long: 'vila' },
+  { short: 'lamm', long: 'lam' }, { short: 'tall', long: 'tal' }, { short: 'villa', long: 'vila' },
   { short: 'fett', long: 'fet' }, { short: 'hett', long: 'het' },
 ];
 export const T3_WORDS: WordPool = {
