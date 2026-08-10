@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { ChoicePromptData, ChoiceOption } from '@/lib/choice';
+import { spellingAudio } from '@/lib/spelling-content';
 
 export type { ChoicePromptData, ChoiceOption } from '@/lib/choice';
 
@@ -75,12 +76,37 @@ export function ChoiceStage({
     onCapture(value, intervalMs);
   };
 
+  // A 'listen' prompt PLAYS the target word (never shows it) — the recognition sibling of the
+  // dictation control, reusing spellingAudio. Auto-plays on each new item; the button replays.
+  const playPrompt = useCallback(() => {
+    if (prompt.show !== 'listen') return;
+    const audio = spellingAudio(prompt.code, prompt.word);
+    if (audio.kind === 'file') {
+      new Audio(audio.url).play().catch(() => {});
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(prompt.word);
+      u.lang = 'sv-SE';
+      u.rate = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }
+  }, [prompt]);
+  useEffect(() => {
+    if (prompt.show !== 'listen') return;
+    const id = setTimeout(playPrompt, 250);
+    return () => clearTimeout(id);
+  }, [itemKey, playPrompt, prompt.show]);
+
   const isStructure = prompt.show === 'structure';
 
   return (
     <div className="input-stage">
       <div className="ground-stage">
-        {prompt.show === 'group' ? (
+        {prompt.show === 'listen' ? (
+          <button type="button" className="listen-btn" onClick={playPrompt} aria-label="Hör ordet igen">
+            <span aria-hidden>🔊</span> Hör ordet
+          </button>
+        ) : prompt.show === 'group' ? (
           <div className="ground-prompt">
             <Objects kind={prompt.kind} n={prompt.a} />
           </div>
@@ -112,7 +138,7 @@ export function ChoiceStage({
           )}
         </div>
       ) : (
-        <div className={`ground-options ${options[0] && options[0].render === 'group' ? 'group' : 'numeral'}`}>
+        <div className={`ground-options ${options[0]?.render ?? 'numeral'}`}>
           {options.map((o, i) =>
             o.render === 'numeral' ? (
               <button key={i} className="ground-option" onClick={() => pick(o.value)} disabled={disabled} type="button">
@@ -121,6 +147,16 @@ export function ChoiceStage({
             ) : o.render === 'group' ? (
               <button key={i} className="ground-option" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <Objects kind={o.kind} n={o.value} small />
+              </button>
+            ) : o.render === 'picture' ? (
+              // T0: tap the emoji whose Swedish name starts with the target sound.
+              <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <img className="choice-pic" src={`/emoji/${o.kind}.png`} alt="" draggable={false} />
+              </button>
+            ) : o.render === 'letter' ? (
+              // T1: tap the letter the heard word starts with.
+              <button key={i} className="ground-option letter" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <span className="ground-numeral">{o.value}</span>
               </button>
             ) : null,
           )}

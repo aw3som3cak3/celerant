@@ -7,12 +7,15 @@
 export type ChoicePromptData =
   | { show: 'group'; kind: string; a: number } // one bunch — "how many?"
   | { show: 'sum'; kind: string; a: number; b: number } // a + b — "how many together?"
-  | { show: 'structure'; kind: string; a: number; b: number; structure: 'combine' | 'separate' }; // arrive / leave
+  | { show: 'structure'; kind: string; a: number; b: number; structure: 'combine' | 'separate' } // arrive / leave
+  | { show: 'listen'; code: string; word: string }; // a spelling AUDIO prompt — play spellingAudio(code, word); nothing shown
 
 export type ChoiceOption =
   | { value: number; render: 'numeral' } // tap the digit
   | { value: number; render: 'group'; kind: string } // tap the picture-group of `value`
-  | { value: 'combine' | 'separate'; render: 'more' | 'fewer'; label: string }; // Fler / Färre (label shown, value graded)
+  | { value: 'combine' | 'separate'; render: 'more' | 'fewer'; label: string } // Fler / Färre (label shown, value graded)
+  | { value: string; render: 'picture'; kind: string } // tap the emoji whose Swedish name starts with the target sound (T0)
+  | { value: string; render: 'letter' }; // tap the letter — value IS the glyph, graded as a word (T1)
 
 // Carried on Item.choice for a recognition rung. `question` and any option `label`s are
 // display strings held here (Swedish, like the maths `steps`) — the render layer shows

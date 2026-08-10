@@ -1,7 +1,7 @@
 import { generateCanon, BY_CODE, type CanonItem } from '@/skills';
 import { makeRng } from './rng';
 import { grade } from './grade';
-import { wordForSeed } from './spelling-content';
+import { wordForSeed, SPELLING_POOLS } from './spelling-content';
 
 // The ONE shared item builder (input-timing guardrail 2a). Client and server MUST
 // produce an item by calling THIS — same generateCanon, same RNG, one module — so
@@ -16,7 +16,10 @@ export function buildItem(code: string, seed: number): CanonItem {
   // shows the letter pad and PLAYS the word (TTS/audio), never displays it. The reveal step
   // shows the spelling after a miss (the teaching).
   const skill = BY_CODE.get(code);
-  if (skill?.subject === 'spelling') {
+  // WORD-dictation spelling (t2/t3, in SPELLING_POOLS): the seed denotes a specific word,
+  // decoded here for the letter pad. RECOGNITION spelling (t0/t1, not in a pool) is a CHOICE
+  // rung instead — it falls through to generateCanon, whose generate() builds the choice.
+  if (skill?.subject === 'spelling' && SPELLING_POOLS[code]) {
     const word = wordForSeed(code, seed) ?? '';
     return { prompt: '', answer: word, steps: word ? [word] : [] };
   }
