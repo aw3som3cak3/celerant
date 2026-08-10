@@ -187,6 +187,30 @@ input {
 .dictation { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.6rem; }
 .dictation-hint { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--ink-soft); }
 .idk-hear { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+/* Ear-vetting harness (test family only) — tap a word to hear it. */
+.granska { max-width: 640px; margin: 0 auto; padding: 1.2rem 1rem 3rem; color: var(--ink); }
+.granska h1 { margin: 0 0 0.3rem; }
+.granska h2 { margin: 1.4rem 0 0.6rem; font-size: 1.05rem; color: var(--ink); }
+.granska-count { font-weight: 400; color: var(--ink-soft); font-size: 0.9rem; }
+.granska-hint { color: var(--ink-soft); margin: 0 0 0.6rem; }
+.granska-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.granska-chip {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  font-size: 1.15rem; font-weight: 600;
+  padding: 0.7rem 1rem; border-radius: 14px;
+  border: 2px solid var(--accent); background: transparent; color: var(--ink); cursor: pointer;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.granska-chip:active { transform: scale(0.96); background: var(--accent); color: #fff; }
+
+.linkbtn {
+  display: inline-flex; align-items: center; gap: 0.4rem; align-self: center;
+  margin: 0.6rem auto 0; padding: 0.5rem 0.9rem;
+  background: none; border: none; color: var(--ink-soft);
+  font-size: 0.95rem; font-weight: 600; cursor: pointer;
+  text-decoration: underline; -webkit-tap-highlight-color: transparent;
+}
 .listen-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
   font-size: 1.35rem; font-weight: 600;

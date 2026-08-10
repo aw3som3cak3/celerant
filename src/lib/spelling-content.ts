@@ -19,10 +19,10 @@ export type WordPool = { practice: readonly string[]; holdout: readonly string[]
 export const T2_WORDS: WordPool = {
   practice: [
     'bil', 'gris', 'pris', 'ris', 'lim', 'tid', 'liv', 'hus', 'mus', 'ben',
-    'ren', 'sten', 'rik', 'lin', 'is', 'lek', 'sida', 'resa', 'fara', 'gata',
+    'ren', 'sten', 'rik', 'is', 'lek', 'sida', 'resa', 'fara', 'gata',
     'läsa', 'näsa', 'äta', 'rita',
   ],
-  holdout: ['ny', 'by', 'sy', 'yta', 'räv', 'träd', 'fira', 'rida', 'leva', 'myra', 'leka', 'lyra'],
+  holdout: ['ny', 'by', 'sy', 'yta', 'räv', 'träd', 'fira', 'rida', 'leva', 'myra', 'leka'],
 };
 
 // T3 — vowel length / consonant doubling. Minimal pairs whose ONLY audible difference is

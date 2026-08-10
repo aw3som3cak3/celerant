@@ -250,6 +250,9 @@ function Players({ me }: { me: Me }) {
                 </button>
               ))}
             </div>
+            <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
+              <Emoji e="🔍" /> Granska orden (lyssna)
+            </button>
           </>
         )}
 
