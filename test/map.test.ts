@@ -163,11 +163,14 @@ describe('the map — the three rings and the fog (the-map.md §2, §5, §8)', (
     for (const c of before) expect(after.has(c)).toBe(true); // none regressed
   });
 
-  it('parent map has all 77 nodes; the child map never does (§6)', () => {
+  it('parent map has all maths nodes; the child map never does (§6)', () => {
     const p = repo.createPlayer(familyId, 'cat', SY, NOW);
     solveMany(p, SY, 20, NOW + 9_000_000);
-    expect(buildParentMap(p).nodes.length).toBe(SKILLS.length);
-    expect(buildChildMap(p, SY).nodes.length).toBeLessThan(SKILLS.length);
+    // Per-subject now (increment 3): the maths parent map is every MATHS skill, not the
+    // whole cross-subject SKILLS array (which also holds the spelling pack).
+    const mathsCount = SKILLS.filter((s) => s.subject === 'maths').length;
+    expect(buildParentMap(p).nodes.length).toBe(mathsCount);
+    expect(buildChildMap(p, SY).nodes.length).toBeLessThan(mathsCount);
   });
 
   it('dropping the card table blanks the map and changes no θ (§8, motivation §5)', () => {

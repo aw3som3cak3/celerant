@@ -17,6 +17,7 @@
  */
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
+import { T2_WORDS } from "./lib/spelling-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -906,9 +907,24 @@ const tierDecimals: Skill[] = [
   }),
 ];
 
+/* ═══ SPELLING (subject: 'spelling') · first slice T2→T3 ════════════ year 2+ */
+// Swedish spelling as a second content pack on the SAME engine (increment 4). Words live in
+// lib/spelling-content.ts; the real dictation item comes via buildItem's spelling branch
+// (seed→word), so `generate` here only produces SAMPLES (map thumb, chooser). Namespaced
+// family 'sp_encode' (increment-3 invariant: a family never spans subjects). Sprintable — a
+// typed production rung (A8). T3 (vowel length / doubling) is authored in spelling-content
+// but HELD out of the graph until its recorded audio exists (A12); flip it on by adding a
+// spelling_t3 skill here + registering T3_WORDS in SPELLING_POOLS.
+const tierSpelling: Skill[] = [
+  S({
+    code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: [],
+    generate: (r) => { const w = r.pick(T2_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
+  }),
+];
+
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8];
+export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8, ...tierSpelling];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 

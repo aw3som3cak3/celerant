@@ -6,6 +6,7 @@ import { aimFor, celeration, classifySprint, sprintRateIsCredible, MILESTONE_BON
 import { isSprintEligible } from './sprint-eligibility';
 import { rewardState } from './reward';
 import { makeRng, randomSeed } from './rng';
+import { SPELLING_POOLS, encodeSpellingSeed } from './spelling-content';
 import { grade } from './grade';
 import { answerLengthOf, gradeBySeed } from './item';
 import { isValidInterval } from './rate';
@@ -197,10 +198,25 @@ export function sprintBatch(playerId: string, code: string, now: number): Sprint
   const meta = SKILL_META.get(code);
   if (!meta || !meta.sprintable) return null; // never a compound or a written procedure
   if (!isSprintEligible(playerId, code)) return null; // must be in the fluency-building band
-  const items = Array.from({ length: SPRINT_ITEMS }, () => {
-    const seed = randomSeed(); // seeds are server-issued — no client fishing
-    return { seed, answerLength: answerLengthOf(code, seed) };
-  });
+  let items: SprintBatchItem[];
+  if (meta.subject === 'spelling') {
+    // A sprint measures GENERALIZATION, so it draws from the HOLDOUT pool (A3) — distinct
+    // words, unseen-first then least-recently-seen, cycled to fill the batch.
+    const pool = SPELLING_POOLS[code];
+    const words = pool?.holdout ?? [];
+    if (!words.length) return null;
+    const seen = repo.spellingSeenWords(playerId, code);
+    const order = words.map((w, i) => ({ i, at: seen.get(w) ?? 0 })).sort((a, b) => a.at - b.at).map((x) => x.i);
+    items = Array.from({ length: SPRINT_ITEMS }, (_, k) => {
+      const seed = encodeSpellingSeed('holdout', order[k % order.length]);
+      return { seed, answerLength: answerLengthOf(code, seed) };
+    });
+  } else {
+    items = Array.from({ length: SPRINT_ITEMS }, () => {
+      const seed = randomSeed(); // seeds are server-issued — no client fishing
+      return { seed, answerLength: answerLengthOf(code, seed) };
+    });
+  }
   return { skillCode: code, family: meta.family, items };
 }
 

@@ -5,6 +5,7 @@ import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 import { BY_CODE, ancestors, type Subject } from '@/skills';
 import { skillsForSubject } from '@/lib/subjects';
+import { wordForSeed } from '@/lib/spelling-content';
 import { aimFor, aimForSkill, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE } from '@/lib/fluency';
 import { expectedPhysicalDigits } from '@/lib/item';
 import { seedGradeFor } from '@/lib/onboarding';
@@ -1332,4 +1333,26 @@ export function applicationSignal(playerId: string, subject: Subject = 'maths'):
     });
   }
   return out;
+}
+
+// Spelling seen-set (A13): the words a child has already been served for one spelling skill,
+// each with its most-recent time — a pure read of the attempt ledger (item_json stores the
+// seed, and a spelling seed decodes to its word). No new table. Drives nextSpellingWord's
+// unseen-first pick and its least-recently-seen recycle on pool exhaustion (A14).
+export function spellingSeenWords(playerId: string, code: string): Map<string, number> {
+  const rows = getDb()
+    .prepare('SELECT item_json, at FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL')
+    .all(playerId, code) as { item_json: string; at: number }[];
+  const seen = new Map<string, number>();
+  for (const r of rows) {
+    try {
+      const seed = JSON.parse(r.item_json).seed as number | undefined;
+      if (seed == null) continue;
+      const w = wordForSeed(code, seed);
+      if (w && r.at > (seen.get(w) ?? 0)) seen.set(w, r.at);
+    } catch {
+      /* a malformed/legacy row: skip it */
+    }
+  }
+  return seen;
 }
