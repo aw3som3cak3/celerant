@@ -9,11 +9,36 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { orderSubjectsForNext, issueNext, sessionSelectOpts } from '@/lib/practice';
+import { mixedSubjectsFor, spellingReady } from '@/lib/spelling-content';
 import { skillsForSubject } from '@/lib/subjects';
 import { replay } from '@/db/replay';
 
 const NOW = Date.UTC(2026, 7, 10);
 const MATHS = skillsForSubject('maths')[0].code;
+
+describe('reading readiness — spelling never reaches a pre-literate åk0 child', () => {
+  it('spellingReady gates on åk≥1', () => {
+    expect(spellingReady(0)).toBe(false);
+    expect(spellingReady(1)).toBe(true);
+    expect(spellingReady(3)).toBe(true);
+  });
+
+  it('an åk0 child with headphones still gets maths only', () => {
+    expect(mixedSubjectsFor({ headphones: true, schoolYear: 0 })).toEqual(['maths']);
+  });
+
+  it('an åk1+ child with headphones gets the mix', () => {
+    expect(mixedSubjectsFor({ headphones: true, schoolYear: 1 })).toEqual(['maths', 'spelling']);
+  });
+
+  it('no headphones → maths only regardless of year', () => {
+    expect(mixedSubjectsFor({ headphones: false, schoolYear: 3 })).toEqual(['maths']);
+  });
+
+  it('an explicit subject stays single-subject (map deep-link)', () => {
+    expect(mixedSubjectsFor({ explicit: 'maths', headphones: true, schoolYear: 3 })).toEqual(['maths']);
+  });
+});
 
 describe('orderSubjectsForNext — laggard up-weighting', () => {
   it('a single-subject list returns unchanged (no weighting, byte-identical path)', () => {

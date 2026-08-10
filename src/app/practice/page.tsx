@@ -12,7 +12,7 @@ import { ChoiceStage } from '../_components/ChoiceStage';
 import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
 import { buildItem } from '@/lib/item';
-import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
+import { SPELLING_LETTERS, spellingAudio, spellingReady } from '@/lib/spelling-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
 type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
@@ -127,9 +127,13 @@ function Practice() {
   const resumeOrStart = useCallback(async () => {
     const [cur, me] = await Promise.all([
       getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`),
-      getJSON<{ spelling?: boolean }>('/api/me'),
+      getJSON<{ spelling?: boolean; players?: { id: string; schoolYear: number }[] }>('/api/me'),
     ]);
-    setSpellingAvailable(!!me.spelling); // in both paths, so a later "en till" re-asks headphones
+    // Spelling joins the mix only for a reading-ready child (åk≥1); a pre-literate åk0 child
+    // never sees the headphone prompt and just does maths, as before.
+    const meP = me.players?.find((p) => p.id === playerId);
+    const ready = !!me.spelling && !!meP && spellingReady(meP.schoolYear);
+    setSpellingAvailable(ready); // in both paths, so a later "en till" re-asks headphones
     if (cur.session) {
       autoStarted.current = false;
       resumingRef.current = true;
@@ -142,8 +146,8 @@ function Practice() {
       return;
     }
     // Fresh session. The mixed Öva (no explicit subject, not a map deep-link) asks "har du
-    // hörlurar?" first — spelling only interleaves in when the child has them.
-    if (me.spelling && !subjectParam && !startCode) {
+    // hörlurar?" first — spelling only interleaves in when the child is ready and has them.
+    if (ready && !subjectParam && !startCode) {
       againRef.current = false;
       setPhase('headphones');
     } else {

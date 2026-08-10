@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { requirePlayer } from '@/lib/auth';
 import { sessionChoices } from '@/lib/practice';
+import { mixedSubjectsFor } from '@/lib/spelling-content';
 import { rampLen } from '@/lib/onboarding';
 import * as repo from '@/db/repo';
 import { json } from '@/lib/api';
@@ -25,15 +26,14 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  // A mixed Öva (no explicit subject) interleaves maths with spelling, but spelling needs audio
-  // so it only joins when the child said they have headphones (asked once per session). An
-  // explicit subject (map deep-link) stays single-subject, byte-identical to before.
-  const explicit = parsed.data.subject;
-  const subjects: ('maths' | 'spelling')[] = explicit
-    ? [explicit]
-    : parsed.data.headphones
-      ? ['maths', 'spelling']
-      : ['maths'];
+  // A mixed Öva interleaves maths with spelling, but spelling (T2 = WORD dictation) needs audio
+  // AND reading readiness — so it joins only when the child has headphones AND is åk≥1. A
+  // pre-literate åk0 child gets maths only. An explicit subject (map deep-link) stays single.
+  const subjects = mixedSubjectsFor({
+    explicit: parsed.data.subject,
+    headphones: parsed.data.headphones,
+    schoolYear: player.school_year,
+  });
   const subject = subjects[0];
   const target = player.session_target;
   const sessionId = repo.createSessionRun(player.id, target, now, subject, subjects);

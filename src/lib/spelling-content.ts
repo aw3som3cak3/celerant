@@ -12,6 +12,26 @@
 
 export type WordPool = { practice: readonly string[]; holdout: readonly string[] };
 
+// Reading readiness. T2 is WORD dictation — the child must know letters and be able to write,
+// which a pre-literate åk0 child cannot. The "koala reflex": the youngest has zero letter data,
+// so spelling is built for the writers (åk≥1) and she gets maths only until the T0/T1 sound/
+// letter rungs exist as the true lowest ring. Raise or lower this one number to retune.
+export const SPELLING_MIN_YEAR = 1;
+export function spellingReady(schoolYear: number): boolean {
+  return schoolYear >= SPELLING_MIN_YEAR;
+}
+
+// The active subject SET for a session. An explicit subject (map deep-link) stays single. A
+// mixed Öva interleaves spelling only when the child both has headphones AND is reading-ready.
+export function mixedSubjectsFor(opts: {
+  explicit?: 'maths' | 'spelling';
+  headphones?: boolean;
+  schoolYear: number;
+}): ('maths' | 'spelling')[] {
+  if (opts.explicit) return [opts.explicit];
+  return opts.headphones && spellingReady(opts.schoolYear) ? ['maths', 'spelling'] : ['maths'];
+}
+
 // T2 — transparent encoding. Long-vowel / single-consonant words spelled as sounded.
 // Excludes EVERY T3/T4 ambiguity by construction: no consonant doubling (T3), no sj/tj/j/
 // ng (T4), no o-å or short e-ä vowel-quality traps (T4). The 2-syllable words (sida, resa,
