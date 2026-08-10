@@ -58,7 +58,13 @@ export const SPELLING_LETTERS: readonly string[] = 'abdefghiklmnoprstuvyåäö'.
 // human voice (TTS can't be trusted — A12); T2 (transparent) ships on browser TTS. The client
 // plays this and NEVER shows the word (it's dictation). The word comes from buildItem.
 export function spellingAudio(code: string, word: string): { kind: 'file'; url: string } | { kind: 'tts' } {
-  if (code === 'spelling_t3') return { kind: 'file', url: `/audio/spelling/t3/${word}.wav` };
+  const w = encodeURIComponent(word); // robust for å/ä/ö in the static path
+  // T3 (vowel LENGTH) is a HUMAN recording — TTS can't be trusted there (A12). T2 (transparent)
+  // is a PRE-GENERATED neural clip (Sofie, sv-SE) served as a file, so every device hears the
+  // identical word — no per-device browser-TTS variance. Nothing ships on live browser TTS now;
+  // the 'tts' branch remains only as a fallback for a spelling code with no audio yet.
+  if (code === 'spelling_t3') return { kind: 'file', url: `/audio/spelling/t3/${w}.wav` };
+  if (code === 'spelling_t2') return { kind: 'file', url: `/audio/spelling/t2/${w}.mp3` };
   return { kind: 'tts' };
 }
 
