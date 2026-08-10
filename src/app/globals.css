@@ -184,7 +184,8 @@ input {
 
 /* Spelling DICTATION: the big headphone button that plays the word. It IS the prompt —
    large, obvious, and re-tappable, since a child with no sound sees nothing else. */
-.dictation { display: flex; justify-content: center; margin: 0.4rem 0 0.6rem; }
+.dictation { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.6rem; }
+.dictation-hint { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--ink-soft); }
 .listen-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
   font-size: 1.35rem; font-weight: 600;

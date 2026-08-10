@@ -388,8 +388,9 @@ function Dictation({ itemKey, code, seed }: { itemKey: string; code: string; see
   }, [itemKey, play]);
   return (
     <div className="dictation">
-      <button type="button" className="listen-btn" onClick={play} aria-label="Lyssna igen">
-        <Emoji e="🎧" /> Lyssna igen
+      <p className="dictation-hint">Skriv ordet du hör</p>
+      <button type="button" className="listen-btn" onClick={play} aria-label="Hör ordet igen">
+        <Emoji e="🔊" /> Hör ordet
       </button>
     </div>
   );
