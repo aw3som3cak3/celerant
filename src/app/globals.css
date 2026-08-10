@@ -186,6 +186,7 @@ input {
    large, obvious, and re-tappable, since a child with no sound sees nothing else. */
 .dictation { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; margin: 0.4rem 0 0.6rem; }
 .dictation-hint { margin: 0; font-size: 1.15rem; font-weight: 600; color: var(--ink-soft); }
+.idk-hear { display: inline-flex; align-items: center; gap: 0.4rem; }
 .listen-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
   font-size: 1.35rem; font-weight: 600;

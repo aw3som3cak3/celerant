@@ -68,7 +68,7 @@ export function InputStage({
   onCapture: (c: Captured) => void;
   disabled?: boolean;
   showIdk?: boolean; // session: render a "vet inte" button
-  idkLabel?: string;
+  idkLabel?: React.ReactNode;
   armKey?: number; // bump to RE-ARM the same item for a retry (clears the entry, KEEPS the clock)
   // The writing-speed probe drives a "copy this number" task through this same
   // numpad + clock (so the input floor is measured on the surface the child actually

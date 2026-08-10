@@ -342,7 +342,9 @@ function Practice() {
             // Spelling is DICTATION: the letter pad + a headphone control that plays the word
             // (the answer is never shown), and the "don't know" button becomes "Jag hör inte"
             // — the skip for a child with no headphones.
-            idkLabel={item.family.startsWith('sp_') ? '🎧 Jag hör inte' : t('practice.dontKnow')}
+            idkLabel={item.family.startsWith('sp_')
+              ? <span className="idk-hear"><HeadphonesOff /> Jag hör inte</span>
+              : t('practice.dontKnow')}
             armKey={armKey}
             {...(item.family.startsWith('sp_')
               ? { letters: SPELLING_LETTERS, promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
@@ -360,6 +362,22 @@ function Practice() {
 // shared generator the server graded against.
 function buildItemPrompt(item: { code: string; seed: number }): string {
   return buildItem(item.code, item.seed).prompt;
+}
+
+// Crossed-out headphones — the "Jag hör inte" (no-headphones skip) glyph. Inline SVG so it
+// renders identically on every tablet (there is no headphones-off emoji) and inherits the
+// button's text colour via currentColor.
+function HeadphonesOff() {
+  return (
+    <svg viewBox="0 0 24 24" width="1.15em" height="1.15em" fill="none" stroke="currentColor"
+      strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+      style={{ verticalAlign: '-0.15em' }}>
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
+      <rect x="2" y="14" width="4" height="6" rx="1.5" />
+      <rect x="18" y="14" width="4" height="6" rx="1.5" />
+      <line x1="3" y1="2.5" x2="21" y2="21.5" />
+    </svg>
+  );
 }
 
 // Dictation prompt for a spelling item: a big headphone button that PLAYS the word (T3 from
