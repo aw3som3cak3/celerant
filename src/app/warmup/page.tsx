@@ -67,6 +67,7 @@ function Warmup() {
     return (
       <div className="stage">
         <p className="muted">{idx + 1} / {started.numbers.length}</p>
+        <p className="prompt" style={{ fontSize: '1.2rem', marginBottom: '0.4rem' }}>{t('warmup.copy')}</p>
         <InputStage
           mode="sprint"
           playerId={p}
