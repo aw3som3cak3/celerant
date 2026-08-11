@@ -37,8 +37,15 @@ export default function Home() {
   const [mode, setMode] = useState<'login' | 'create' | 'addplayer'>('login');
 
   useEffect(() => {
-    getJSON<Me>('/api/me').then(setMe);
+    const load = () => getJSON<Me>('/api/me').then(setMe);
+    load();
     getJSON<Families>('/api/families').then(setFamilies);
+    // Refetch when the screen is re-focused so a goal a parent just set (on this or another device)
+    // shows up on an already-open family screen — it was fetch-once, so a new goal never appeared.
+    const onVisible = () => { if (document.visibilityState === 'visible') load(); };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', load);
+    return () => { document.removeEventListener('visibilitychange', onVisible); window.removeEventListener('focus', load); };
   }, []);
 
   if (!me || !families) return <div className="plain muted">…</div>;
