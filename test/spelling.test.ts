@@ -111,7 +111,11 @@ describe('item provider (A13/A14) — unseen-first, then LRU recycle', () => {
     expect(opts.subject).toBe('spelling'); // carried off the run
     const item = issueNext(pid, 3, NOW, opts);
     expect(item.code.startsWith('spelling')).toBe(true); // a spelling skill, never a maths one
-    expect(wordForSeed(item.code, item.seed)).toBeTruthy(); // the seed decodes to a real word
+    // A spelling item is EITHER a word dictation (t2/t3, decodes to a word) or a recognition
+    // choice (t0/t1, carries a `choice`). Both are valid spelling items.
+    const isWord = !!wordForSeed(item.code, item.seed);
+    const isChoice = !!buildItem(item.code, item.seed).choice;
+    expect(isWord || isChoice).toBe(true);
   });
 
   it('a spelling sprint batch draws distinct HOLDOUT words', () => {

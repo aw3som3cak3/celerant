@@ -10,6 +10,7 @@ const EXACT: Record<string, string> = {
   ground_count: 'räkna ihop',
   ground_numeral: 'vilken siffra',
   ground_sum: 'hur mycket blir det',
+  spelling_t1: 'första bokstaven',
   spelling_t2: 'ljudenligt',
   spelling_t3: 'lång eller kort vokal',
   dec_read_tenths: 'tiondelar som decimal',

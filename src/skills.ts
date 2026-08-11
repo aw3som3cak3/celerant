@@ -17,7 +17,7 @@
  */
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
-import { T2_WORDS, T3_WORDS } from "./lib/spelling-content";
+import { T2_WORDS, T3_WORDS, RECOG_WORDS, SPELLING_LETTERS } from "./lib/spelling-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -916,6 +916,28 @@ const tierDecimals: Skill[] = [
 // but HELD out of the graph until its recorded audio exists (A12); flip it on by adding a
 // spelling_t3 skill here + registering T3_WORDS in SPELLING_POOLS.
 const tierSpelling: Skill[] = [
+  S({
+    // T1 — letter knowledge / the reading-readiness probe. Hear a whole word, tap the letter it
+    // STARTS with. format:'choice' (auto non-sprintable for now; the fluency lane comes later).
+    // Pre-literate floor (year 0): a child who can't write yet still meets sound→letter here.
+    code: "spelling_t1", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: [],
+    generate: (r) => {
+      const w = r.pick(RECOG_WORDS);
+      const first = w.word[0];
+      const pool = SPELLING_LETTERS.filter((l) => l !== first); // two distractor letters, not the answer
+      for (let i = pool.length - 1; i > 0; i--) { const j = r.int(0, i); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+      const letters = [first, pool[0], pool[1]];
+      for (let i = letters.length - 1; i > 0; i--) { const j = r.int(0, i); [letters[i], letters[j]] = [letters[j], letters[i]]; }
+      return {
+        prompt: "", answer: { kind: "word", text: first }, steps: [w.word],
+        choice: {
+          prompt: { show: "listen", code: "spelling_t1", word: w.word },
+          question: "Vilken bokstav börjar ordet på?",
+          options: letters.map((l): ChoiceOption => ({ value: l, render: "letter" })),
+        },
+      };
+    },
+  }),
   S({
     code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: [],
     generate: (r) => { const w = r.pick(T2_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },

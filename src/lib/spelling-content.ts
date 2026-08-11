@@ -69,6 +69,29 @@ export const SPELLING_POOLS: Record<string, WordPool> = {
   spelling_t3: T3_WORDS,
 };
 
+// The pre-literate RECOGNITION pool (T0/T1 tiers): picturable, Erik-vetted words, each with its
+// /emoji/<file>.png and its INITIAL-SOUND group key (Swedish sound, not the English emoji name —
+// e.g. key→nyckel is /n/). T0 (initial-sound match) picks a target + distractors from OTHER
+// groups; T1 (word → first letter) uses the same words, answer = first letter. Isolated audio
+// (no carrier sentence) lives in public/audio/spelling/recog/<word>.mp3.
+export type RecogWord = { word: string; emoji: string; initial: string };
+export const RECOG_WORDS: readonly RecogWord[] = [
+  { word: 'sol', emoji: 'sun', initial: 's' }, { word: 'sax', emoji: 'scissors', initial: 's' },
+  { word: 'mus', emoji: 'mouse', initial: 'm' }, { word: 'måne', emoji: 'crescent_moon', initial: 'm' }, { word: 'mango', emoji: 'mango', initial: 'm' },
+  { word: 'bil', emoji: 'car', initial: 'b' }, { word: 'banan', emoji: 'banana', initial: 'b' }, { word: 'buss', emoji: 'bus', initial: 'b' }, { word: 'båt', emoji: 'sailboat', initial: 'b' },
+  { word: 'hund', emoji: 'dog', initial: 'h' }, { word: 'häst', emoji: 'horse', initial: 'h' }, { word: 'hus', emoji: 'house', initial: 'h' },
+  { word: 'katt', emoji: 'cat', initial: 'k' }, { word: 'ko', emoji: 'cow', initial: 'k' }, { word: 'koala', emoji: 'koala', initial: 'k' },
+  { word: 'fisk', emoji: 'fish', initial: 'f' }, { word: 'fågel', emoji: 'bird', initial: 'f' }, { word: 'flygplan', emoji: 'airplane', initial: 'f' },
+  { word: 'tåg', emoji: 'train', initial: 't' }, { word: 'tomat', emoji: 'tomato', initial: 't' }, { word: 'traktor', emoji: 'tractor', initial: 't' },
+  { word: 'penna', emoji: 'pencil', initial: 'p' }, { word: 'panda', emoji: 'panda', initial: 'p' }, { word: 'pizza', emoji: 'pizza', initial: 'p' },
+  { word: 'gris', emoji: 'pig', initial: 'g' }, { word: 'groda', emoji: 'frog', initial: 'g' },
+  { word: 'räv', emoji: 'fox', initial: 'r' }, { word: 'ros', emoji: 'rose', initial: 'r' }, { word: 'ris', emoji: 'rice', initial: 'r' }, { word: 'raket', emoji: 'rocket', initial: 'r' },
+  { word: 'val', emoji: 'whale', initial: 'v' }, { word: 'våg', emoji: 'wave', initial: 'v' },
+  { word: 'nyckel', emoji: 'key', initial: 'n' },
+  { word: 'drake', emoji: 'kite', initial: 'd' }, { word: 'delfin', emoji: 'dolphin', initial: 'd' },
+  { word: 'äpple', emoji: 'apple', initial: 'ä' }, { word: 'ägg', emoji: 'egg', initial: 'ä' },
+];
+
 // The LETTER pad's glyphs for a spelling item (A6.1): the TIER's letters PLUS distractors,
 // never the item's exact letters (no permutation-puzzle leak). A fixed Swedish lower-case set
 // covers T2/T3 and hides which letters the answer uses.
@@ -97,6 +120,8 @@ export function spellingAudio(code: string, word: string): { kind: 'file'; url: 
       : { kind: 'file', url: `/audio/spelling/t3/${w}.mp3` };
   }
   if (code === 'spelling_t2') return { kind: 'file', url: `/audio/spelling/t2/${w}.mp3` };
+  // Recognition tiers (t0/t1…) all play the ISOLATED word (no carrier sentence) from /recog/.
+  if (code.startsWith('spelling_t1') || code.startsWith('spelling_t0')) return { kind: 'file', url: `/audio/spelling/recog/${w}.mp3` };
   return { kind: 'tts' };
 }
 
