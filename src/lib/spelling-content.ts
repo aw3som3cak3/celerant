@@ -70,16 +70,16 @@ export const T2_WORDS: WordPool = {
 // so a sprint on the holdout pairs measures the rule, not memorised practice words.
 // ⚠️ HELD: T3 requires recorded human audio (A12 — vowel length is exactly where TTS
 // drifts). Not wired into the delivered graph until the manifest recordings are in hand.
+// sil/sill and lam/lamm removed — Erik: kids don't know 'sil' (colander) or 'lam' (lame).
 export const T3_PAIRS: readonly { short: string; long: string }[] = [
   { short: 'vitt', long: 'vit' }, { short: 'matt', long: 'mat' }, { short: 'hall', long: 'hal' },
-  { short: 'tack', long: 'tak' }, { short: 'full', long: 'ful' }, { short: 'sill', long: 'sil' },
-  { short: 'lamm', long: 'lam' }, { short: 'tall', long: 'tal' }, { short: 'villa', long: 'vila' },
-  { short: 'fett', long: 'fet' }, { short: 'hett', long: 'het' },
+  { short: 'tack', long: 'tak' }, { short: 'full', long: 'ful' }, { short: 'tall', long: 'tal' },
+  { short: 'villa', long: 'vila' }, { short: 'fett', long: 'fet' }, { short: 'hett', long: 'het' },
 ];
 export const T3_WORDS: WordPool = {
-  // 8 pairs for practice, 3 held back for the generalization sprint.
-  practice: T3_PAIRS.slice(0, 8).flatMap((p) => [p.long, p.short]),
-  holdout: T3_PAIRS.slice(8).flatMap((p) => [p.long, p.short]),
+  // The last 3 pairs are held back for the generalization sprint (robust to the pair count).
+  practice: T3_PAIRS.slice(0, -3).flatMap((p) => [p.long, p.short]),
+  holdout: T3_PAIRS.slice(-3).flatMap((p) => [p.long, p.short]),
 };
 
 // CANDIDATE T3 pairs (pipeline-found, Erik word-vetted) PENDING his in-app vowel-length vet on the
