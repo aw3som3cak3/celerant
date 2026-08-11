@@ -95,7 +95,9 @@ export const RECOG_WORDS: readonly RecogWord[] = [
 // Phoneme-TRANSPARENT sub-pool (letters = sounds, 1:1) for the rungs that reason about a word's
 // sound structure: T0b (count the sounds), T1b (final sound → letter), T1c (the vowel → letter).
 // Each is a SINGLE-vowel word so "the vowel" is unambiguous, and each is a RECOG_WORDS member
-// (isolated audio already exists). `sounds` is the Erik-vettable phoneme count.
+// (isolated audio already exists). `sounds` is the phoneme count, VERIFIED by espeak-ng G2P
+// (scripts/spelling-audio/phonemes.py) — not hand-counted. espeak also confirms the exclusions:
+// sax=s·a·k·s (x=/ks/), katt=k·a·t (double t=1 sound), ägg=ɛ·ɡ, nyckel=n·y·kː·ə·l — letters≠sounds.
 export const SPELLING_VOWELS: readonly string[] = ['a', 'e', 'i', 'o', 'u', 'y', 'å', 'ä', 'ö'];
 export const TRANSPARENT_WORDS: readonly { word: string; sounds: number; vowel: string }[] = [
   { word: 'sol', sounds: 3, vowel: 'o' }, { word: 'mus', sounds: 3, vowel: 'u' }, { word: 'bil', sounds: 3, vowel: 'i' },
