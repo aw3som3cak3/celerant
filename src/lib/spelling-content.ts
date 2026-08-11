@@ -89,7 +89,7 @@ export const T3_WORDS: WordPool = {
 export const T3_PAIRS_REVIEW: readonly { short: string; long: string }[] = [
   { short: 'håll', long: 'hål' }, { short: 'dörr', long: 'dör' }, { short: 'glass', long: 'glas' },
   { short: 'sött', long: 'söt' }, { short: 'damm', long: 'dam' }, { short: 'barr', long: 'bar' },
-  { short: 'bytt', long: 'byt' }, { short: 'grått', long: 'gråt' }, { short: 'borr', long: 'bor' },
+  { short: 'bytt', long: 'byt' }, { short: 'grått', long: 'gråt' },
   { short: 'mätt', long: 'mät' }, { short: 'bredd', long: 'bred' }, { short: 'stall', long: 'stal' },
   { short: 'koll', long: 'kol' }, { short: 'lönn', long: 'lön' }, { short: 'still', long: 'stil' },
 ];
