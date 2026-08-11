@@ -36,13 +36,33 @@ export function mixedSubjectsFor(opts: {
 // Excludes EVERY T3/T4 ambiguity by construction: no consonant doubling (T3), no sj/tj/j/
 // ng (T4), no o-å or short e-ä vowel-quality traps (T4). The 2-syllable words (sida, resa,
 // läsa …) deliberately SHOW the long-vowel/single-consonant shape that T3 will contrast.
+// EXPANDED bank (120 practice + 40 holdout) so practice can't be memorised and the holdout is a
+// real generalisation set. Built from a Swedish frequency list, espeak-validated for phoneme
+// transparency (scripts/spelling-audio/build-pool.py + finalize-t2.py): no doubled consonant, no
+// sj/tj/ng/j digraph, no soft k/g/sk, no o/å, letters == sounds, no T3-pair member — stopwords,
+// swearing, names and Erik's strike set removed. The first 34 keep their carrier-sentence audio;
+// the rest are isolated Sofie clips (both under /audio/spelling/t2/).
 export const T2_WORDS: WordPool = {
   practice: [
     'bil', 'gris', 'pris', 'ris', 'lim', 'tid', 'liv', 'hus', 'mus', 'ben',
-    'ren', 'sten', 'rik', 'is', 'lek', 'sida', 'resa', 'fara', 'gata',
-    'läsa', 'näsa', 'äta', 'rita',
+    'ren', 'sten', 'rik', 'is', 'lek', 'sida', 'resa', 'fara', 'gata', 'läsa',
+    'näsa', 'äta', 'rita', 'ny', 'by', 'sy', 'yta', 'räv', 'träd', 'fira',
+    'rida', 'leva', 'myra', 'leka', 'vet', 'ser', 'vänta', 'hela', 'prata', 'fel',
+    'hem', 'älskar', 'veta', 'sluta', 'barn', 'händer', 'säg', 'hör', 'ledsen', 'heter',
+    'hand', 'hände', 'vän', 'sak', 'far', 'väg', 'pratar', 'tiden', 'tänkte', 'namn',
+    'bästa', 'fru', 'slut', 'visa', 'lämna', 'gav', 'hörde', 'livet', 'bilen', 'klarar',
+    'höra', 'tänk', 'sant', 'väntar', 'kul', 'tala', 'män', 'ensam', 'hämta', 'plats',
+    'tur', 'spelar', 'hänt', 'huset', 'rör', 'glad', 'nära', 'tänka', 'ber', 'spela',
+    'lever', 'rum', 'klara', 'gamla', 'par', 'bad', 'tyst', 'klar', 'stan', 'syster',
+    'fint', 'letar', 'lär', 'talar', 'plan', 'lära', 'val', 'lita', 'glöm', 'betala',
+    'önskar', 'kapten', 'arg', 'lämnar', 'sidan', 'hända', 'drar', 'skriva', 'visar', 'undrar',
   ],
-  holdout: ['ny', 'by', 'sy', 'yta', 'räv', 'träd', 'fira', 'rida', 'leva', 'myra', 'leka'],
+  holdout: [
+    'tänkt', 'resten', 'äter', 'grund', 'lät', 'svara', 'barnen', 'skrev', 'saknar', 'bör',
+    'brukar', 'hämtar', 'hälsa', 'sägs', 'skada', 'bevis', 'synd', 'förbi', 'leta', 'slutar',
+    'stund', 'arbete', 'land', 'riktig', 'funkar', 'huvud', 'samtal', 'svar', 'menade', 'läkare',
+    'landet', 'barnet', 'glömde', 'staden', 'stark', 'fri', 'hund', 'andas', 'behövs', 'älska',
+  ],
 };
 
 // T3 — vowel length / consonant doubling. Minimal pairs whose ONLY audible difference is
