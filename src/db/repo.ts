@@ -1012,6 +1012,22 @@ export function timedTargetUnits(familyId: string, targetId: string): { at: numb
   return rows.sort((a, b) => a.at - b.at);
 }
 
+// --- Audio review (the granska ear-vet tool): Erik's per-clip verdict, global (not per family). ---
+export function setAudioReview(tier: string, word: string, verdict: 'ok' | 'bad', note: string | null, at: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO audio_review (tier, word, verdict, note, at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(tier, word) DO UPDATE SET verdict = excluded.verdict, note = excluded.note, at = excluded.at`,
+    )
+    .run(tier, word, verdict, note, at);
+}
+
+export function getAudioReviews(): { tier: string; word: string; verdict: string; note: string | null }[] {
+  return getDb()
+    .prepare('SELECT tier, word, verdict, note FROM audio_review')
+    .all() as { tier: string; word: string; verdict: string; note: string | null }[];
+}
+
 // Bonus units directed to each cat/prop (all-time), mirroring targetAllocationCounts.
 export function bonusTargetUnits(familyId: string): Map<string, number> {
   const rows = getDb()

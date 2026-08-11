@@ -369,4 +369,16 @@ CREATE TABLE IF NOT EXISTS recog_shadow (
   window_n      INTEGER NOT NULL,
   PRIMARY KEY (player_id, skill_code)
 );
+
+-- audio_review: Erik's ear-vet verdict for one pre-generated spelling clip (tier + word). Global,
+-- not per-family — it records which Sofie clips sound right vs wrong (e.g. "hämta" was misheard).
+-- The granska tool writes it; the carrier-sentence regeneration reads the 'bad' rows. One per clip.
+CREATE TABLE IF NOT EXISTS audio_review (
+  tier    TEXT NOT NULL,   -- 'recog' | 't2' | 't3'
+  word    TEXT NOT NULL,
+  verdict TEXT NOT NULL,   -- 'ok' | 'bad'
+  note    TEXT,
+  at      INTEGER NOT NULL,
+  PRIMARY KEY (tier, word)
+);
 `;

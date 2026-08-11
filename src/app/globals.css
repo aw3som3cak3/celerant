@@ -209,6 +209,28 @@ input {
 }
 .granska-chip:active { transform: scale(0.96); background: var(--accent); color: #fff; }
 
+/* Review flow: one clip at a time — listen, reveal, flag. */
+.granska-stats { display: flex; gap: 1.2rem; flex-wrap: wrap; margin: 0.6rem 0; color: var(--ink-soft); font-size: 0.95rem; }
+.granska-stats .granska-bad { color: #c0392b; }
+.granska-filter { display: flex; gap: 0.5rem; margin: 0.4rem 0 1rem; flex-wrap: wrap; }
+.granska-tab { padding: 0.4rem 0.8rem; border-radius: 12px; border: 2px solid var(--accent); background: transparent; color: var(--ink); font-weight: 600; cursor: pointer; }
+.granska-tab.on { background: var(--accent); color: #fff; }
+.granska-card { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; padding: 1.6rem 1rem; border: 2px solid var(--accent); border-radius: 18px; }
+.granska-tier { font-size: 0.85rem; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.06em; }
+.granska-play { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1.05rem; font-weight: 700; padding: 0.7rem 1.4rem; border-radius: 14px; border: 2px solid var(--accent); background: transparent; color: var(--ink); cursor: pointer; }
+.granska-play:active { transform: scale(0.97); }
+.granska-word { font-size: 2.6rem; font-weight: 800; color: var(--ink); }
+.granska-prev { font-size: 0.9rem; font-weight: 600; }
+.granska-prev.ok { color: #2e7d32; }
+.granska-prev.bad { color: #c0392b; }
+.granska-note { width: 100%; max-width: 360px; padding: 0.6rem 0.8rem; border-radius: 12px; border: 2px solid var(--accent); background: transparent; color: var(--ink); font-size: 1rem; }
+.granska-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; justify-content: center; }
+.granska-ok, .granska-fel, .granska-skip { padding: 0.7rem 1.2rem; border-radius: 14px; border: none; font-size: 1.05rem; font-weight: 800; cursor: pointer; color: #fff; }
+.granska-ok { background: #4a9d5b; }
+.granska-fel { background: #c0392b; }
+.granska-skip { background: transparent; border: 2px solid var(--accent); color: var(--ink); font-weight: 700; }
+.granska-progress { font-size: 0.9rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
 .linkbtn {
   display: inline-flex; align-items: center; gap: 0.4rem; align-self: center;
   margin: 0.6rem auto 0; padding: 0.5rem 0.9rem;
