@@ -17,7 +17,7 @@
  */
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
-import { T2_WORDS, T3_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
+import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -86,6 +86,7 @@ const NON_SPRINTABLE: ReadonlySet<string> = new Set([
   "add_3d_carry_twice",
   "sub_3d_borrow",
   "sub_3d_borrow_across_zero",
+  "spelling_t15", // scaffolded production (tiles given) — not a clean free-recall fluency measure
 ]);
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
@@ -1018,6 +1019,15 @@ const tierSpelling: Skill[] = [
         },
       };
     },
+  }),
+  S({
+    // T1.5 — the recognition→production BRIDGE. Hear the word, BUILD it by tapping its letters in
+    // order from a CONSTRAINED tile set (its letters + a couple distractors, plumbed client-side) —
+    // sequenced production with the letters GIVEN, before free recall on the full pad (T2). A
+    // word-dictation skill (SPELLING_POOLS, seed→word); non-sprintable (scaffolded, not a clean
+    // fluency measure). family sp_build (production), not sp_listen (recognition).
+    code: "spelling_t15", subject: "spelling", family: "sp_build", year: 1, mode: "component", requires: ["spelling_t1c"],
+    generate: (r) => { const w = r.pick(T1_5_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({
     code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: [],

@@ -92,13 +92,6 @@ export const T3_WORDS: WordPool = {
 export const T3_PAIRS_REVIEW: readonly { short: string; long: string }[] = [];
 export const T3_REVIEW_WORDS: readonly string[] = T3_PAIRS_REVIEW.flatMap((p) => [p.long, p.short]);
 
-// Which pool backs each spelling skill code. A skill absent here is not a word-dictation
-// skill. T3 is now registered — its recorded audio is in public/audio/spelling/t3/.
-export const SPELLING_POOLS: Record<string, WordPool> = {
-  spelling_t2: T2_WORDS,
-  spelling_t3: T3_WORDS,
-};
-
 // The pre-literate RECOGNITION pool (T0/T1 tiers): picturable, Erik-vetted words, each with its
 // /emoji/<file>.png and its INITIAL-SOUND group key (Swedish sound, not the English emoji name —
 // e.g. key→nyckel is /n/). T0 (initial-sound match) picks a target + distractors from OTHER
@@ -156,6 +149,20 @@ export const TRANSPARENT_WORDS: readonly { word: string; sounds: number; vowel: 
   { word: 'ren', sounds: 3, vowel: 'e' }, { word: 'makt', sounds: 4, vowel: 'a' }, { word: 'lag', sounds: 3, vowel: 'a' }, { word: 'värd', sounds: 4, vowel: 'ä' }, { word: 'kraft', sounds: 5, vowel: 'a' },
   { word: 'bit', sounds: 3, vowel: 'i' }, { word: 'band', sounds: 4, vowel: 'a' },
 ];
+
+// T1.5 — BUILD the word from tiles: the short (≤4-letter) transparent words, so ordering a handful
+// of given letters is manageable for a pre-writer. The recognition→production bridge.
+const T1_5_SHORT = TRANSPARENT_WORDS.filter((w) => w.word.length <= 4).map((w) => w.word);
+export const T1_5_WORDS: WordPool = { practice: T1_5_SHORT.slice(0, -8), holdout: T1_5_SHORT.slice(-8) };
+
+// Which pool backs each spelling WORD-DICTATION skill code. A skill absent here is not word
+// dictation (t0/t1… are recognition choices; buildItem routes on this). T1.5 shares the /recog/
+// isolated audio (its words are TRANSPARENT_WORDS).
+export const SPELLING_POOLS: Record<string, WordPool> = {
+  spelling_t15: T1_5_WORDS,
+  spelling_t2: T2_WORDS,
+  spelling_t3: T3_WORDS,
+};
 
 // The LETTER pad's glyphs for a spelling item (A6.1): the TIER's letters PLUS distractors,
 // never the item's exact letters (no permutation-puzzle leak). A fixed Swedish lower-case set

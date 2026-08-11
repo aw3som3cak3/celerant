@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem, gradeBySeed } from '@/lib/item';
-import { RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS, spellingAudio } from '@/lib/spelling-content';
+import { RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS, T1_5_WORDS, encodeSpellingSeed, spellingAudio } from '@/lib/spelling-content';
 
 const seeds = Array.from({ length: 60 }, (_, i) => (0x51e3 + i * 0x9e3779b1) >>> 0);
 
@@ -95,6 +95,25 @@ describe('spelling_t0b — segment: how many sounds', () => {
       expect(new Set(c.options.map((o) => o.value)).size).toBe(3);
       expect(gradeBySeed('spelling_t0b', seed, String(tw.sounds)).correct).toBe(true);
     }
+  });
+});
+
+describe('spelling_t15 — build the word from tiles (production bridge)', () => {
+  it('is a typed word-dictation item (no choice); short words, all with /recog/ audio; grades right', () => {
+    T1_5_WORDS.practice.forEach((w, i) => {
+      const seed = encodeSpellingSeed('practice', i);
+      const item = buildItem('spelling_t15', seed);
+      expect(item.choice, 'T1.5 must be typed, not a choice').toBeUndefined();
+      expect(item.answer).toBe(w);
+      expect(w.length).toBeLessThanOrEqual(4); // short enough to build from tiles
+      expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'spelling', 'recog', `${w}.mp3`)), `no audio: ${w}`).toBe(true);
+      expect(gradeBySeed('spelling_t15', seed, w).correct).toBe(true);
+      expect(gradeBySeed('spelling_t15', seed, w + 'x').correct).toBe(false);
+    });
+  });
+  it('practice and holdout are disjoint and non-empty', () => {
+    expect(T1_5_WORDS.holdout.length).toBeGreaterThan(0);
+    expect(T1_5_WORDS.practice.filter((w) => T1_5_WORDS.holdout.includes(w))).toEqual([]);
   });
 });
 

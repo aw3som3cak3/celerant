@@ -15,6 +15,7 @@ const EXACT: Record<string, string> = {
   spelling_t1: 'första bokstaven',
   spelling_t1b: 'sista bokstaven',
   spelling_t1c: 'vokalen',
+  spelling_t15: 'bygg ordet',
   spelling_t2: 'ljudenligt',
   spelling_t3: 'lång eller kort vokal',
   dec_read_tenths: 'tiondelar som decimal',

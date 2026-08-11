@@ -12,6 +12,7 @@ import { ChoiceStage } from '../_components/ChoiceStage';
 import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
 import { buildItem } from '@/lib/item';
+import { makeRng } from '@/lib/rng';
 import { SPELLING_LETTERS, spellingAudio, spellingReady } from '@/lib/spelling-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
@@ -352,6 +353,9 @@ function Practice() {
   // A recognition rung carries a `choice` spec (built deterministically from the seed) —
   // render it on ChoiceStage; everything else is typed on InputStage.
   const choiceItem = buildItem(item.code, item.seed).choice;
+  // T1.5 "bygg ordet": the letter pad is CONSTRAINED to this word's tiles (its letters + a couple
+  // distractors), shuffled deterministically from the seed. Other spelling tiers use the full pad.
+  const spellingTiles = item.code === 'spelling_t15' ? buildTiles(buildItem(item.code, item.seed).answer, item.seed) : null;
 
   return (
     <div className="stage">
@@ -401,7 +405,7 @@ function Practice() {
               : t('practice.dontKnow')}
             armKey={armKey}
             {...(item.family.startsWith('sp_')
-              ? { letters: SPELLING_LETTERS, promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
+              ? { letters: spellingTiles ?? SPELLING_LETTERS, promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
               : {})}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
@@ -416,6 +420,19 @@ function Practice() {
 // shared generator the server graded against.
 function buildItemPrompt(item: { code: string; seed: number }): string {
   return buildItem(item.code, item.seed).prompt;
+}
+
+// T1.5 "bygg ordet" tiles: the word's unique letters + two distractors, shuffled DETERMINISTICALLY
+// from the seed (so the pad is stable across re-renders). The child taps the given letters in order
+// — sequenced production with the letters supplied (a pad button is reusable for a doubled letter).
+function buildTiles(word: string, seed: number): string[] {
+  const uniq = [...new Set(word.split(''))];
+  const rng = makeRng((seed ^ 0x7ac) >>> 0);
+  const pool = SPELLING_LETTERS.filter((l) => !uniq.includes(l));
+  for (let i = pool.length - 1; i > 0; i--) { const j = rng.int(0, i); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+  const tiles = [...uniq, pool[0], pool[1]];
+  for (let i = tiles.length - 1; i > 0; i--) { const j = rng.int(0, i); [tiles[i], tiles[j]] = [tiles[j], tiles[i]]; }
+  return tiles;
 }
 
 // Crossed-out headphones — the "Jag hör inte" (no-headphones skip) glyph. Inline SVG so it
