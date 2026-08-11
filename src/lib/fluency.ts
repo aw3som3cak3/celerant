@@ -6,6 +6,12 @@ import type { Subject } from '@/skills';
 export const SPRINT_ACCURACY_GATE = 0.95; // over the last 20 practice attempts
 export const SPRINT_ACCURACY_WINDOW = 20;
 
+// D1 internal-fluency SHADOW for recognition (choice) rungs. A smaller window than a sprint's (the
+// youngest does fewer recognitions per sitting) and a slightly lower accuracy bar (0.90) that is
+// still far above the 3-option guessing floor of 0.33 — fast only counts when accurate (Morningside).
+export const RECOG_ACCURACY_WINDOW = 12;
+export const RECOG_ACCURACY_GATE = 0.9;
+
 // WS III-a shadow trigger. Practice-rate runs ~half the sprint rate (a calm interleaved
 // item vs a warmed-up go-fast batch) — the prod shadow read found median practice/sprint
 // ≈ 0.49 across kids. This factor is NOT an award mechanism (the burst does the awarding

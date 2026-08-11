@@ -6,7 +6,7 @@ import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
 import { BY_CODE, ancestors, type Subject } from '@/skills';
 import { skillsForSubject } from '@/lib/subjects';
 import { wordForSeed } from '@/lib/spelling-content';
-import { aimFor, aimForSkill, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE } from '@/lib/fluency';
+import { aimFor, aimForSkill, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE, RECOG_ACCURACY_WINDOW, RECOG_ACCURACY_GATE } from '@/lib/fluency';
 import { expectedPhysicalDigits } from '@/lib/item';
 import { seedGradeFor } from '@/lib/onboarding';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
@@ -1243,6 +1243,33 @@ export function recordShadowFluency(playerId: string, skillCode: string, now: nu
       'INSERT OR IGNORE INTO shadow_fluency (player_id, skill_code, at, practice_rate, aim, factor, floor, window_n) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     ).run(playerId, skillCode, now, practiceRate, aim, SHADOW_TRIGGER_FACTOR, floor, rows.length);
   }
+}
+
+// D1 internal-fluency SHADOW for RECOGNITION rungs (INVISIBLE, gates nothing). recordShadowFluency
+// bails on non-sprintable rungs, so this is its choice-format sibling: the FIRST time a child is
+// accurate on a recognition rung with enough clean samples, snapshot their practice rate against the
+// (uncalibrated) recognition aim — so we can SEE real rates and calibrate the aim before D2 gates on
+// it. Records regardless of whether the rate crosses the aim (the point is to observe rate vs aim).
+export function recordRecogShadow(playerId: string, skillCode: string, now: number): void {
+  const skill = BY_CODE.get(skillCode);
+  if (!skill || skill.subject !== 'spelling' || skill.format !== 'choice') return; // recognition rungs only
+  const db = getDb();
+  if (db.prepare('SELECT 1 FROM recog_shadow WHERE player_id = ? AND skill_code = ?').get(playerId, skillCode)) return; // first fire only
+  const { acc, count } = recentFirstTryAccuracySince(playerId, skillCode, RECOG_ACCURACY_WINDOW, 0);
+  if (count < RECOG_ACCURACY_WINDOW || acc < RECOG_ACCURACY_GATE) return;
+  const rows = db
+    .prepare(
+      "SELECT latency_ms FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL AND warmup = 0 AND dont_know = 0 AND tries = 1 AND correct = 1 AND latency_ms BETWEEN 300 AND 30000 ORDER BY at DESC LIMIT 20",
+    )
+    .all(playerId, skillCode) as { latency_ms: number }[];
+  if (rows.length < SHADOW_MIN_N) return;
+  const practiceRate = (rows.length * 60000) / rows.reduce((a, r) => a + r.latency_ms, 0);
+  const player = playerById(playerId);
+  if (!player) return;
+  const aim = aimForSkill(skill, latestToolRate(playerId), seedGradeFor(player.school_year), bestObservedDigitRate(playerId));
+  db.prepare('INSERT OR IGNORE INTO recog_shadow (player_id, skill_code, at, practice_rate, aim, accuracy, window_n) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    playerId, skillCode, now, practiceRate, aim, acc, rows.length,
+  );
 }
 
 // Skills the child has EARNED fluency on — a durable, monotonic decision reconstructed

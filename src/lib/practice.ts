@@ -332,6 +332,7 @@ export function answer(
 
   // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
   repo.recordShadowFluency(playerId, p.skill_code, now);
+  repo.recordRecogShadow(playerId, p.skill_code, now); // D1: recognition-rung shadow (invisible)
 
   // The session counter advances on every resolved item, "vet inte" included.
   const session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
@@ -515,6 +516,7 @@ export function sessionAnswer(
     }
     // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
     repo.recordShadowFluency(playerId, code, now);
+    repo.recordRecogShadow(playerId, code, now); // D1: recognition-rung shadow (invisible)
     session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
   } else if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);

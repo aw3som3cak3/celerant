@@ -351,4 +351,21 @@ CREATE TABLE IF NOT EXISTS shadow_fluency (
   window_n      INTEGER NOT NULL,   -- clean first-try-correct attempts in the window
   PRIMARY KEY (player_id, skill_code)
 );
+
+-- recog_shadow (D1, the internal-fluency lane, SHADOW-FIRST). The recognition sibling of
+-- shadow_fluency: choice rungs (spelling_t0…t1c) can't sprint, so this passively logs — the FIRST
+-- time a child is accurate on a recognition rung with enough clean samples — their practice rate vs
+-- the (uncalibrated) recognition aim. INVISIBLE: gates nothing, unlocks nothing. It exists so we can
+-- SEE real recognition rates and calibrate the aim BEFORE flipping to gating (D2). Snapshotted at
+-- fire time (stored-crossing invariant); one row per (player, skill).
+CREATE TABLE IF NOT EXISTS recog_shadow (
+  player_id     TEXT NOT NULL REFERENCES player(id),
+  skill_code    TEXT NOT NULL,
+  at            INTEGER NOT NULL,
+  practice_rate REAL NOT NULL,   -- clean first-try-correct recognitions/min at fire
+  aim           REAL NOT NULL,   -- the (placeholder) recognition aim it was judged against
+  accuracy      REAL NOT NULL,   -- first-try accuracy over the window at fire
+  window_n      INTEGER NOT NULL,
+  PRIMARY KEY (player_id, skill_code)
+);
 `;
