@@ -17,7 +17,7 @@
  */
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
-import { T2_WORDS, T3_WORDS, RECOG_WORDS, SPELLING_LETTERS } from "./lib/spelling-content";
+import { T2_WORDS, T3_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -915,25 +915,106 @@ const tierDecimals: Skill[] = [
 // typed production rung (A8). T3 (vowel length / doubling) is authored in spelling-content
 // but HELD out of the graph until its recorded audio exists (A12); flip it on by adding a
 // spelling_t3 skill here + registering T3_WORDS in SPELLING_POOLS.
+// Three shuffled letter options for a recognition rung: the answer + two distractors from `pool`.
+const letterChoices = (r: Rng, answer: string, pool: readonly string[]): ChoiceOption[] => {
+  const d = pool.filter((l) => l !== answer);
+  for (let i = d.length - 1; i > 0; i--) { const j = r.int(0, i); [d[i], d[j]] = [d[j], d[i]]; }
+  const letters = [answer, d[0], d[1]];
+  for (let i = letters.length - 1; i > 0; i--) { const j = r.int(0, i); [letters[i], letters[j]] = [letters[j], letters[i]]; }
+  return letters.map((l): ChoiceOption => ({ value: l, render: "letter" }));
+};
+
+// The PRE-LITERATE recognition ladder (year 0, format:'choice', family 'sp_listen'). All "hear the
+// word, tap the answer" — no writing, so a child who can't yet spell still climbs the alphabetic
+// principle: initial sound (by picture, then by letter) → segment → final sound → the vowel. Each
+// requires the previous (Morningside small steps). Non-sprintable for now; the fluency lane is next.
 const tierSpelling: Skill[] = [
   S({
-    // T1 — letter knowledge / the reading-readiness probe. Hear a whole word, tap the letter it
-    // STARTS with. format:'choice' (auto non-sprintable for now; the fluency lane comes later).
-    // Pre-literate floor (year 0): a child who can't write yet still meets sound→letter here.
-    code: "spelling_t1", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: [],
+    // T0 — phonological awareness, NO letters. Hear a word, tap the PICTURE that starts with the
+    // same sound (a different word from the same initial-sound group).
+    code: "spelling_t0", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: [],
+    generate: (r) => {
+      const initials = [...new Set(RECOG_WORDS.map((w) => w.initial))].filter((i) => RECOG_WORDS.filter((w) => w.initial === i).length >= 2);
+      const initial = r.pick(initials);
+      const group = RECOG_WORDS.filter((w) => w.initial === initial);
+      const target = r.pick(group);
+      const match = r.pick(group.filter((w) => w.word !== target.word)); // the correct picture: same start, different word
+      const others = RECOG_WORDS.filter((w) => w.initial !== initial);
+      for (let i = others.length - 1; i > 0; i--) { const j = r.int(0, i); [others[i], others[j]] = [others[j], others[i]]; }
+      const opts = [match, others[0], others[1]];
+      for (let i = opts.length - 1; i > 0; i--) { const j = r.int(0, i); [opts[i], opts[j]] = [opts[j], opts[i]]; }
+      return {
+        prompt: "", answer: { kind: "word", text: match.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "spelling_t0", word: target.word },
+          question: "Vilken börjar likadant?",
+          options: opts.map((w): ChoiceOption => ({ value: w.word, render: "picture", kind: w.emoji })),
+        },
+      };
+    },
+  }),
+  S({
+    // T0b — segmentation. Hear a (transparent) word, tap HOW MANY sounds it has.
+    code: "spelling_t0b", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: ["spelling_t0"],
+    generate: (r) => {
+      const w = r.pick(TRANSPARENT_WORDS);
+      const near = [w.sounds - 1, w.sounds + 1, w.sounds + 2].filter((n) => n >= 1 && n !== w.sounds);
+      for (let i = near.length - 1; i > 0; i--) { const j = r.int(0, i); [near[i], near[j]] = [near[j], near[i]]; }
+      const nums = [w.sounds, near[0], near[1]];
+      for (let i = nums.length - 1; i > 0; i--) { const j = r.int(0, i); [nums[i], nums[j]] = [nums[j], nums[i]]; }
+      return {
+        prompt: "", answer: int(w.sounds), steps: [`${w.word}: ${w.sounds} ljud`],
+        choice: {
+          prompt: { show: "listen", code: "spelling_t0b", word: w.word },
+          question: "Hur många ljud hör du?",
+          options: nums.map((n): ChoiceOption => ({ value: n, render: "numeral" })),
+        },
+      };
+    },
+  }),
+  S({
+    // T1 — letter knowledge / the reading-readiness probe. Hear a word, tap the FIRST letter.
+    code: "spelling_t1", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: ["spelling_t0b"],
     generate: (r) => {
       const w = r.pick(RECOG_WORDS);
       const first = w.word[0];
-      const pool = SPELLING_LETTERS.filter((l) => l !== first); // two distractor letters, not the answer
-      for (let i = pool.length - 1; i > 0; i--) { const j = r.int(0, i); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-      const letters = [first, pool[0], pool[1]];
-      for (let i = letters.length - 1; i > 0; i--) { const j = r.int(0, i); [letters[i], letters[j]] = [letters[j], letters[i]]; }
       return {
         prompt: "", answer: { kind: "word", text: first }, steps: [w.word],
         choice: {
           prompt: { show: "listen", code: "spelling_t1", word: w.word },
           question: "Vilken bokstav börjar ordet på?",
-          options: letters.map((l): ChoiceOption => ({ value: l, render: "letter" })),
+          options: letterChoices(r, first, SPELLING_LETTERS),
+        },
+      };
+    },
+  }),
+  S({
+    // T1b — final sound → letter. Hear a (transparent) word, tap the LAST letter.
+    code: "spelling_t1b", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: ["spelling_t1"],
+    generate: (r) => {
+      const w = r.pick(TRANSPARENT_WORDS);
+      const last = w.word[w.word.length - 1];
+      return {
+        prompt: "", answer: { kind: "word", text: last }, steps: [w.word],
+        choice: {
+          prompt: { show: "listen", code: "spelling_t1b", word: w.word },
+          question: "Vilken bokstav slutar ordet på?",
+          options: letterChoices(r, last, SPELLING_LETTERS),
+        },
+      };
+    },
+  }),
+  S({
+    // T1c — the vowel → letter (the hardest position on Swedish). Hear a word, tap the VOWEL.
+    code: "spelling_t1c", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: ["spelling_t1b"],
+    generate: (r) => {
+      const w = r.pick(TRANSPARENT_WORDS);
+      return {
+        prompt: "", answer: { kind: "word", text: w.vowel }, steps: [w.word],
+        choice: {
+          prompt: { show: "listen", code: "spelling_t1c", word: w.word },
+          question: "Vilken vokal hör du?",
+          options: letterChoices(r, w.vowel, SPELLING_VOWELS),
         },
       };
     },

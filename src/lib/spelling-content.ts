@@ -92,6 +92,19 @@ export const RECOG_WORDS: readonly RecogWord[] = [
   { word: 'äpple', emoji: 'apple', initial: 'ä' }, { word: 'ägg', emoji: 'egg', initial: 'ä' },
 ];
 
+// Phoneme-TRANSPARENT sub-pool (letters = sounds, 1:1) for the rungs that reason about a word's
+// sound structure: T0b (count the sounds), T1b (final sound → letter), T1c (the vowel → letter).
+// Each is a SINGLE-vowel word so "the vowel" is unambiguous, and each is a RECOG_WORDS member
+// (isolated audio already exists). `sounds` is the Erik-vettable phoneme count.
+export const SPELLING_VOWELS: readonly string[] = ['a', 'e', 'i', 'o', 'u', 'y', 'å', 'ä', 'ö'];
+export const TRANSPARENT_WORDS: readonly { word: string; sounds: number; vowel: string }[] = [
+  { word: 'sol', sounds: 3, vowel: 'o' }, { word: 'mus', sounds: 3, vowel: 'u' }, { word: 'bil', sounds: 3, vowel: 'i' },
+  { word: 'hus', sounds: 3, vowel: 'u' }, { word: 'ris', sounds: 3, vowel: 'i' }, { word: 'ros', sounds: 3, vowel: 'o' },
+  { word: 'val', sounds: 3, vowel: 'a' }, { word: 'tåg', sounds: 3, vowel: 'å' }, { word: 'båt', sounds: 3, vowel: 'å' },
+  { word: 'ko', sounds: 2, vowel: 'o' }, { word: 'räv', sounds: 3, vowel: 'ä' }, { word: 'våg', sounds: 3, vowel: 'å' },
+  { word: 'hund', sounds: 4, vowel: 'u' }, { word: 'häst', sounds: 4, vowel: 'ä' }, { word: 'fisk', sounds: 4, vowel: 'i' },
+];
+
 // The LETTER pad's glyphs for a spelling item (A6.1): the TIER's letters PLUS distractors,
 // never the item's exact letters (no permutation-puzzle leak). A fixed Swedish lower-case set
 // covers T2/T3 and hides which letters the answer uses.
