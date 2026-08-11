@@ -6,7 +6,7 @@
 // clips (recognition + T2 + T3), not just T3, and PERSISTS each verdict (audio_review) so the
 // review resumes and the carrier-sentence regeneration can read the flagged list.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
 import { Emoji } from '../../_components/Emoji';
 import { RECOG_WORDS, TRANSPARENT_WORDS, SPELLING_POOLS, spellingAudio } from '@/lib/spelling-content';
@@ -32,11 +32,6 @@ const CLIPS: Clip[] = (() => {
 
 const key = (c: { tier: string; word: string }) => `${c.tier}:${c.word}`;
 
-function play(code: string, word: string): void {
-  const audio = spellingAudio(code, word);
-  if (audio.kind === 'file') new Audio(audio.url).play().catch(() => {});
-}
-
 type Filter = 'kvar' | 'alla' | 'flaggade';
 
 export default function GranskaPage() {
@@ -45,6 +40,29 @@ export default function GranskaPage() {
   const [filter, setFilter] = useState<Filter>('kvar');
   const [pos, setPos] = useState(0);
   const [note, setNote] = useState('');
+
+  // Hold the playing clip in a ref and STOP it before the next one (or on advancing / unmount), so
+  // clicking Bra / Lät fel / Hoppa never leaves the previous word talking over the next.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAudio = useCallback(() => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
+  const playClip = useCallback((code: string, word: string) => {
+    stopAudio();
+    const audio = spellingAudio(code, word);
+    if (audio.kind === 'file') {
+      const a = new Audio(audio.url);
+      audioRef.current = a;
+      a.play().catch(() => {});
+    } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(word);
+      u.lang = audio.lang ?? 'sv-SE';
+      window.speechSynthesis.speak(u);
+    }
+  }, [stopAudio]);
+  useEffect(() => stopAudio, [stopAudio]); // stop on unmount
 
   useEffect(() => {
     getJSON<{ authorized?: boolean; reviews?: { tier: string; word: string; verdict: Verdict; note: string | null }[] }>('/api/stava/audio-review')
@@ -68,11 +86,13 @@ export default function GranskaPage() {
   const reviewedCount = Object.keys(reviews).length;
   const badCount = Object.values(reviews).filter((r) => r.verdict === 'bad').length;
 
-  // Auto-play the current clip and load any saved note when it changes.
+  // Auto-play the current clip and load any saved note when it changes. Stop the previous clip
+  // IMMEDIATELY (not only when the next starts 200ms later), so advancing is instantly silent.
   useEffect(() => {
     if (state !== 'ok' || !current) return;
+    stopAudio();
     setNote(reviews[key(current)]?.note ?? '');
-    const id = setTimeout(() => play(current.code, current.word), 200);
+    const id = setTimeout(() => playClip(current.code, current.word), 200);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, current?.tier, current?.word]);
@@ -80,6 +100,7 @@ export default function GranskaPage() {
   const submit = useCallback(
     (verdict: Verdict) => {
       if (!current) return;
+      stopAudio(); // clicking OK / Lät fel silences the current clip at once
       const c = current;
       setReviews((r) => ({ ...r, [key(c)]: { verdict, note: note.trim() || null } }));
       postJSON('/api/stava/audio-review', { tier: c.tier, word: c.word, verdict, note: note.trim() || null }).catch(() => {});
@@ -129,7 +150,7 @@ export default function GranskaPage() {
       ) : (
         <div className="granska-card">
           <span className="granska-tier">{TIER_LABEL[current.tier]}</span>
-          <button type="button" className="granska-play" onClick={() => play(current.code, current.word)}>
+          <button type="button" className="granska-play" onClick={() => playClip(current.code, current.word)}>
             <Emoji e="🔊" /> Spela igen
           </button>
           <div className="granska-word">{current.word}</div>
@@ -147,7 +168,7 @@ export default function GranskaPage() {
           <div className="granska-actions">
             <button type="button" className="granska-ok" onClick={() => submit('ok')}>✓ Bra</button>
             <button type="button" className="granska-fel" onClick={() => submit('bad')}>✗ Lät fel</button>
-            <button type="button" className="granska-skip" onClick={() => setPos((p) => p + 1)}>Hoppa över →</button>
+            <button type="button" className="granska-skip" onClick={() => { stopAudio(); setPos((p) => p + 1); }}>Hoppa över →</button>
           </div>
           <div className="granska-progress">{Math.min(pos + 1, queue.length)} / {queue.length}</div>
         </div>
