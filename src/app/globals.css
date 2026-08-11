@@ -1403,10 +1403,20 @@ table.plain-table th {
 .ground-numeral { font-size: 2.4rem; font-weight: 800; color: #3a2f28; font-variant-numeric: tabular-nums; }
 /* produce rung: the typed answer above the numpad */
 .ground-entry { font-size: 2.4rem; font-weight: 800; min-height: 3rem; color: #3a2f28; font-variant-numeric: tabular-nums; letter-spacing: 0.1em; }
-.ground-cluster.arriving { animation: ground-approach 1.1s ease-in-out infinite; }
-.ground-cluster.leaving { animation: ground-depart 1.1s ease-in-out infinite; }
-@keyframes ground-approach { 0%, 100% { transform: translateX(12px); } 50% { transform: translateX(-6px); } }
-@keyframes ground-depart { 0%, 100% { transform: translateX(-4px); opacity: 1; } 50% { transform: translateX(22px); opacity: 0.5; } }
+/* structure rung: a base bunch + a delta bunch that flies IN to join (combine → fler) or OUT and
+   away (separate → färre). One-shot, driven by the .played class — a beat of "before", then the
+   event. The child watches WHICH WAY it goes; the replay button re-runs it. */
+.ground-structure-scene { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; }
+.ground-scene-row { display: flex; align-items: center; justify-content: center; gap: 1.4rem; min-height: 110px; overflow: hidden; }
+.ground-delta { display: flex; flex-wrap: wrap; gap: 5px; max-width: 130px; justify-content: center;
+  transition: transform 0.7s ease-out, opacity 0.55s ease-out; }
+.ground-structure-scene.combine .ground-delta { transform: translateX(170px); opacity: 0; }
+.ground-structure-scene.combine.played .ground-delta { transform: translateX(0); opacity: 1; }
+.ground-structure-scene.separate .ground-delta { transform: translateX(0); opacity: 1; }
+.ground-structure-scene.separate.played .ground-delta { transform: translateX(170px); opacity: 0; }
+.ground-replay { background: none; border: 2px solid #c9b79a; border-radius: 10px; padding: 0.3rem 0.8rem;
+  font-size: 0.95rem; font-weight: 700; color: #6b5b4a; cursor: pointer; }
+.ground-replay:active { transform: scale(0.96); }
 .ground-resolved { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; }
 .ground-symbol { font-size: 1.7rem; font-weight: 800; font-variant-numeric: tabular-nums; color: #3a2f28; }
 .ground-q { font-size: 1.2rem; font-weight: 700; margin: 0.2rem 0 0.8rem; }
@@ -1424,7 +1434,7 @@ table.plain-table th {
 .ground-feedback.soft { color: #6b5b4a; }
 .ground-next { margin-top: 0.4rem; }
 @media (prefers-reduced-motion: reduce) {
-  .ground-cluster.arriving, .ground-cluster.leaving { animation: none; }
+  .ground-delta { transition: none; } /* snap to the resolved count instead of sliding */
 }
 
 /* --- Public "what is this" page (/about), reachable logged-out ------------- */

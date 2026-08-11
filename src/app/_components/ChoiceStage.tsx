@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChoicePromptData, ChoiceOption } from '@/lib/choice';
 import { spellingAudio } from '@/lib/spelling-content';
 
@@ -109,7 +109,22 @@ export function ChoiceStage({
   }, [itemKey, playPrompt, prompt.show, stopAudio]);
   useEffect(() => stopAudio, [stopAudio]); // stop on unmount
 
+  // GROUND structure rung: the child must SEE the event, not two static bunches. `played` drives a
+  // one-shot animation — a bunch flies IN and joins (combine → fler) or flies OUT and vanishes
+  // (separate → färre). It starts false (the "before" scene), flips true a beat after the item
+  // paints so the child watches the action, and the replay button re-runs it.
   const isStructure = prompt.show === 'structure';
+  const [played, setPlayed] = useState(false);
+  useEffect(() => {
+    if (!isStructure) return;
+    setPlayed(false);
+    const id = setTimeout(() => setPlayed(true), 650);
+    return () => clearTimeout(id);
+  }, [itemKey, isStructure]);
+  const replayScene = useCallback(() => {
+    setPlayed(false);
+    setTimeout(() => setPlayed(true), 60);
+  }, []);
 
   return (
     <div className="input-stage">
@@ -129,9 +144,22 @@ export function ChoiceStage({
             <Objects kind={prompt.kind} n={prompt.b} />
           </div>
         ) : (
-          <div className="ground-groups">
-            <Objects kind={prompt.kind} n={prompt.a} />
-            <Objects kind={prompt.kind} n={prompt.b} />
+          // structure: base bunch + a delta bunch that arrives (combine) or departs (separate).
+          // For separate, base = a-b and the delta (b) starts attached then leaves → a-b remain;
+          // for combine, base = a and the delta (b) flies in → a+b. Grading only cares about the
+          // direction, so the counts are pedagogical framing, not answer-bearing.
+          <div className={`ground-structure-scene ${prompt.structure} ${played ? 'played' : ''}`}>
+            <div className="ground-scene-row">
+              <Objects kind={prompt.kind} n={prompt.structure === 'separate' ? prompt.a - prompt.b : prompt.a} />
+              <div className="ground-delta">
+                {Array.from({ length: prompt.b }, (_, i) => (
+                  <img key={i} className="ground-obj" src={`/emoji/${prompt.kind}.png`} alt="" draggable={false} />
+                ))}
+              </div>
+            </div>
+            <button type="button" className="ground-replay" onClick={replayScene}>
+              <span aria-hidden>🔁</span> Visa igen
+            </button>
           </div>
         )}
       </div>
