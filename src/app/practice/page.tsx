@@ -164,7 +164,7 @@ function Practice() {
   // Auto-load the first problem (map link, warm-up ramp, or resume) without flashing
   // the chooser.
   useEffect(() => {
-    if (phase === 'choose' && sessionId != null && !autoStarted.current && (startCode || ramp > 0 || resumingRef.current)) {
+    if (phase === 'choose' && sessionId != null && !autoStarted.current) {
       autoStarted.current = true;
       firstItem(startCode ?? undefined);
     }
@@ -297,27 +297,10 @@ function Practice() {
     );
   }
 
-  if (phase === 'choose') {
-    if (startCode || ramp > 0 || resumingRef.current) return <div className="stage" />;
-    return (
-      <div className="stage">
-        {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
-        <p className="muted" style={{ marginBottom: '2rem' }}>{t('practice.choosePrompt')}</p>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-          {choices.map((c) => (
-            <button key={c.code} className="choice-btn" onClick={() => firstItem(c.code)}>
-              <span className="choice-sample">{renderPrompt(c.sample)}</span>
-              <span className="choice-label">{c.label}</span>
-            </button>
-          ))}
-        </div>
-        <div style={{ marginTop: '1.5rem', display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-          <a className="quit-btn" href={`/shelf?p=${playerId}`}><Emoji e="🏅" /> {t('home.diplomas')}</a>
-          <a className="quit-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
-        </div>
-      </div>
-    );
-  }
+  // One-Öva track: no "vad vill du öva" chooser — the child drops straight into practice and the
+  // selector serves the right rung (with a floor fallback). The blank stage shows only for the beat
+  // before the auto-load effect fires the first item.
+  if (phase === 'choose') return <div className="stage" />;
 
   if (phase === 'done') {
     return (
