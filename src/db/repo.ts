@@ -995,6 +995,23 @@ export function bonusAllocationForSprint(sprintId: number): { player_id: string;
     .get(sprintId) as { player_id: string; family_id: string; target_kind: string; target_id: string; units: number } | undefined;
 }
 
+// Timestamped units directed to ONE consumable target (the fish), session + bonus, oldest
+// first. The caller walks these to spawn a treat every `cost` units at that unit's time, then
+// keeps only spawns inside the life window — so a fish is born when earned and eaten at +48h.
+export function timedTargetUnits(familyId: string, targetId: string): { at: number; units: number }[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT a.at at, (sr.target + 9) / 10 units FROM session_allocation a
+         JOIN session_run sr ON sr.id = a.session_run_id
+         WHERE a.family_id = ? AND a.target_kind = 'prop' AND a.target_id = ?
+       UNION ALL
+       SELECT at, units FROM bonus_allocation
+         WHERE family_id = ? AND target_kind = 'prop' AND target_id = ?`,
+    )
+    .all(familyId, targetId, familyId, targetId) as { at: number; units: number }[];
+  return rows.sort((a, b) => a.at - b.at);
+}
+
 // Bonus units directed to each cat/prop (all-time), mirroring targetAllocationCounts.
 export function bonusTargetUnits(familyId: string): Map<string, number> {
   const rows = getDb()

@@ -29,7 +29,13 @@ export type RosterItem = {
   blurb: Record<Locale, string>; // one-line "who/what", shown on tap
   slot?: { x: number; y: number }; // prop only: fixed % position (center) on the room floor
   size?: number; // prop only: on-screen px (the sprite's rendered height)
+  life?: number; // consumable prop only (fish): ms a spawned unit survives before a cat eats it
 };
+
+// The fish is the one CONSUMABLE reward: cheap (2 units → one fish), and each fish the cats
+// leave alone for only 48h before eating it. So unlike every permanent prop it doesn't unlock
+// once and stay — it's a living count of "fish earned in the last two days" (reward.ts liveFish).
+export const FISH_LIFE_MS = 48 * 60 * 60 * 1000;
 
 export const CAT_COST = 40;
 
@@ -128,10 +134,10 @@ export const ROSTER: RosterItem[] = [
     blurb: { en: 'a full box of crunchy treats', sv: 'en full låda med krispiga godsaker' },
   },
   {
-    id: 'fish', kind: 'prop', spriteId: 'fish', cost: 10, order: 17,
-    slot: { x: 52, y: 89 }, size: 22,
+    id: 'fish', kind: 'prop', spriteId: 'fish', cost: 2, order: 17,
+    slot: { x: 52, y: 89 }, size: 22, life: FISH_LIFE_MS,
     name: { en: 'Fish treat', sv: 'Fisk' },
-    blurb: { en: 'a tasty fish to nibble on', sv: 'en läcker fisk att mumsa på' },
+    blurb: { en: 'a tasty fish — the cats eat it within 48h', sv: 'en läcker fisk — katterna äter upp den inom 48h' },
   },
 ];
 

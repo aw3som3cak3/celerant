@@ -7,7 +7,19 @@ import { CATS, PROPS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji } from '../_components/Emoji';
 
-type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
+type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null; liveFish: number };
+
+// Live fish spread along the floor band, deterministic by index (two rows so they don't overlap
+// in a line). Shared by the render and the cat-wander target so a cat sits where a fish actually is.
+const FISH_CAP = 8;
+function fishSpots(n: number): { id: string; x: number; y: number }[] {
+  const m = Math.min(n, FISH_CAP);
+  return Array.from({ length: m }, (_, i) => ({
+    id: `fish-${i}`,
+    x: m === 1 ? 50 : 24 + (i * 52) / (m - 1),
+    y: 86 + (i % 2) * 5,
+  }));
+}
 
 type CatAnim = 'idle' | 'walk' | 'sit' | 'sleep';
 
@@ -98,7 +110,9 @@ function Room() {
       .filter((id) => PROP_ANIM[id])
       .map((id) => { const it = ROSTER_BY_ID.get(id); return { id, x: it?.slot?.x ?? 50, y: it?.slot?.y ?? 85, anim: PROP_ANIM[id] as 'sleep' | 'sit' }; });
     const tree = unlocked.includes(TREE_ID) ? [{ id: TREE_ID, x: TREE_BASE.x, y: TREE_BASE.y, anim: 'sit' as const, perches: TREE_PERCHES }] : [];
-    propsRef.current = [...floor, ...tree];
+    // Each live fish is a spot a cat can wander over and nibble at (anim 'sit').
+    const fish = fishSpots(data?.liveFish ?? 0).map((s) => ({ id: s.id, x: s.x, y: s.y, anim: 'sit' as const }));
+    propsRef.current = [...floor, ...tree, ...fish];
   }, [data]);
 
   // The wander loop: every couple of seconds each cat strolls, settles, or heads to a
@@ -196,6 +210,19 @@ function Room() {
             />
           );
         })}
+        {/* Live fish — the consumable treat. One sprite per fish earned in the last 48h; they
+            simply stop being rendered as they age out server-side (the cats have eaten them). */}
+        {fishSpots(data.liveFish).map((s) => (
+          <img
+            key={s.id}
+            className="room-prop room-fish"
+            src="/props/fish.png"
+            alt=""
+            title={ROSTER_BY_ID.get('fish')?.name[locale]}
+            draggable={false}
+            style={{ left: `${s.x}%`, top: `${s.y}%`, height: ROSTER_BY_ID.get('fish')?.size ?? 22 }}
+          />
+        ))}
         {hearts.map((h) => (
           <span key={h.id} className="room-heart" style={{ left: `${h.x}%`, top: `${h.y}%` }}><Emoji e="❤" /></span>
         ))}
@@ -282,14 +309,15 @@ function Room() {
         <h2 className="target-subhead">{t('room.furniture')}</h2>
         {PROPS.map((pr) => {
           const n = data.progress[pr.id] ?? 0;
-          const done = data.unlockedProps.includes(pr.id);
+          const consumable = pr.life != null; // the fish: never permanently done, shows a live count
+          const done = !consumable && data.unlockedProps.includes(pr.id);
           const isShared = shared.kind === 'prop' && shared.id === pr.id;
           return (
             <div key={pr.id} className={`target-row ${done ? 'done' : ''}`}>
               <span className="prop-thumb" style={{ backgroundImage: `url(/props/${pr.id}.png)` }} aria-hidden />
               <span className="target-name">{pr.name[locale]}</span>
               <span className="target-meter"><span style={{ width: `${Math.min(100, (n / pr.cost) * 100)}%` }} /></span>
-              <span className="target-count">{done ? '✓' : `${n}/${pr.cost}`}</span>
+              <span className="target-count">{consumable ? `🐟 ×${data.liveFish}` : done ? '✓' : `${n}/${pr.cost}`}</span>
               {!done && !isShared && <button className="idk" onClick={() => setSharedTarget({ kind: 'prop', id: pr.id })}>{t('room.collectThis')}</button>}
               {isShared && <span className="pill-selected">{t('room.selected')}</span>}
             </div>

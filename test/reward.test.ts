@@ -9,7 +9,7 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { rewardState, resolveSharedTarget } from '@/lib/reward';
-import { ROSTER, CATS, PROPS, CAT_COST } from '@/reward/roster';
+import { ROSTER, CATS, PROPS, CAT_COST, FISH_LIFE_MS } from '@/reward/roster';
 import { LOCALES } from '@/lib/i18n';
 
 const NOW = Date.UTC(2026, 6, 14);
@@ -121,6 +121,53 @@ describe('furniture (props) collect on the same directed-session model as cats',
     st = rewardState(fam);
     expect(st.unlockedProps).toContain(prop.id);
     expect(st.unlockedCats).not.toContain(prop.id); // props stay out of the cat list
+  });
+});
+
+describe('the fish is a CONSUMABLE treat: 2 units → one fish, eaten after 48h', () => {
+  const fishSession = (fam: string, kid: string, at: number) => {
+    const sid = repo.createSessionRun(kid, 10, at); // 10-item session = 1 unit
+    for (let i = 0; i < 10; i++) repo.bumpSessionRun(sid, at);
+    repo.setAllocation(sid, kid, fam, 'prop', 'fish', at);
+  };
+
+  it('costs 2 and carries a 48h life', () => {
+    const fish = PROPS.find((p) => p.id === 'fish')!;
+    expect(fish.cost).toBe(2);
+    expect(fish.life).toBe(FISH_LIFE_MS);
+  });
+
+  it('spawns one fish per 2 directed sessions; never a permanent unlock', () => {
+    const fam = repo.createFamily('otter+clam', 'o:c', 'o:x', NOW);
+    const kid = repo.createPlayer(fam, 'otter', 2, NOW);
+    const t0 = NOW + 100_000;
+    fishSession(fam, kid, t0);
+    let st = rewardState(fam, undefined, t0 + 1000);
+    expect(st.liveFish).toBe(0); // 1 unit — half a fish
+    expect(st.progress['fish']).toBe(1); // toward the next
+    expect(st.unlockedProps).not.toContain('fish'); // consumable — never permanently unlocked
+
+    fishSession(fam, kid, t0 + 1000);
+    st = rewardState(fam, undefined, t0 + 2000);
+    expect(st.liveFish).toBe(1); // 2 units → one fish
+    expect(st.progress['fish']).toBe(0); // reset toward the next
+    expect(st.unlockedProps).not.toContain('fish');
+
+    fishSession(fam, kid, t0 + 2000);
+    fishSession(fam, kid, t0 + 3000);
+    st = rewardState(fam, undefined, t0 + 4000);
+    expect(st.liveFish).toBe(2); // a second fish
+  });
+
+  it('a fish is eaten exactly 48h after it was earned', () => {
+    const fam = repo.createFamily('seal+kelp', 's:k', 's:x', NOW);
+    const kid = repo.createPlayer(fam, 'seal', 2, NOW);
+    const t0 = NOW + 200_000;
+    fishSession(fam, kid, t0);
+    fishSession(fam, kid, t0 + 1000); // the 2nd unit lands at t0+1000 → the fish is born then
+    const born = t0 + 1000;
+    expect(rewardState(fam, undefined, born + FISH_LIFE_MS - 1).liveFish).toBe(1); // still alive
+    expect(rewardState(fam, undefined, born + FISH_LIFE_MS + 1).liveFish).toBe(0); // cats ate it
   });
 });
 
