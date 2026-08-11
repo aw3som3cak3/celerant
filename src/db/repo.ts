@@ -1252,7 +1252,7 @@ export function recordShadowFluency(playerId: string, skillCode: string, now: nu
 // it. Records regardless of whether the rate crosses the aim (the point is to observe rate vs aim).
 export function recordRecogShadow(playerId: string, skillCode: string, now: number): void {
   const skill = BY_CODE.get(skillCode);
-  if (!skill || skill.subject !== 'spelling' || skill.format !== 'choice') return; // recognition rungs only
+  if (!skill || skill.format !== 'choice') return; // recognition/choice rungs only (spelling t0…t1c + maths GROUND)
   const db = getDb();
   if (db.prepare('SELECT 1 FROM recog_shadow WHERE player_id = ? AND skill_code = ?').get(playerId, skillCode)) return; // first fire only
   const { acc, count } = recentFirstTryAccuracySince(playerId, skillCode, RECOG_ACCURACY_WINDOW, 0);

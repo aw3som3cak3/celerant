@@ -35,6 +35,15 @@ describe('the youngest climbs the recognition ladder in order (E + D2a)', () => 
     expect([...seen]).toEqual(['spelling_t0']);
   });
 
+  it('a fresh åk0 kid starts MATHS at ground_structure (fler/färre), never add_within_10', () => {
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const opts = sessionSelectOpts({ id: pid, school_year: 0, stretch: 0 }, sid, NOW);
+    const seen = new Set<string>();
+    for (let i = 0; i < 40; i++) seen.add(issueNext(pid, 0, NOW, opts).code);
+    expect([...seen]).toEqual(['ground_structure']); // the GROUND choice floor, ordered
+    expect(seen.has('add_within_10')).toBe(false);
+  });
+
   it('after crossing t0 (accurate + enough samples), t0b unlocks', () => {
     for (let i = 0; i < 14; i++) {
       repo.appendAttempt({ playerId: pid, skillCode: 'spelling_t0', itemJson: JSON.stringify({ seed: i }), given: 'x', correct: 1, tries: 1, dontKnow: false, latencyMs: 2000, at: NOW + i * 1000 });

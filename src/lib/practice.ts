@@ -48,12 +48,12 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
     const ab = ability.get(s.code);
     const rate: RateEvidence =
       s.mode === 'component' ? rateEvidence(ab?.rate_state ?? 'unknown', ab?.rate ?? null) : { source: 'unknown' };
-    // Recognition rung: a non-sprintable spelling choice rung. It can't seed-pass on year 0 (that
-    // would auto-fluent the whole ladder → no ORDER, the youngest jumps straight to t15/t2). Instead
-    // it seed-passes at åk≥1 (an older child who can already read skips recognition) and the YOUNGEST
-    // (åk0) must EARN each rung — the recog_shadow accuracy+volume crossing — so her ladder is ordered:
-    // t0 first, then t0b once accurate, … (D2a; the RATE gate D2b waits for calibration).
-    const isRecog = s.subject === 'spelling' && s.format === 'choice';
+    // Recognition/choice rung — spelling t0…t1c AND maths GROUND (fler/färre, count, …). Year 0, so
+    // seedGrade≥year auto-fluents them all → no ORDER (a fresh F child jumps to add_within_10 / t15).
+    // Instead they seed-pass at åk≥1 (an older child skips the floor) and the YOUNGEST (åk0) must EARN
+    // each — the recog_shadow accuracy+volume crossing — so her floor is ORDERED: fler/färre first,
+    // then count once accurate, …; the numpad on-ramp stays gated behind ground_sum (D2a).
+    const isRecog = s.format === 'choice';
     return {
       code: s.code,
       family: s.family,
