@@ -456,25 +456,35 @@ function HeadphonesOff() {
 // replays on tap. The child types the spelling on the letter pad; "Jag hör inte" (the idk
 // button) skips it for a child without headphones.
 function Dictation({ itemKey, code, seed }: { itemKey: string; code: string; seed: number }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAudio = useCallback(() => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
   const play = useCallback(() => {
+    stopAudio();
     const word = buildItem(code, seed).answer; // the client derives it, same as maths
     const audio = spellingAudio(code, word);
     if (audio.kind === 'file') {
-      new Audio(audio.url).play().catch(() => {});
+      const a = new Audio(audio.url);
+      audioRef.current = a;
+      a.play().catch(() => {});
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(word);
       u.lang = 'sv-SE';
       u.rate = 0.9;
-      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     }
-  }, [code, seed]);
+  }, [code, seed, stopAudio]);
   // Auto-play each new word (the chooser tap / previous answer is the user gesture that
-  // unlocks audio); the button is the reliable replay.
+  // unlocks audio); the button is the reliable replay. STOP the clip on item change/unmount so
+  // a word never plays into the next (e.g. maths) item.
   useEffect(() => {
+    stopAudio();
     const id = setTimeout(play, 250);
-    return () => clearTimeout(id);
-  }, [itemKey, play]);
+    return () => { clearTimeout(id); stopAudio(); };
+  }, [itemKey, play, stopAudio]);
   return (
     <div className="dictation">
       <p className="dictation-hint">Skriv ordet du hör</p>

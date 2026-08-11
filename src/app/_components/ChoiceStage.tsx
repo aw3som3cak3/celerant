@@ -78,24 +78,36 @@ export function ChoiceStage({
 
   // A 'listen' prompt PLAYS the target word (never shows it) — the recognition sibling of the
   // dictation control, reusing spellingAudio. Auto-plays on each new item; the button replays.
+  // The clip is held in a ref and STOPPED on any item change/unmount, so a spelling word never
+  // keeps playing (or seems to replay) into the next — e.g. maths — item.
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const stopAudio = useCallback(() => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
   const playPrompt = useCallback(() => {
     if (prompt.show !== 'listen') return;
+    stopAudio();
     const audio = spellingAudio(prompt.code, prompt.word);
     if (audio.kind === 'file') {
-      new Audio(audio.url).play().catch(() => {});
+      const a = new Audio(audio.url);
+      audioRef.current = a;
+      a.play().catch(() => {});
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(prompt.word);
       u.lang = 'sv-SE';
       u.rate = 0.9;
-      window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     }
-  }, [prompt]);
+  }, [prompt, stopAudio]);
   useEffect(() => {
+    stopAudio(); // new item → silence the previous clip before anything else
     if (prompt.show !== 'listen') return;
     const id = setTimeout(playPrompt, 250);
     return () => clearTimeout(id);
-  }, [itemKey, playPrompt, prompt.show]);
+  }, [itemKey, playPrompt, prompt.show, stopAudio]);
+  useEffect(() => stopAudio, [stopAudio]); // stop on unmount
 
   const isStructure = prompt.show === 'structure';
 
