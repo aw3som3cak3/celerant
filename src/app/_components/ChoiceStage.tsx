@@ -115,15 +115,20 @@ export function ChoiceStage({
   // paints so the child watches the action, and the replay button re-runs it.
   const isStructure = prompt.show === 'structure';
   const [played, setPlayed] = useState(false);
+  const [revealed, setRevealed] = useState(false); // Fler/Färre stay LOCKED until the event has played once
   useEffect(() => {
     if (!isStructure) return;
     setPlayed(false);
-    const id = setTimeout(() => setPlayed(true), 650);
-    return () => clearTimeout(id);
+    setRevealed(false);
+    const t1 = setTimeout(() => setPlayed(true), 650); // "before" beat, then the bunch moves
+    const t2 = setTimeout(() => setRevealed(true), 650 + 800); // unlock once the slide has finished
+    return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [itemKey, isStructure]);
   const replayScene = useCallback(() => {
     setPlayed(false);
+    setRevealed(false);
     setTimeout(() => setPlayed(true), 60);
+    setTimeout(() => setRevealed(true), 60 + 800);
   }, []);
 
   return (
@@ -170,7 +175,7 @@ export function ChoiceStage({
         <div className="ground-choices">
           {options.map((o, i) =>
             o.render === 'more' || o.render === 'fewer' ? (
-              <button key={i} className={`ground-choice ${o.render === 'more' ? 'more' : 'fewer'}`} onClick={() => pick(o.value)} disabled={disabled} type="button">
+              <button key={i} className={`ground-choice ${o.render === 'more' ? 'more' : 'fewer'}`} onClick={() => pick(o.value)} disabled={disabled || !revealed} type="button">
                 <span className="ground-choice-glyph">{o.render === 'more' ? '▲' : '▼'}</span>
                 {o.label}
               </button>

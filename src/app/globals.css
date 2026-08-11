@@ -1428,6 +1428,7 @@ table.plain-table th {
 }
 .ground-choice.more { background: #4a9d5b; }
 .ground-choice.fewer { background: #d98a3d; }
+.ground-choice:disabled { opacity: 0.4; cursor: default; } /* locked until the event has played once */
 .ground-choice-glyph { font-size: 1.5rem; line-height: 1; }
 .ground-feedback { font-size: 1.2rem; font-weight: 700; min-height: 1.6rem; margin: 0.4rem 0; }
 .ground-feedback.yes { color: #4a9d5b; }
