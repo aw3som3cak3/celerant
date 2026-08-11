@@ -13,7 +13,7 @@ import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
 import { buildItem } from '@/lib/item';
 import { makeRng } from '@/lib/rng';
-import { SPELLING_LETTERS, spellingAudio, spellingReady } from '@/lib/spelling-content';
+import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
 type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
@@ -130,10 +130,10 @@ function Practice() {
       getJSON<{ session?: { id: number; target: number; completed: number } | null }>(`/api/session/current?playerId=${playerId}`),
       getJSON<{ spelling?: boolean; players?: { id: string; schoolYear: number }[] }>('/api/me'),
     ]);
-    // Spelling joins the mix only for a reading-ready child (åk≥1); a pre-literate åk0 child
-    // never sees the headphone prompt and just does maths, as before.
+    // Spelling is offered to every child now (the ladder + band gate the tier, not årskurs); the
+    // headphone prompt shows whenever spelling is available for the family.
     const meP = me.players?.find((p) => p.id === playerId);
-    const ready = !!me.spelling && !!meP && spellingReady(meP.schoolYear);
+    const ready = !!me.spelling && !!meP;
     setSpellingAvailable(ready); // in both paths, so a later "en till" re-asks headphones
     if (cur.session) {
       autoStarted.current = false;

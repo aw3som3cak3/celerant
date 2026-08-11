@@ -1030,7 +1030,11 @@ const tierSpelling: Skill[] = [
     generate: (r) => { const w = r.pick(T1_5_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({
-    code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: [],
+    // E: word dictation now REQUIRES the recognition ladder (…→t1c) — a child recognises sounds &
+    // letters before free-recall writing. t15 (build-from-tiles) is the band-served soft bridge
+    // between t1c and t2 (not a hard prereq: it's non-sprintable, so a hard gate would brick the
+    // youngest). The p-band keeps t2 out of reach of a pre-writer until she can.
+    code: "spelling_t2", subject: "spelling", family: "sp_encode", year: 2, mode: "component", requires: ["spelling_t1c"],
     generate: (r) => { const w = r.pick(T2_WORDS.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({

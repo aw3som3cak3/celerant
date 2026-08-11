@@ -26,14 +26,10 @@ export async function POST(req: NextRequest) {
   const player = requirePlayer(req, parsed.data.playerId, now);
   if (!player) return json({ error: 'unauthorized' }, 401);
 
-  // A mixed Öva interleaves maths with spelling, but spelling (T2 = WORD dictation) needs audio
-  // AND reading readiness — so it joins only when the child has headphones AND is åk≥1. A
-  // pre-literate åk0 child gets maths only. An explicit subject (map deep-link) stays single.
-  const subjects = mixedSubjectsFor({
-    explicit: parsed.data.subject,
-    headphones: parsed.data.headphones,
-    schoolYear: player.school_year,
-  });
+  // A mixed Öva interleaves maths with spelling whenever the child has headphones — the ladder
+  // (T0 floor → recognition → t1c → t2) + the p-band decide who's ready for what, so even the
+  // youngest joins (starting at T0). An explicit subject (map deep-link) stays single.
+  const subjects = mixedSubjectsFor({ explicit: parsed.data.subject, headphones: parsed.data.headphones });
   const subject = subjects[0];
   const target = player.session_target;
   const sessionId = repo.createSessionRun(player.id, target, now, subject, subjects);

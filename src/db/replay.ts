@@ -441,4 +441,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_spelling_v1');
   }
+
+  // Recognition ladder (spelling_t0/t0b/t1/t1b/t1c) + t15 (build-from-tiles) + the E rewire
+  // (spelling_t2 now REQUIRES spelling_t1c). Existing players have no ability rows for these new
+  // rungs, so buildStates('spelling') would hand componentFluent an 'unknown' rate on t1c when it
+  // gates t2 — a throw. Replay all once to seed them. Runs once; no MODEL_VERSION bump; maths
+  // untouched (subject-scoped).
+  if (!done('bridge_spelling_recog_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_spelling_recog_v1');
+  }
 }

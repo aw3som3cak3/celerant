@@ -12,24 +12,16 @@
 
 export type WordPool = { practice: readonly string[]; holdout: readonly string[] };
 
-// Reading readiness. T2 is WORD dictation — the child must know letters and be able to write,
-// which a pre-literate åk0 child cannot. The "koala reflex": the youngest has zero letter data,
-// so spelling is built for the writers (åk≥1) and she gets maths only until the T0/T1 sound/
-// letter rungs exist as the true lowest ring. Raise or lower this one number to retune.
-export const SPELLING_MIN_YEAR = 1;
-export function spellingReady(schoolYear: number): boolean {
-  return schoolYear >= SPELLING_MIN_YEAR;
-}
-
-// The active subject SET for a session. An explicit subject (map deep-link) stays single. A
-// mixed Öva interleaves spelling only when the child both has headphones AND is reading-ready.
+// The GRAPH now provides the developmental floor (the old åk≥1 gate is gone): the youngest starts
+// at the T0 recognition rungs (spelling_t0), and the ladder — spelling_t2 (word dictation) requires
+// spelling_t1c, plus the p-band — keeps writing out of reach until she can decode/recognise. So
+// spelling is offered to EVERYONE, headphone-gated; the ladder + band decide who's ready for what.
 export function mixedSubjectsFor(opts: {
   explicit?: 'maths' | 'spelling';
   headphones?: boolean;
-  schoolYear: number;
 }): ('maths' | 'spelling')[] {
   if (opts.explicit) return [opts.explicit];
-  return opts.headphones && spellingReady(opts.schoolYear) ? ['maths', 'spelling'] : ['maths'];
+  return opts.headphones ? ['maths', 'spelling'] : ['maths'];
 }
 
 // T2 — transparent encoding. Long-vowel / single-consonant words spelled as sounded.
