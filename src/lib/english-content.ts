@@ -73,10 +73,10 @@ export const EN_KIND: Record<string, 'rule' | 'lexical'> = {
   en_past_irregular: 'lexical',
 };
 
-// English word audio: a pre-generated file once present, else browser TTS in ENGLISH — distinct
-// from spelling's sv-SE. English neural/browser TTS is far more reliable than the Swedish vowel-
-// length case, so the TTS fallback is acceptable while /audio/english files are generated.
+// English word audio: pre-generated neural clips (en-GB Sonia) in the SAME carrier format as the
+// Swedish audio — "word. A sentence with the word. word." — so short words (won, met, put) are
+// unambiguous even when clearly pronounced. Served as files, so every device hears the identical
+// clip. Source text: scripts/spelling-audio/english-sentences.json → generate-english.mjs.
 export function englishAudio(word: string): { kind: 'file'; url: string } | { kind: 'tts'; lang: string } {
-  void word; // files (/audio/english/<word>.mp3) land in the follow-up; until then, English TTS
-  return { kind: 'tts', lang: 'en-GB' };
+  return { kind: 'file', url: `/audio/english/${encodeURIComponent(word)}.mp3` };
 }
