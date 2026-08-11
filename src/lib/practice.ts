@@ -41,11 +41,19 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
   // Skills whose fluency the child has EARNED (a clean sprint crossed the aim). A stored,
   // monotonic grant — see componentFluent's invariant; a drifting aim never revokes it.
   const earned = repo.everMilestonedSkills(playerId);
+  // Recognition rungs the child has CROSSED (accuracy+volume) — D2a's monotonic ordering grant.
+  const recogCrossed = repo.recogCrossedSkills(playerId);
 
   return skillsForSubject(subject).map((s) => {
     const ab = ability.get(s.code);
     const rate: RateEvidence =
       s.mode === 'component' ? rateEvidence(ab?.rate_state ?? 'unknown', ab?.rate ?? null) : { source: 'unknown' };
+    // Recognition rung: a non-sprintable spelling choice rung. It can't seed-pass on year 0 (that
+    // would auto-fluent the whole ladder → no ORDER, the youngest jumps straight to t15/t2). Instead
+    // it seed-passes at åk≥1 (an older child who can already read skips recognition) and the YOUNGEST
+    // (åk0) must EARN each rung — the recog_shadow accuracy+volume crossing — so her ladder is ordered:
+    // t0 first, then t0b once accurate, … (D2a; the RATE gate D2b waits for calibration).
+    const isRecog = s.subject === 'spelling' && s.format === 'choice';
     return {
       code: s.code,
       family: s.family,
@@ -58,12 +66,11 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
       rate,
       aim: aimForSkill(s, toolRate, seedGrade, floor),
       volatility: ab?.volatility,
-      // The seed's own fluency decision, recoverable from grade + skill year (the
-      // provisional rate was seeded ≥ aim iff seedGrade ≥ year — replay.ts). Lets
-      // componentFluent keep the unlock monotonic-up when a sprint later measures a
-      // real, possibly below-aim, rate.
-      seedFluent: s.mode === 'component' ? seedGrade >= s.year : true,
+      // The seed's own fluency decision (grade ≥ year). Recognition rungs use a ≥1 threshold
+      // instead of their year-0 so åk0 must earn them (recogFluent) while åk≥1 seed-passes.
+      seedFluent: s.mode === 'component' ? (isRecog ? seedGrade >= 1 : seedGrade >= s.year) : true,
       earnedFluent: earned.has(s.code),
+      recogFluent: isRecog ? recogCrossed.has(s.code) : undefined,
     };
   });
 }

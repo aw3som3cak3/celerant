@@ -45,6 +45,9 @@ export type SelState = {
   earnedFluent?: boolean; // did a clean sprint ever CROSS this component's aim (judged
   // against the floor as it was then)? A durable, monotonic decision from the sprint
   // ledger — the OTHER way access is granted, and like seedFluent it is never revoked.
+  recogFluent?: boolean; // recognition rungs (non-sprintable choice) can't earn via sprint —
+  // this is their durable, monotonic grant: the accuracy+volume crossing stored in recog_shadow
+  // (D2a). Only the youngest earns it (åk≥1 seed-passes recognition); it orders her ladder.
 };
 
 // A skill whose θ swings between mastery and misses is not yet fluent, distinct
@@ -71,12 +74,18 @@ export type SkillScore = {
 // because a prerequisite should never be evaluated before placement seeds it.
 export function componentFluent(s: SelState): boolean {
   if (s.mode === 'compound') return true;
-  if (s.rate.source === 'unknown')
-    throw new Error(`fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`);
   // Epsilon compare: a provisional rate seeded at the aim, or a measured rate that lands
   // exactly on it, must not have the gate flip on IEEE-754 ordering.
   const EPS = 1e-9;
   const steady = (s.volatility ?? 0) <= VOL_GATE; // not erratic on this skill
+  const granted = s.seedFluent === true || s.earnedFluent === true || s.recogFluent === true;
+  // RECOGNITION rungs (recogFluent flag present) are non-sprintable — their "rate" is only a
+  // placeholder seed, never a real measure, so they gate on the stored GRANT alone (seed for
+  // åk≥1, the recog_shadow accuracy crossing for åk0). No rate disjunct, no unknown-rate throw:
+  // this is what ORDERS the youngest's ladder (D2a) instead of the seed auto-fluenting it all.
+  if (s.recogFluent !== undefined) return steady && granted;
+  if (s.rate.source === 'unknown')
+    throw new Error(`fluency gate reached '${s.code}' with an unknown rate: placement did not run for this child`);
 
   // THE INVARIANT — one rule, every path (measured and provisional alike): access, once
   // GRANTED, is never revoked by a later measurement. Access is granted two ways, each a
@@ -91,7 +100,6 @@ export function componentFluent(s: SelState): boolean {
   // above the live aim also passes; a skill never granted and not yet fast must still
   // earn it. The rate stays recorded (chart, parent view); it just can't retroactively
   // lock. Unlock only — never θ, never the difficulty score (which reads θ, not rate).
-  const granted = s.seedFluent === true || s.earnedFluent === true;
   return steady && (granted || (s.aim != null && s.rate.value >= s.aim - EPS));
 }
 

@@ -1279,6 +1279,15 @@ export function recordRecogShadow(playerId: string, skillCode: string, now: numb
 // EARLIER sprints), so a later fast sprint that raises the floor can never un-earn an
 // earlier crossing — the whole point. This is the stored DECISION that replaces
 // re-litigating a frozen rate against a moving aim: once granted, access is not revoked.
+// Recognition rungs the child has CROSSED (accuracy+volume), read from the recog_shadow log
+// (recorded once, first-fire). D2a's monotonic ordering gate — the youngest unlocks the next
+// recognition rung only after she's accurate on this one. Mirrors everMilestonedSkills.
+export function recogCrossedSkills(playerId: string): Set<string> {
+  return new Set(
+    (getDb().prepare('SELECT skill_code FROM recog_shadow WHERE player_id = ?').all(playerId) as { skill_code: string }[]).map((r) => r.skill_code),
+  );
+}
+
 export function everMilestonedSkills(playerId: string): Set<string> {
   const player = playerById(playerId);
   const out = new Set<string>();

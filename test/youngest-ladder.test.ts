@@ -9,45 +9,47 @@ process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
 import { issueNext, sessionSelectOpts } from '@/lib/practice';
-import { replay } from '@/db/replay';
 
 const NOW = Date.UTC(2026, 7, 11);
 
-// E safety property: a fresh pre-literate åk0 child, put on the spelling ladder, must be served the
-// RECOGNITION floor (t0…), NOT premature word dictation (t2), which the p-band should suppress.
-describe('E — the youngest gets recognition, not premature word dictation', () => {
+const spellingCodes = (pid: string, year: number, n = 40) => {
+  const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
+  const opts = sessionSelectOpts({ id: pid, school_year: year, stretch: 0 }, sid, NOW);
+  const seen = new Set<string>();
+  for (let i = 0; i < n; i++) seen.add(issueNext(pid, year, NOW, opts).code);
+  return seen;
+};
+
+// D2a: the youngest's recognition ladder is ORDERED — she starts at t0 and each rung unlocks the
+// next only after she's crossed it (accuracy+volume, recog_shadow). Older kids (åk≥1) seed-pass
+// recognition and skip straight ahead. Maths is untouched.
+describe('the youngest climbs the recognition ladder in order (E + D2a)', () => {
   let pid: string;
   beforeEach(() => {
     const fam = repo.createFamily(`yng-${Math.random().toString(36).slice(2)}`, 'x:y', 'x:z', NOW);
-    pid = repo.createPlayer(fam, 'dog', 0, NOW); // åk0, no history
-    replay(pid);
+    pid = repo.createPlayer(fam, 'dog', 0, NOW); // åk0, fresh — createPlayer replays/seeds
   });
 
-  it('a fresh åk0 spelling session never serves spelling_t2 (word dictation)', () => {
-    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
-    const opts = sessionSelectOpts({ id: pid, school_year: 0, stretch: 0 }, sid, NOW);
-    const counts: Record<string, number> = {};
-    for (let i = 0; i < 60; i++) {
-      const it = issueNext(pid, 0, NOW, opts);
-      counts[it.code] = (counts[it.code] ?? 0) + 1;
+  it('a fresh åk0 kid is served ONLY spelling_t0 (the recognition floor), never t15/t2/t3', () => {
+    const seen = spellingCodes(pid, 0);
+    expect([...seen]).toEqual(['spelling_t0']);
+  });
+
+  it('after crossing t0 (accurate + enough samples), t0b unlocks', () => {
+    for (let i = 0; i < 14; i++) {
+      repo.appendAttempt({ playerId: pid, skillCode: 'spelling_t0', itemJson: JSON.stringify({ seed: i }), given: 'x', correct: 1, tries: 1, dontKnow: false, latencyMs: 2000, at: NOW + i * 1000 });
     }
-    // eslint-disable-next-line no-console
-    console.log('åk0 spelling distribution:', JSON.stringify(counts));
-    expect(counts['spelling_t2'] ?? 0, 'a pre-writer was served word dictation').toBe(0);
-    expect(counts['spelling_t3'] ?? 0, 'a pre-writer was served doubling').toBe(0);
-    // and she IS served the recognition floor
-    const recognition = Object.keys(counts).filter((c) => c.startsWith('spelling_t0') || c.startsWith('spelling_t1'));
-    expect(recognition.length, 'no recognition rungs served').toBeGreaterThan(0);
+    repo.recordRecogShadow(pid, 'spelling_t0', NOW + 20000);
+    expect(repo.recogCrossedSkills(pid).has('spelling_t0')).toBe(true);
+    const seen = spellingCodes(pid, 0);
+    expect(seen.has('spelling_t0b'), 't0b did not unlock after crossing t0').toBe(true);
+    expect(seen.has('spelling_t2'), 'word dictation leaked in too early').toBe(false);
   });
 
-  it('t2 (word dictation) IS unlocked for the youngest — it is the p-band, not a hard lock, that holds it back', () => {
-    // Prove t2 isn't bricked/hard-locked: with the recognition ladder seed-fluent (year 0), t2's
-    // requires are satisfied, so it's UNLOCKED — the band is what keeps it unserved, and it opens
-    // as the child's spelling θ rises. (Contrast: a fresh åk0 kid is simply never SERVED it, above.)
-    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
-    const opts = sessionSelectOpts({ id: pid, school_year: 0, stretch: 0 }, sid, NOW);
-    // A high-θ (advanced) spelling probe would surface t2; here we just assert the ladder is intact
-    // and no throw occurs building states for the youngest (the bridge seeded her rows).
-    expect(() => issueNext(pid, 0, NOW, opts)).not.toThrow();
+  it('an åk≥1 child SEED-passes recognition and reaches beyond the floor without crossing', () => {
+    const fam = repo.createFamily(`old-${Math.random().toString(36).slice(2)}`, 'a:b', 'a:c', NOW);
+    const old = repo.createPlayer(fam, 'mouse', 3, NOW);
+    const seen = spellingCodes(old, 3);
+    expect([...seen].some((c) => c !== 'spelling_t0'), 'åk3 was stuck at the floor').toBe(true);
   });
 });

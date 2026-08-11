@@ -352,12 +352,13 @@ CREATE TABLE IF NOT EXISTS shadow_fluency (
   PRIMARY KEY (player_id, skill_code)
 );
 
--- recog_shadow (D1, the internal-fluency lane, SHADOW-FIRST). The recognition sibling of
--- shadow_fluency: choice rungs (spelling_t0…t1c) can't sprint, so this passively logs — the FIRST
--- time a child is accurate on a recognition rung with enough clean samples — their practice rate vs
--- the (uncalibrated) recognition aim. INVISIBLE: gates nothing, unlocks nothing. It exists so we can
--- SEE real recognition rates and calibrate the aim BEFORE flipping to gating (D2). Snapshotted at
--- fire time (stored-crossing invariant); one row per (player, skill).
+-- recog_shadow (internal-fluency lane for choice rungs, spelling_t0…t1c). Records — the FIRST time a
+-- child is accurate on a recognition rung with enough clean samples — their practice rate vs the
+-- (uncalibrated placeholder) aim. TWO roles: (D2a) the ACCURACY+VOLUME crossing is the monotonic
+-- ORDERING gate — recogCrossedSkills → recogFluent unlocks the next rung, so the youngest climbs
+-- t0→t0b→… in order (an åk≥1 child seed-passes and skips it). (D2b, later) the stored RATE stays
+-- data to calibrate the aim before adding a rate threshold. Snapshotted at fire time (stored-crossing
+-- invariant); one row per (player, skill).
 CREATE TABLE IF NOT EXISTS recog_shadow (
   player_id     TEXT NOT NULL REFERENCES player(id),
   skill_code    TEXT NOT NULL,
