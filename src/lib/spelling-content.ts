@@ -70,11 +70,16 @@ export const T2_WORDS: WordPool = {
 // so a sprint on the holdout pairs measures the rule, not memorised practice words.
 // ⚠️ HELD: T3 requires recorded human audio (A12 — vowel length is exactly where TTS
 // drifts). Not wired into the delivered graph until the manifest recordings are in hand.
-// sil/sill and lam/lamm removed — Erik: kids don't know 'sil' (colander) or 'lam' (lame).
+// All words kid-known (sil/lam/stil/mät/stal/bar/bred/kol dropped as unfamiliar); every word has a
+// DEFINING carrier sentence (t3-sentences.json) so a 7-year-old understands it. 8 pipeline-found
+// pairs (hål…lönn) flipped in after Erik's in-app + word vet.
 export const T3_PAIRS: readonly { short: string; long: string }[] = [
   { short: 'vitt', long: 'vit' }, { short: 'matt', long: 'mat' }, { short: 'hall', long: 'hal' },
   { short: 'tack', long: 'tak' }, { short: 'full', long: 'ful' }, { short: 'tall', long: 'tal' },
   { short: 'villa', long: 'vila' }, { short: 'fett', long: 'fet' }, { short: 'hett', long: 'het' },
+  { short: 'håll', long: 'hål' }, { short: 'dörr', long: 'dör' }, { short: 'glass', long: 'glas' },
+  { short: 'sött', long: 'söt' }, { short: 'damm', long: 'dam' }, { short: 'bytt', long: 'byt' },
+  { short: 'grått', long: 'gråt' }, { short: 'lönn', long: 'lön' },
 ];
 export const T3_WORDS: WordPool = {
   // The last 3 pairs are held back for the generalization sprint (robust to the pair count).
@@ -82,17 +87,9 @@ export const T3_WORDS: WordPool = {
   holdout: T3_PAIRS.slice(-3).flatMap((p) => [p.long, p.short]),
 };
 
-// CANDIDATE T3 pairs (pipeline-found, Erik word-vetted) PENDING his in-app vowel-length vet on the
-// granska page (test family only). Deliberately NOT in the live T3_PAIRS/T3_WORDS above —
-// unvetted vowel-length audio must never reach the real kids (A12). After the vet, confirmed pairs
-// move up into T3_PAIRS. Audio: /audio/spelling/t3/<word>.mp3 (Sofie).
-export const T3_PAIRS_REVIEW: readonly { short: string; long: string }[] = [
-  { short: 'håll', long: 'hål' }, { short: 'dörr', long: 'dör' }, { short: 'glass', long: 'glas' },
-  { short: 'sött', long: 'söt' }, { short: 'damm', long: 'dam' }, { short: 'barr', long: 'bar' },
-  { short: 'bytt', long: 'byt' }, { short: 'grått', long: 'gråt' },
-  { short: 'mätt', long: 'mät' }, { short: 'bredd', long: 'bred' }, { short: 'stall', long: 'stal' },
-  { short: 'koll', long: 'kol' }, { short: 'lönn', long: 'lön' }, { short: 'still', long: 'stil' },
-];
+// T3 review queue — empty: the last batch of candidates was vetted (8 kept → T3_PAIRS above,
+// 6 dropped as unfamiliar). New candidates land here for the granska-page vet before going live.
+export const T3_PAIRS_REVIEW: readonly { short: string; long: string }[] = [];
 export const T3_REVIEW_WORDS: readonly string[] = T3_PAIRS_REVIEW.flatMap((p) => [p.long, p.short]);
 
 // Which pool backs each spelling skill code. A skill absent here is not a word-dictation

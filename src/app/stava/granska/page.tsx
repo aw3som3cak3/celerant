@@ -57,13 +57,19 @@ export default function GranskaPage() {
     <div className="granska">
       <h1>Granska stavningsord</h1>
       <p className="granska-hint">
-        Bara det som väntar på granskning visas här — redan godkända ord/par är borttagna. Lyssna på
-        varje par (lång vokal → kort vokal): hörs skillnaden tydligt? Flagga par där Sofie inte gör
-        lång/kort solklar, så byter jag. Först när de är godkända går de live.
+        Bara det som väntar på granskning visas här. Lyssna på varje par (lång vokal → kort vokal):
+        hörs skillnaden tydligt? Flagga par där Sofie inte gör lång/kort solklar. Först när de är
+        godkända går de live.
       </p>
 
-      <h2>T3 — NYA par att granska <span className="granska-count">(ej live än)</span></h2>
-      <WordGrid code="spelling_t3" words={T3_REVIEW_WORDS} />
+      {T3_REVIEW_WORDS.length === 0 ? (
+        <p className="granska-hint">Inget nytt att granska just nu. 🎉</p>
+      ) : (
+        <>
+          <h2>T3 — NYA par att granska <span className="granska-count">(ej live än)</span></h2>
+          <WordGrid code="spelling_t3" words={T3_REVIEW_WORDS} />
+        </>
+      )}
     </div>
   );
 }
