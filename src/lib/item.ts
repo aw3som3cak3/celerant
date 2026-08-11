@@ -19,7 +19,7 @@ export function buildItem(code: string, seed: number): CanonItem {
   // WORD-dictation spelling (t2/t3, in SPELLING_POOLS): the seed denotes a specific word,
   // decoded here for the letter pad. RECOGNITION spelling (t0/t1, not in a pool) is a CHOICE
   // rung instead — it falls through to generateCanon, whose generate() builds the choice.
-  if (skill?.subject === 'spelling' && SPELLING_POOLS[code]) {
+  if (skill?.subject !== 'maths' && SPELLING_POOLS[code]) {
     const word = wordForSeed(code, seed) ?? '';
     return { prompt: '', answer: word, steps: word ? [word] : [] };
   }
@@ -34,7 +34,7 @@ export function answerLengthOf(code: string, seed: number): number {
   const item = buildItem(code, seed);
   // Spelling answers are words on the LETTER pad — the auto-submit boundary is the word's
   // letter count, not a digit count (the pad completes on nv.length, not digitCount).
-  if (BY_CODE.get(code)?.subject === 'spelling') return item.answer.length;
+  if (BY_CODE.get(code)?.subject !== 'maths') return item.answer.length;
   return item.answer.replace(/[^0-9]/g, '').length;
 }
 

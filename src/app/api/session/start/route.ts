@@ -13,8 +13,8 @@ export const dynamic = 'force-dynamic';
 const Body = z.object({
   playerId: z.string().min(1),
   again: z.boolean().optional(),
-  subject: z.enum(['maths', 'spelling']).optional(), // an explicit single-subject entry (e.g. a map deep-link)
-  headphones: z.boolean().optional(), // the mixed-Öva "har du hörlurar?" answer — spelling joins only when true
+  subject: z.enum(['maths', 'spelling', 'english']).optional(), // an explicit single-subject entry (e.g. a map deep-link)
+  headphones: z.boolean().optional(), // the mixed-Öva "har du hörlurar?" answer — audio subjects join only when true
 });
 
 // Open a session and offer three eligible skills to start with (§3.2). The
@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
   // A mixed Öva interleaves maths with spelling whenever the child has headphones — the ladder
   // (T0 floor → recognition → t1c → t2) + the p-band decide who's ready for what, so even the
   // youngest joins (starting at T0). An explicit subject (map deep-link) stays single.
-  const subjects = mixedSubjectsFor({ explicit: parsed.data.subject, headphones: parsed.data.headphones });
+  const subjects = mixedSubjectsFor({ explicit: parsed.data.subject, headphones: parsed.data.headphones, schoolYear: player.school_year });
   const subject = subjects[0];
   const target = player.session_target;
   const sessionId = repo.createSessionRun(player.id, target, now, subject, subjects);

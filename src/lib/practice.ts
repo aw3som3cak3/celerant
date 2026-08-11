@@ -6,7 +6,7 @@ import { skillsForSubject } from './subjects';
 import { SPELLING_POOLS, encodeSpellingSeed, type SpellingPhase } from './spelling-content';
 import { selectItem, computeUnlocked, P_BAND, TARGET_SUCCESS, type SelState, type RateEvidence } from './selector';
 import { aimForSkill } from './fluency';
-import { seedGradeFor, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
+import { seedGradeFor, subjectSeedGrade, playerTarget, reachUpProbability, rampLen, rampTargetP, RAMP_FLOOR_P } from './onboarding';
 import { rewardState } from './reward';
 import { makeRng, randomSeed } from './rng';
 import { grade } from './grade';
@@ -35,7 +35,6 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
   // mismatch (fix-grade-source-of-truth §1 — one grade, applied one way). PER SKILL,
   // digit-adjusted: a longer answer costs more motor time, so it gets a lower items/
   // min aim — otherwise every multi-digit skill reads as slower than it is.
-  const seedGrade = seedGradeFor(schoolYear);
   // Floor the effective tap by demonstrated throughput (copy-probe under-reads tapping).
   const floor = repo.bestObservedDigitRate(playerId);
   // Skills whose fluency the child has EARNED (a clean sprint crossed the aim). A stored,
@@ -54,6 +53,10 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
     // each — the recog_shadow accuracy+volume crossing — so her floor is ORDERED: fler/färre first,
     // then count once accurate, …; the numpad on-ramp stays gated behind ground_sum (D2a).
     const isRecog = s.format === 'choice';
+    // Subject-aware seed grade — must match the grade the cache's provisional rate was seeded under
+    // (replay), or the fluency gate flips on the mismatch. English seeds from a beginner level, so a
+    // Swedish åkN child earns the English floor rather than seed-passing it.
+    const sg = subjectSeedGrade(schoolYear, s.subject);
     return {
       code: s.code,
       family: s.family,
@@ -64,11 +67,11 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
       lastSeenAt: ab ? ab.last_seen_at : null,
       requires: s.requires,
       rate,
-      aim: aimForSkill(s, toolRate, seedGrade, floor),
+      aim: aimForSkill(s, toolRate, sg, floor),
       volatility: ab?.volatility,
       // The seed's own fluency decision (grade ≥ year). Recognition rungs use a ≥1 threshold
       // instead of their year-0 so åk0 must earn them (recogFluent) while åk≥1 seed-passes.
-      seedFluent: s.mode === 'component' ? (isRecog ? seedGrade >= 1 : seedGrade >= s.year) : true,
+      seedFluent: s.mode === 'component' ? (isRecog ? sg >= 1 : sg >= s.year) : true,
       earnedFluent: earned.has(s.code),
       recogFluent: isRecog ? recogCrossed.has(s.code) : undefined,
     };
@@ -445,7 +448,7 @@ export function issueNext(playerId: string, schoolYear: number, now: number, opt
   // Word choice is downstream of skill selection (A11): the selector picked `pick.code`;
   // for a spelling skill the PROVIDER now picks the seed (an unseen practice word), else a
   // random seed as before. issueNext is the practice path → phase 'practice'.
-  const seed = SKILL_META.get(pick.code)?.subject === 'spelling' ? nextSpellingWord(playerId, pick.code, 'practice') : randomSeed();
+  const seed = SKILL_META.get(pick.code)?.subject !== 'maths' ? nextSpellingWord(playerId, pick.code, 'practice') : randomSeed();
   return { code: pick.code, seed, family: pick.family, answerLength: answerLengthOf(pick.code, seed), novel, level, warmup: opts.warmupTarget != null };
 }
 

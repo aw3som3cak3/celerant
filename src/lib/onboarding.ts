@@ -70,6 +70,20 @@ export function seedGradeFor(chosenGrade: number): number {
   return Math.max(0, chosenGrade - 1);
 }
 
+// The seed grade a skill is placed under, made SUBJECT-AWARE. Maths and Swedish spelling: the
+// Swedish school year IS the proficiency proxy, so this returns seedGradeFor(schoolYear) unchanged
+// (byte-identical). English is L2 — a Swedish åkN child is a BEGINNER regardless of grade, so
+// grade-based seed-fluency would wrongly SKIP the English floors (any year ≤ grade seeds as
+// "mastered") while any year > grade seeds below the band and never serves. Neither happens if
+// English is seeded from a beginner level: the English floor (year 1) then seeds as the easy-win
+// opener and the ladder climbs, for every learner alike. The θ formula, the gate, and the selector
+// are untouched — only the GRADE handed to the seed is subject-aware (threaded through replay +
+// buildStates). A per-child "English level" can later raise this above the beginner floor.
+export const ENGLISH_SEED_GRADE = 0;
+export function subjectSeedGrade(schoolYear: number, subject: 'maths' | 'spelling' | 'english'): number {
+  return subject === 'english' ? ENGLISH_SEED_GRADE : seedGradeFor(schoolYear);
+}
+
 // The default grade when a parent gives none: the grade child is in defaults to 1,
 // seeded from the low floor (seedGradeFor(1) = 0) — let the climb do the work.
 export const NO_GRADE_DEFAULT = 1;

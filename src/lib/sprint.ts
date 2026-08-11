@@ -199,9 +199,11 @@ export function sprintBatch(playerId: string, code: string, now: number): Sprint
   if (!meta || !meta.sprintable) return null; // never a compound or a written procedure
   if (!isSprintEligible(playerId, code)) return null; // must be in the fluency-building band
   let items: SprintBatchItem[];
-  if (meta.subject === 'spelling') {
+  if (meta.subject !== 'maths') {
     // A sprint measures GENERALIZATION, so it draws from the HOLDOUT pool (A3) — distinct
-    // words, unseen-first then least-recently-seen, cycled to fill the batch.
+    // words, unseen-first then least-recently-seen, cycled to fill the batch. A LEXICAL skill
+    // (English irregulars) has holdout mirroring practice — the closed set repeats, which is
+    // correct: there is no rule to generalize, so fluency is recall speed over the set.
     const pool = SPELLING_POOLS[code];
     const words = pool?.holdout ?? [];
     if (!words.length) return null;

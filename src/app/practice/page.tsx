@@ -14,6 +14,7 @@ import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answer
 import { buildItem } from '@/lib/item';
 import { makeRng } from '@/lib/rng';
 import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
+import { ENGLISH_LETTERS } from '@/lib/english-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
 type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
@@ -34,7 +35,7 @@ function Practice() {
   const sp = useSearchParams();
   const playerId = sp.get('p') ?? '';
   const subjectParam = sp.get('subject'); // explicit single-subject entry; null = the mixed Öva
-  const subject = subjectParam === 'spelling' ? 'spelling' : 'maths';
+  const subject = subjectParam === 'spelling' ? 'spelling' : subjectParam === 'english' ? 'english' : 'maths';
   const startCode = sp.get('start'); // arrive here from a frontier node on the map
   const [phase, setPhase] = useState<'loading' | 'headphones' | 'choose' | 'answer' | 'correct' | 'revealed' | 'done'>('loading');
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -339,6 +340,7 @@ function Practice() {
   // T1.5 "bygg ordet": the letter pad is CONSTRAINED to this word's tiles (its letters + a couple
   // distractors), shuffled deterministically from the seed. Other spelling tiers use the full pad.
   const spellingTiles = item.code === 'spelling_t15' ? buildTiles(buildItem(item.code, item.seed).answer, item.seed) : null;
+  const isWordItem = item.family.startsWith('sp_') || item.family.startsWith('en_'); // dictation subjects (letter pad)
 
   return (
     <div className="stage">
@@ -380,15 +382,16 @@ function Practice() {
             onCapture={onCapture}
             disabled={busy || phase === 'correct'}
             showIdk
-            // Spelling is DICTATION: the letter pad + a headphone control that plays the word
-            // (the answer is never shown), and the "don't know" button becomes "Jag hör inte"
-            // — the skip for a child with no headphones.
-            idkLabel={item.family.startsWith('sp_')
+            // Spelling AND English are DICTATION: the letter pad + a headphone control that plays
+            // the word (the answer is never shown), and the "don't know" button becomes "Jag hör
+            // inte" — the skip for a child with no headphones. English uses the a–z pad; Swedish
+            // its full pad (or, for t15, the constrained tiles).
+            idkLabel={isWordItem
               ? <span className="idk-hear"><HeadphonesOff /> Jag hör inte</span>
               : t('practice.dontKnow')}
             armKey={armKey}
-            {...(item.family.startsWith('sp_')
-              ? { letters: spellingTiles ?? SPELLING_LETTERS, promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
+            {...(isWordItem
+              ? { letters: item.family.startsWith('en_') ? ENGLISH_LETTERS : (spellingTiles ?? SPELLING_LETTERS), promptNode: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} /> }
               : {})}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
@@ -455,7 +458,7 @@ function Dictation({ itemKey, code, seed }: { itemKey: string; code: string; see
       a.play().catch(() => {});
     } else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       const u = new SpeechSynthesisUtterance(word);
-      u.lang = 'sv-SE';
+      u.lang = audio.lang ?? 'sv-SE'; // English items speak in en-GB; Swedish default sv-SE
       u.rate = 0.9;
       window.speechSynthesis.speak(u);
     }

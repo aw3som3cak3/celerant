@@ -181,7 +181,9 @@ export function aimForSkill(
   schoolYear: number,
   floorRate = 0,
 ): number {
-  return skill.subject === 'spelling' ? letterAimFor(schoolYear, skill.code) : aimFor(latestToolRate, schoolYear, skill.code, floorRate);
+  // Every WORD subject (Swedish spelling, English) is measured in letters/min; only maths uses the
+  // digit/keystroke aim. The units partition is by modality, not per-subject — same letter pad.
+  return skill.subject !== 'maths' ? letterAimFor(schoolYear, skill.code) : aimFor(latestToolRate, schoolYear, skill.code, floorRate);
 }
 
 export type SprintPoint = { day: number; correctPerMin: number; errorsPerMin: number };

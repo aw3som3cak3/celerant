@@ -17,7 +17,7 @@ type Group = { skill: string; subject: string | null; answer: string; total: num
 export default function FragorPage() {
   const [state, setState] = useState<'loading' | 'ok' | 'denied'>('loading');
   const [rows, setRows] = useState<Row[]>([]);
-  const [subj, setSubj] = useState<'alla' | 'maths' | 'spelling'>('alla');
+  const [subj, setSubj] = useState<'alla' | 'maths' | 'spelling' | 'english'>('alla');
   const [onlyRepeated, setOnlyRepeated] = useState(false);
 
   useEffect(() => {
@@ -67,9 +67,9 @@ export default function FragorPage() {
       </p>
 
       <div className="granska-filter">
-        {(['alla', 'maths', 'spelling'] as const).map((s) => (
+        {(['alla', 'maths', 'spelling', 'english'] as const).map((s) => (
           <button key={s} type="button" className={`granska-tab ${subj === s ? 'on' : ''}`} onClick={() => setSubj(s)}>
-            {s === 'alla' ? 'Alla ämnen' : s === 'maths' ? 'Matte' : 'Stavning'}
+            {s === 'alla' ? 'Alla ämnen' : s === 'maths' ? 'Matte' : s === 'spelling' ? 'Stavning' : 'Engelska'}
           </button>
         ))}
         <button type="button" className={`granska-tab ${onlyRepeated ? 'on' : ''}`} onClick={() => setOnlyRepeated((v) => !v)}>

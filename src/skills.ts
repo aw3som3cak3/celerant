@@ -18,6 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -28,7 +29,7 @@ export type Rng = {
 // second subject (spelling) can be pooled, mapped, seeded and gated SEPARATELY without
 // silently mixing — see the SKILLS-iteration register. Defaulted in S() so authoring a
 // maths skill never has to name it.
-export type Subject = "maths" | "spelling";
+export type Subject = "maths" | "spelling" | "english";
 
 export type Answer =
   | { kind: "int"; v: number }
@@ -73,6 +74,12 @@ export type Skill = {
   // pad (ChoiceStage). Choice rungs are never sprintable — a timer on a tap rewards fast
   // guessing; they are timed only as grounding evidence.
   format: "numpad" | "choice";
+  // RULE vs LEXICAL (A3), first-class because English is where they diverge hardest: a RULE skill
+  // measures GENERALIZATION on a disjoint holdout (-ed on unseen verbs), a LEXICAL skill is fixed
+  // retrieval (irregular pasts — the word IS the skill). Content-metadata only: the pool shape and
+  // the sprint word source read it; the selector/θ/gate never do. Absent ⇒ untagged (maths, where
+  // every generated item is already generalization; Swedish spelling carries it via pool shape).
+  kind?: "rule" | "lexical";
   requires: string[];
   generate(r: Rng): Item;
 };
@@ -1045,9 +1052,28 @@ const tierSpelling: Skill[] = [
   }),
 ];
 
+/* ═══ TIER · ENGLISH (L1-Swedish) — morphographic, first slice ═════════════ */
+// subject:'english' — pooled, mapped, seeded and gated SEPARATELY (the increment-3 scoping the
+// three-subject audit confirmed). Dictation-to-type on the letter pad, form-identical to Swedish
+// spelling; the real graded item comes from buildItem's pool branch (EN_POOLS). `year` is an
+// ENGLISH difficulty rung — English seeds from a beginner level (subjectSeedGrade), so year-1 is
+// the easy-win floor and the ladder climbs, for every learner regardless of Swedish grade. The
+// -ed RULE (holdout = generalization) is split from the irregular-past LEXICAL node (closed set),
+// tagged via `kind` before content (A3). See src/lib/english-content.ts.
+const tierEnglish: Skill[] = [
+  S({
+    code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule", requires: [],
+    generate: (r) => { const w = r.pick(EN_ED_REGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
+  }),
+  S({
+    code: "en_past_irregular", subject: "english", family: "en_irreg", year: 2, mode: "component", kind: "lexical", requires: ["en_ed_regular"],
+    generate: (r) => { const w = r.pick(EN_PAST_IRREGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
+  }),
+];
+
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8, ...tierSpelling];
+export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8, ...tierSpelling, ...tierEnglish];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 

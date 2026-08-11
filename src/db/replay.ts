@@ -3,7 +3,7 @@ import { getDb } from './index';
 import { SKILLS, seedTheta } from '@/skills';
 import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
 import { aimForSkill, bestObservedDigitRate } from '@/lib/fluency';
-import { seedGradeFor } from '@/lib/onboarding';
+import { subjectSeedGrade } from '@/lib/onboarding';
 import { buildItem } from '@/lib/item';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
@@ -43,7 +43,6 @@ export function computeAbility(
   sprints: { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
-  const seedGrade = seedGradeFor(chosenYear);
 
   // Demonstrated keystroke throughput floors the effective tap (the copy-based writing-
   // speed measurement under-reads pure tapping) — computed here from the child's own
@@ -57,16 +56,21 @@ export function computeAbility(
 
   for (const s of SKILLS) {
     const component = s.mode === 'component';
+    // Seed grade is SUBJECT-AWARE: maths/Swedish spelling use the Swedish-grade seed (identical);
+    // English uses a beginner level, so a Swedish åkN child isn't wrongly seeded fluent at English
+    // (a åkN Swede is an English beginner). Only the seed's INPUT grade is subject-aware — the θ
+    // formula, the aim, and the gate are untouched. See subjectSeedGrade.
+    const sg = subjectSeedGrade(chosenYear, s.subject);
     cache.set(s.code, {
-      theta: seedTheta(seedGrade, s),
+      theta: seedTheta(sg, s),
       rd: SEED_RD,
       volatility: SEED_VOL,
       n_obs: 2, // the seed is a rumour, not a measurement
       last_seen_at: null,
-      // Seed each skill in ITS OWN subject's units (aimForSkill: letters/min for spelling,
+      // Seed each skill in ITS OWN subject's units (aimForSkill: letters/min for word subjects,
       // digits/min for maths) — a spelling skill must never get a digit-shaped seed. This is
       // a units dispatch, not an engine change: the gate still compares rate to aim blindly.
-      rate: component ? aimForSkill(s, toolRate, seedGrade, floor) * (seedGrade >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
+      rate: component ? aimForSkill(s, toolRate, sg, floor) * (sg >= s.year ? PROVISIONAL_AT : PROVISIONAL_BELOW) : null,
       rate_state: component ? 'provisional' : 'unknown',
     });
   }
@@ -263,6 +267,16 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     db.prepare('UPDATE player SET session_target = 10').run();
     db.prepare('UPDATE family_goal SET target = target * 2').run();
     mark('sessions_10_goals_x2_v1');
+  }
+
+  // Seed the new ENGLISH subject into every existing player's ability cache. Replay-all so a
+  // reader's English floor gets its provisional θ/rate (via subjectSeedGrade → beginner-0, the
+  // easy-win seed) — else the new rows are absent and buildStates hands the selector θ 0 (out of
+  // band, never served). Byte-identical for maths/spelling (identical seed grade). Runs once; a
+  // no-op on a fresh DB (already seeded at creation). No MODEL_VERSION bump.
+  if (!done('bridge_english_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_english_v1');
   }
 
   // Backfill the question log from EXISTING wrong/idk attempts (one-off). Forward logging only

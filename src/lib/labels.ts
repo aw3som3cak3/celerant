@@ -18,6 +18,8 @@ const EXACT: Record<string, string> = {
   spelling_t15: 'bygg ordet',
   spelling_t2: 'ljudenligt',
   spelling_t3: 'lång eller kort vokal',
+  en_ed_regular: 'engelska: -ed (dåtid)',
+  en_past_irregular: 'engelska: oregelbunden dåtid',
   dec_read_tenths: 'tiondelar som decimal',
   dec_add_same: 'decimaltal plus',
   dec_sub_same: 'decimaltal minus',

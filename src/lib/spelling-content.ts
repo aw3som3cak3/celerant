@@ -10,6 +10,8 @@
 // structural guards (no doubles, no sj/tj/ng/j digraphs, disjoint splits) are enforced by
 // test/spelling-content.test.ts; the doubled-cousin exclusion needs Erik's ear.
 
+import { EN_POOLS, englishAudio, englishReady } from './english-content';
+
 export type WordPool = { practice: readonly string[]; holdout: readonly string[] };
 
 // The GRAPH now provides the developmental floor (the old åk≥1 gate is gone): the youngest starts
@@ -17,11 +19,20 @@ export type WordPool = { practice: readonly string[]; holdout: readonly string[]
 // spelling_t1c, plus the p-band — keeps writing out of reach until she can decode/recognise. So
 // spelling is offered to EVERYONE, headphone-gated; the ladder + band decide who's ready for what.
 export function mixedSubjectsFor(opts: {
-  explicit?: 'maths' | 'spelling';
+  explicit?: 'maths' | 'spelling' | 'english';
   headphones?: boolean;
-}): ('maths' | 'spelling')[] {
+  schoolYear?: number;
+}): ('maths' | 'spelling' | 'english')[] {
   if (opts.explicit) return [opts.explicit];
-  return opts.headphones ? ['maths', 'spelling'] : ['maths'];
+  // Build the active SET (no longer a hardcoded pair). Maths always; the audio subjects only with
+  // headphones — Swedish spelling for everyone, English once the child reads/writes some (the
+  // readiness gate). The graph + p-band still decide who's ready for what within each subject.
+  const subjects: ('maths' | 'spelling' | 'english')[] = ['maths'];
+  if (opts.headphones) {
+    subjects.push('spelling');
+    if (englishReady(opts.schoolYear ?? 0)) subjects.push('english');
+  }
+  return subjects;
 }
 
 // T2 — transparent encoding. Long-vowel / single-consonant words spelled as sounded.
@@ -150,10 +161,15 @@ export const T1_5_WORDS: WordPool = { practice: T1_5_SHORT.slice(0, -8), holdout
 // Which pool backs each spelling WORD-DICTATION skill code. A skill absent here is not word
 // dictation (t0/t1… are recognition choices; buildItem routes on this). T1.5 shares the /recog/
 // isolated audio (its words are TRANSPARENT_WORDS).
+// Word-DICTATION pools (Swedish spelling + English morphographic), keyed by skill code. buildItem
+// serves any code present here via the seed→word path; a code absent from this map is a recognition
+// (choice) rung. English morphographs (EN_POOLS) register alongside Swedish — same mechanism, own
+// subject scoping.
 export const SPELLING_POOLS: Record<string, WordPool> = {
   spelling_t15: T1_5_WORDS,
   spelling_t2: T2_WORDS,
   spelling_t3: T3_WORDS,
+  ...EN_POOLS,
 };
 
 // The LETTER pad's glyphs for a spelling item (A6.1): the TIER's letters PLUS distractors,
@@ -170,7 +186,10 @@ export const SPELLING_LETTERS: readonly string[] = 'abdefghiklmnoprstuvyåäö'.
 // would cue the answer). Empty = all-Sofie, pending Erik's full ear-vet of the 11 pairs.
 const HUMAN_T3 = new Set<string>([]);
 
-export function spellingAudio(code: string, word: string): { kind: 'file'; url: string } | { kind: 'tts' } {
+export function spellingAudio(code: string, word: string): { kind: 'file'; url: string } | { kind: 'tts'; lang?: string } {
+  // English morphographic dictation reuses this playback path but in ENGLISH (files land under
+  // /audio/english once generated; until then browser TTS in en-GB — a `lang` the caller honours).
+  if (code.startsWith('en_')) return englishAudio(word);
   const w = encodeURIComponent(word); // robust for å/ä/ö in the static path
   // Both tiers ship PRE-GENERATED neural clips (Sofie, sv-SE) served as files, so every device
   // hears the identical word — no per-device browser-TTS variance. Sofie was ear-vetted on the
