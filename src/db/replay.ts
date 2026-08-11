@@ -4,6 +4,7 @@ import { SKILLS, seedTheta } from '@/skills';
 import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/model/elo';
 import { aimForSkill, bestObservedDigitRate } from '@/lib/fluency';
 import { seedGradeFor } from '@/lib/onboarding';
+import { buildItem } from '@/lib/item';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
 // §1). `ability` is a cache; this rebuilds it for one player by seeding θ and
@@ -262,6 +263,44 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     db.prepare('UPDATE player SET session_target = 10').run();
     db.prepare('UPDATE family_goal SET target = target * 2').run();
     mark('sessions_10_goals_x2_v1');
+  }
+
+  // Backfill the question log from EXISTING wrong/idk attempts (one-off). Forward logging only
+  // captures new answers, but every past miss still carries its seed in item_json, so the question
+  // is deterministically rebuildable — populate the diagnostic immediately instead of from empty.
+  // Uses the passed db (no getDb recursion); a skill/seed that no longer builds is skipped. Guarded.
+  if (!done('backfill_question_log_v1')) {
+    const subjectOf = new Map(SKILLS.map((s) => [s.code, s.subject as string]));
+    const answerText = (a: unknown): string => {
+      if (a == null) return '';
+      if (typeof a === 'string' || typeof a === 'number') return String(a);
+      if (typeof a === 'object') {
+        const o = a as Record<string, unknown>;
+        if (typeof o.text === 'string') return o.text;
+        if (o.value != null) return String(o.value);
+      }
+      return JSON.stringify(a);
+    };
+    const ins = db.prepare(
+      `INSERT INTO question_log (player_id, skill_code, subject, seed, prompt, answer, given, dont_know, detail, at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    );
+    const rows = db
+      .prepare('SELECT player_id, skill_code, item_json, given, dont_know, at FROM attempt WHERE warmup = 0 AND (correct = 0 OR dont_know = 1) AND voided_at IS NULL ORDER BY at ASC')
+      .all() as { player_id: string; skill_code: string; item_json: string; given: string | null; dont_know: number; at: number }[];
+    const fill = db.transaction(() => {
+      for (const r of rows) {
+        let seed: number | null = null;
+        try { seed = JSON.parse(r.item_json)?.seed ?? null; } catch { /* unparseable — skip */ }
+        if (seed == null) continue;
+        try {
+          const it = buildItem(r.skill_code, seed) as { prompt?: string; answer?: unknown; choice?: unknown; steps?: unknown };
+          ins.run(r.player_id, r.skill_code, subjectOf.get(r.skill_code) ?? null, seed, it.prompt ?? '', answerText(it.answer), r.dont_know ? null : r.given, r.dont_know, JSON.stringify({ answer: it.answer, choice: it.choice, steps: it.steps }), r.at);
+        } catch { /* skill/seed no longer buildable — skip */ }
+      }
+    });
+    fill();
+    mark('backfill_question_log_v1');
   }
 
   // pig (now turtle) mastered year-1 but her åk1 seed locked year-2 — placed at
