@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { getJSON } from '@/lib/client';
 import { Emoji } from '../../_components/Emoji';
-import { T2_WORDS, T3_WORDS, T3_REVIEW_WORDS, spellingAudio } from '@/lib/spelling-content';
+import { T3_REVIEW_WORDS, spellingAudio } from '@/lib/spelling-content';
 
 function play(code: string, word: string): void {
   const audio = spellingAudio(code, word);
@@ -57,25 +57,12 @@ export default function GranskaPage() {
     <div className="granska">
       <h1>Granska stavningsord</h1>
       <p className="granska-hint">
-        Tryck på ett ord för att höra det. Lyssna efter tvetydiga ord (t.ex. vars dubbel­konsonant-variant
-        också är ett riktigt ord) och ord där rösten uttalar fel.
+        Bara det som väntar på granskning visas här — redan godkända ord/par är borttagna. Lyssna på
+        varje par (lång vokal → kort vokal): hörs skillnaden tydligt? Flagga par där Sofie inte gör
+        lång/kort solklar, så byter jag. Först när de är godkända går de live.
       </p>
-
-      <h2>T2 — ljudenligt <span className="granska-count">(övning)</span></h2>
-      <WordGrid code="spelling_t2" words={T2_WORDS.practice} />
-      <h2>T2 — ljudenligt <span className="granska-count">(sprint/mätning)</span></h2>
-      <WordGrid code="spelling_t2" words={T2_WORDS.holdout} />
-
-      <h2>T3 — dubbelteckning <span className="granska-count">(inspelad röst)</span></h2>
-      <WordGrid code="spelling_t3" words={T3_WORDS.practice} />
-      <h2>T3 — dubbelteckning <span className="granska-count">(sprint/mätning)</span></h2>
-      <WordGrid code="spelling_t3" words={T3_WORDS.holdout} />
 
       <h2>T3 — NYA par att granska <span className="granska-count">(ej live än)</span></h2>
-      <p className="granska-hint">
-        Lyssna på varje par (lång vokal → kort vokal): hörs skillnaden tydligt? Flagga par där Sofie
-        inte gör lång/kort solklar, så byter jag. Först när de är godkända går de live.
-      </p>
       <WordGrid code="spelling_t3" words={T3_REVIEW_WORDS} />
     </div>
   );
