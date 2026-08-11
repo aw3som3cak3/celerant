@@ -381,4 +381,24 @@ CREATE TABLE IF NOT EXISTS audio_review (
   at      INTEGER NOT NULL,
   PRIMARY KEY (tier, word)
 );
+
+-- question_log: every RESOLVED wrong answer or "vet inte" (idk), with the QUESTION rebuilt from its
+-- seed (prompt, correct answer, and for a spelling clip the WORD) — so a generated/randomised item
+-- that is itself broken (misheard audio, ambiguous prompt, wrong key) can be spotted, not hidden
+-- behind an opaque seed. Warm-up probes excluded. Written at grade time; read by the granska review.
+CREATE TABLE IF NOT EXISTS question_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id  TEXT NOT NULL,
+  skill_code TEXT NOT NULL,
+  subject    TEXT,
+  seed       INTEGER,
+  prompt     TEXT,          -- rendered prompt string ("" for audio-only)
+  answer     TEXT,          -- the CORRECT answer as text — for spelling, the word
+  given      TEXT,          -- what the child gave (NULL for idk)
+  dont_know  INTEGER NOT NULL DEFAULT 0,
+  detail     TEXT,          -- full item JSON (choice spec / steps) to reproduce
+  at         INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_question_log_at ON question_log(at);
+CREATE INDEX IF NOT EXISTS ix_question_log_skill ON question_log(skill_code, at);
 `;

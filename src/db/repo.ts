@@ -1028,6 +1028,36 @@ export function getAudioReviews(): { tier: string; word: string; verdict: string
     .all() as { tier: string; word: string; verdict: string; note: string | null }[];
 }
 
+// --- Question log: a resolved wrong/idk answer, with the question rebuilt from its seed, so a
+// broken generated item (misheard audio, ambiguous prompt, wrong key) is inspectable. ---
+export function logWrongQuestion(row: {
+  playerId: string; skillCode: string; subject: string | null; seed: number | null;
+  prompt: string; answer: string; given: string | null; dontKnow: boolean; detail: string; at: number;
+}): void {
+  getDb()
+    .prepare(
+      `INSERT INTO question_log (player_id, skill_code, subject, seed, prompt, answer, given, dont_know, detail, at)
+       VALUES (@playerId, @skillCode, @subject, @seed, @prompt, @answer, @given, @dontKnow, @detail, @at)`,
+    )
+    .run({ ...row, dontKnow: row.dontKnow ? 1 : 0 });
+}
+
+export type QuestionLogRow = {
+  id: number; icon: string; skill_code: string; subject: string | null; seed: number | null;
+  prompt: string | null; answer: string | null; given: string | null; dont_know: number; detail: string | null; at: number;
+};
+
+// Recent flagged questions (all families — this is Erik's diagnostic lens), newest first.
+export function getQuestionLog(sinceMs: number, limit = 500): QuestionLogRow[] {
+  return getDb()
+    .prepare(
+      `SELECT q.id, p.icon, q.skill_code, q.subject, q.seed, q.prompt, q.answer, q.given, q.dont_know, q.detail, q.at
+         FROM question_log q JOIN player p ON p.id = q.player_id
+        WHERE q.at >= ? ORDER BY q.at DESC LIMIT ?`,
+    )
+    .all(sinceMs, limit) as QuestionLogRow[];
+}
+
 // Bonus units directed to each cat/prop (all-time), mirroring targetAllocationCounts.
 export function bonusTargetUnits(familyId: string): Map<string, number> {
   const rows = getDb()

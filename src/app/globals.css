@@ -231,6 +231,19 @@ input {
 .granska-skip { background: transparent; border: 2px solid var(--accent); color: var(--ink); font-weight: 700; }
 .granska-progress { font-size: 0.9rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
+/* Flagged-question diagnostic (/stava/fragor): grouped rows, worst first. */
+.fragor-list { display: flex; flex-direction: column; gap: 0.7rem; }
+.fragor-row { border: 2px solid var(--accent); border-radius: 14px; padding: 0.7rem 0.9rem; }
+.fragor-head { display: flex; align-items: baseline; gap: 0.8rem; flex-wrap: wrap; }
+.fragor-answer { font-size: 1.4rem; font-weight: 800; color: var(--ink); }
+.fragor-skill { font-size: 0.8rem; color: var(--ink-soft); font-family: ui-monospace, monospace; }
+.fragor-counts { margin-left: auto; display: flex; gap: 0.6rem; align-items: center; font-size: 0.85rem; font-weight: 700; }
+.fragor-idk { color: #c0392b; }
+.fragor-fel { color: #d98a3d; }
+.fragor-kids { color: var(--ink-soft); font-weight: 600; }
+.fragor-ex { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.fragor-chip { font-size: 0.85rem; padding: 0.25rem 0.55rem; border-radius: 9px; border: 1px solid var(--accent); color: var(--ink); }
+
 .linkbtn {
   display: inline-flex; align-items: center; gap: 0.4rem; align-self: center;
   margin: 0.6rem auto 0; padding: 0.5rem 0.9rem;

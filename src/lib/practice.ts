@@ -271,6 +271,42 @@ export type AnswerResult =
 // Grade a submitted answer. `idk` true means the child pressed "vet inte" —
 // which counts toward the session's twenty (§3.1), so honesty costs nothing.
 // The answer never came from the client; we grade against the pending item.
+// Render a graded answer to a readable string for the question log — for a spelling item, the word.
+function answerText(a: unknown): string {
+  if (a == null) return '';
+  if (typeof a === 'string' || typeof a === 'number') return String(a);
+  if (typeof a === 'object') {
+    const o = a as Record<string, unknown>;
+    if (typeof o.text === 'string') return o.text;
+    if (o.value != null) return String(o.value);
+  }
+  return JSON.stringify(a);
+}
+
+// Log a resolved wrong/idk answer with the QUESTION rebuilt from its seed (deterministic), so a
+// broken generated item is inspectable, not hidden behind an opaque seed. Callers exclude warm-up.
+// Wrapped so a logging failure can never break the grade path.
+function logFailedQuestion(playerId: string, code: string, seed: number, given: string | null, idk: boolean, now: number, prebuilt?: ReturnType<typeof buildItem>): void {
+  try {
+    const it = prebuilt ?? buildItem(code, seed);
+    const item = it as { prompt?: string; answer?: unknown; choice?: unknown; steps?: unknown };
+    repo.logWrongQuestion({
+      playerId,
+      skillCode: code,
+      subject: SKILL_META.get(code)?.subject ?? null,
+      seed,
+      prompt: item.prompt ?? '',
+      answer: answerText(item.answer),
+      given: idk ? null : given,
+      dontKnow: idk,
+      detail: JSON.stringify({ answer: item.answer, choice: item.choice, steps: item.steps }),
+      at: now,
+    });
+  } catch {
+    /* diagnostics must never break grading */
+  }
+}
+
 export function answer(
   playerId: string,
   itemId: string,
@@ -330,6 +366,9 @@ export function answer(
     sessionRunId: sessionId ?? null,
   });
   repo.deletePendingItem(itemId);
+
+  // Diagnostics: a resolved wrong/idk answer → log the rebuilt question (never warm-up).
+  if (finalCorrect === 0 && !warmup) logFailedQuestion(playerId, p.skill_code, p.seed, given, idk, now);
 
   // A card is the first problem of this kind the child ever solved (§3.4).
   // Silent — it goes to the shelf, no notification. Downstream of the model.
@@ -521,6 +560,8 @@ export function sessionAnswer(
     if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
       repo.appendUsageEvent(playerId, 'card_earned', code, now);
     }
+    // Diagnostics: a resolved wrong/idk answer → log the rebuilt question (never warm-up).
+    if (!correct && !warmup) logFailedQuestion(playerId, code, seed, given, idk, now, it);
     // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
     repo.recordShadowFluency(playerId, code, now);
     repo.recordRecogShadow(playerId, code, now); // D1: recognition-rung shadow (invisible)
