@@ -372,7 +372,7 @@ function checkFamilyGoal(playerId: string, now: number): void {
   // Log the family-wide count crossing (never which child — §4.1), then, if the
   // target is met, mark reached (which logs the 'reached' event). The count is the
   // RESIDUAL — sessions directed to a cat don't count toward the goal.
-  const count = repo.familyGoalProgress(player.family_id, goal.created_at);
+  const count = repo.familyGoalProgress(player.family_id, goal.created_at, goal.carry_offset);
   repo.appendGoalEvent(player.family_id, goal.label, goal.target, 'progressed', count, now);
   if (count >= goal.target) repo.markGoalReached(player.family_id, now);
 }

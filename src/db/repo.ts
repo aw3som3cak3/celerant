@@ -858,34 +858,63 @@ export function cardsForPlayer(playerId: string): { skillCode: string; prompt: s
 
 // --- family goal (cooperative, session-denominated, no per-child) ----------
 
-export type GoalRow = { family_id: string; label: string; target: number; created_at: number; reached_at: number | null };
+export type GoalRow = { id: number; family_id: string; label: string; target: number; created_at: number; reached_at: number | null; acknowledged_at: number | null; carry_offset: number };
+
+// The single ACTIVE goal a family is working toward: not reached, not acknowledged.
+export function getActiveGoal(familyId: string): GoalRow | undefined {
+  return getDb()
+    .prepare('SELECT * FROM family_goal WHERE family_id = ? AND reached_at IS NULL AND acknowledged_at IS NULL ORDER BY created_at DESC LIMIT 1')
+    .get(familyId) as GoalRow | undefined;
+}
+// CELEBRATED goals: reached but not yet acknowledged ("Klar") — they linger for celebration next
+// to a new active goal until the parent presses Klar. Newest first.
+export function celebratedGoals(familyId: string): GoalRow[] {
+  return getDb()
+    .prepare('SELECT * FROM family_goal WHERE family_id = ? AND reached_at IS NOT NULL AND acknowledged_at IS NULL ORDER BY reached_at DESC')
+    .all(familyId) as GoalRow[];
+}
+// Back-compat: callers that want "the current goal" get the active one.
 export function getGoal(familyId: string): GoalRow | undefined {
-  return getDb().prepare('SELECT * FROM family_goal WHERE family_id = ?').get(familyId) as GoalRow | undefined;
+  return getActiveGoal(familyId);
 }
-export function setGoal(familyId: string, label: string, target: number, now: number): void {
-  const prev = getGoal(familyId);
-  getDb()
-    .prepare(
-      `INSERT INTO family_goal (family_id, label, target, created_at) VALUES (?, ?, ?, ?)
-       ON CONFLICT(family_id) DO UPDATE SET label = excluded.label, target = excluded.target, created_at = excluded.created_at, reached_at = NULL`,
-    )
-    .run(familyId, label, target, now);
-  // 'retargeted' if a goal was already here, else 'created' (§4.1 event stream).
-  appendGoalEvent(familyId, label, target, prev ? 'retargeted' : 'created', prev ? target : null, now);
+// Create a NEW active goal. Any existing ACTIVE goal is being replaced → archive it (acknowledged),
+// so only ONE active goal exists; celebrated goals are untouched and keep showing. carryOffset seeds
+// the new goal's starting points (carried from the replaced unfinished goal, the parent's choice).
+export function createGoal(familyId: string, label: string, target: number, now: number, carryOffset = 0): number {
+  const prev = getActiveGoal(familyId);
+  if (prev) getDb().prepare('UPDATE family_goal SET acknowledged_at = ? WHERE id = ?').run(now, prev.id);
+  const info = getDb()
+    .prepare('INSERT INTO family_goal (family_id, label, target, created_at, carry_offset) VALUES (?, ?, ?, ?, ?)')
+    .run(familyId, label, target, now, carryOffset);
+  appendGoalEvent(familyId, label, target, prev ? 'retargeted' : 'created', carryOffset || null, now);
+  return Number(info.lastInsertRowid);
 }
+// Back-compat alias (tests / any caller): set === create a new active goal.
+export function setGoal(familyId: string, label: string, target: number, now: number, carryOffset = 0): void {
+  createGoal(familyId, label, target, now, carryOffset);
+}
+// "Klar": acknowledge a CELEBRATED goal (hide it). With no id, acknowledges all the family's
+// celebrated goals. Also usable to discard the active goal (the old clear behaviour).
+export function acknowledgeGoal(familyId: string, goalId: number | null, now: number): void {
+  const rows: (GoalRow | undefined)[] = goalId != null
+    ? [getDb().prepare('SELECT * FROM family_goal WHERE id = ? AND family_id = ? AND acknowledged_at IS NULL').get(goalId, familyId) as GoalRow | undefined]
+    : celebratedGoals(familyId);
+  for (const g of rows) {
+    if (!g) continue;
+    getDb().prepare('UPDATE family_goal SET acknowledged_at = ? WHERE id = ?').run(now, g.id);
+    appendGoalEvent(familyId, g.label, g.target, 'cleared', null, now);
+  }
+}
+// Back-compat: clear the ACTIVE goal (discard it without celebrating).
 export function clearGoal(familyId: string, now: number): void {
-  const prev = getGoal(familyId);
-  getDb().prepare('DELETE FROM family_goal WHERE family_id = ?').run(familyId);
-  if (prev) appendGoalEvent(familyId, prev.label, prev.target, 'cleared', null, now);
+  const g = getActiveGoal(familyId);
+  if (g) acknowledgeGoal(familyId, g.id, now);
 }
 export function markGoalReached(familyId: string, now: number): void {
-  const info = getDb()
-    .prepare('UPDATE family_goal SET reached_at = ? WHERE family_id = ? AND reached_at IS NULL')
-    .run(now, familyId);
-  if (info.changes > 0) {
-    const g = getGoal(familyId)!;
-    appendGoalEvent(familyId, g.label, g.target, 'reached', null, now);
-  }
+  const g = getActiveGoal(familyId);
+  if (!g) return;
+  getDb().prepare('UPDATE family_goal SET reached_at = ? WHERE id = ?').run(now, g.id);
+  appendGoalEvent(familyId, g.label, g.target, 'reached', null, now);
 }
 
 // --- cat collection reward layer (celerant-cat-collection-spec.md) ----------
@@ -1006,7 +1035,7 @@ export function catPropAllocatedSessions(familyId: string, sinceMs: number): num
 // counts 2, a new 10-item session 1. (completedSessionsForFamily stays a raw count
 // for its own callers; the weighting lives here where the goal is compared to its
 // doubled target.)
-export function familyGoalProgress(familyId: string, sinceMs: number): number {
+export function familyGoalProgress(familyId: string, sinceMs: number, carryOffset = 0): number {
   const completedUnits = (
     getDb()
       .prepare(
@@ -1018,7 +1047,8 @@ export function familyGoalProgress(familyId: string, sinceMs: number): number {
   ).c;
   // Bonus units directed to the goal add on top of the session residual; a sprint
   // milestone is a real contribution to "simhallen", but it is never a session/pass.
-  return Math.max(0, completedUnits - catPropAllocatedSessions(familyId, sinceMs)) + bonusFamilyUnits(familyId, sinceMs);
+  // carryOffset = points carried from a replaced unfinished goal (the parent's choice).
+  return Math.max(0, completedUnits - catPropAllocatedSessions(familyId, sinceMs)) + bonusFamilyUnits(familyId, sinceMs) + carryOffset;
 }
 
 export type SharedTargetRow = { target_kind: 'cat' | 'family' | 'prop'; target_id: string };

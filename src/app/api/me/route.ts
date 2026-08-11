@@ -61,8 +61,11 @@ export function GET(req: NextRequest) {
           label: goalRow.label,
           target: goalRow.target,
           reached: goalRow.reached_at != null,
-          progress: repo.familyGoalProgress(s.familyId, goalRow.created_at),
+          progress: repo.familyGoalProgress(s.familyId, goalRow.created_at, goalRow.carry_offset),
         }
       : null,
+    // Reached-but-unacknowledged goals linger, celebrated on the family screen, until the parent
+    // presses Klar. Aggregate only — a label + target, never who reached it.
+    celebrated: repo.celebratedGoals(s.familyId).map((g) => ({ id: g.id, label: g.label, target: g.target })),
   });
 }

@@ -34,7 +34,10 @@ type Overview = {
   fatigue: Fatigue;
   skills: SkillRow[];
 };
-type Goal = { goal: { label: string; target: number; reached: boolean } | null; progress: number };
+type Goal = {
+  goal: { id: number; label: string; target: number; reached: boolean; progress: number } | null;
+  celebrated: { id: number; label: string; target: number }[];
+};
 type T = (key: string, params?: Record<string, string | number>) => string;
 
 // Only a MEASURED sprint rate shows a fraction; a seeded/provisional rate reads
@@ -275,48 +278,71 @@ function FamilyGoal({ goal, onChange }: { goal: Goal | null; onChange: () => voi
   const [label, setLabel] = useState('');
   const [target, setTarget] = useState('');
   const [addingNew, setAddingNew] = useState(false);
+  const [carry, setCarry] = useState<number | null>(null); // pending carry-over choice: points available
   if (!goal) return null;
+  const active = goal.goal;
 
-  // Setting a goal replaces any current one and restarts its count at 0.
+  const doSet = async (carryOver: boolean) => {
+    await postJSON('/api/parent/goal', { label, target: Number(target), carryOver });
+    setLabel(''); setTarget(''); setAddingNew(false); setCarry(null); onChange();
+  };
+  const onSet = () => {
+    // Replacing an UNFINISHED active goal that has collected points → ask about carry-over.
+    if (active && !active.reached && active.progress > 0) setCarry(active.progress);
+    else doSet(false);
+  };
+  // "Klar" — acknowledge (confirm first). A celebrated goal → done & gone; the active goal → discarded.
+  const ack = async (id: number, lbl: string, celebrated: boolean) => {
+    const msg = celebrated
+      ? `Markera "${lbl}" som klar? Den försvinner från familjeskärmen.`
+      : `Ta bort målet "${lbl}"? Insamlade poäng nollställs.`;
+    if (!confirm(msg)) return;
+    await fetch(`/api/parent/goal?id=${id}`, { method: 'DELETE' });
+    onChange();
+  };
+
   const setForm = (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.5rem' }}>
       <input className="field" placeholder={t('goal.labelPlaceholder')} value={label} onChange={(e) => setLabel(e.target.value)} />
       <input className="field" placeholder={t('goal.targetPlaceholder')} inputMode="numeric" value={target} onChange={(e) => setTarget(e.target.value.replace(/\D/g, ''))} />
-      <button
-        className="primary"
-        disabled={!label || !target}
-        onClick={async () => { await postJSON('/api/parent/goal', { label, target: Number(target) }); setLabel(''); setTarget(''); setAddingNew(false); onChange(); }}
-      >
-        {t('goal.set')}
-      </button>
+      {carry != null ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', width: '100%' }}>
+          <span className="muted" style={{ fontSize: '0.85rem' }}>⚠ Det finns {carry} osamlade poäng från “{active!.label}”.</span>
+          <button className="primary" onClick={() => doSet(true)}>Ta med {carry}</button>
+          <button className="pill-btn" onClick={() => doSet(false)}>Börja om från 0</button>
+        </div>
+      ) : (
+        <button className="primary" disabled={!label || !target} onClick={onSet}>{t('goal.set')}</button>
+      )}
     </div>
   );
 
-  // A goal is set: show its progress, a clear CLOSE button (the parent decides
-  // when it's fulfilled), and a clear way to set a NEW one.
-  if (goal.goal) {
-    return (
-      <div className="namebtn" style={{ cursor: 'default' }}>
-        <div>
-          {t('goal.progress', { label: goal.goal.label, done: goal.progress, target: goal.goal.target })}
-          {goal.goal.reached ? <> · {t('goal.reached')} <Emoji e="🎉" /></> : ''}
+  return (
+    <div className="namebtn" style={{ cursor: 'default' }}>
+      {/* Celebrated goals — reached, lingering until the parent presses Klar. */}
+      {goal.celebrated.map((c) => (
+        <div key={c.id} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
+          <span><Emoji e="🎉" /> {c.label} — klart!</span>
+          <button className="pill-btn accent" onClick={() => ack(c.id, c.label, true)}>{t('goal.done')}</button>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-          <button
-            className={`pill-btn ${goal.goal.reached ? 'accent' : ''}`}
-            onClick={async () => { await fetch('/api/parent/goal', { method: 'DELETE' }); onChange(); }}
-          >
-            {t('goal.done')}
-          </button>
-          {!addingNew && <button className="pill-btn" onClick={() => setAddingNew(true)}>{t('goal.new')}</button>}
-        </div>
-        {addingNew && setForm}
-        <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
-      </div>
-    );
-  }
-  // No goal yet: the set-goal form, always available.
-  return <div className="namebtn" style={{ cursor: 'default' }}>{setForm}</div>;
+      ))}
+
+      {/* The active goal + its progress, or the set-form when there's no active goal. */}
+      {active ? (
+        <>
+          <div>{t('goal.progress', { label: active.label, done: active.progress, target: active.target })}</div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+            {!addingNew && <button className="pill-btn" onClick={() => setAddingNew(true)}>{t('goal.new')}</button>}
+            <button className="pill-btn" onClick={() => ack(active.id, active.label, false)}>Ta bort</button>
+          </div>
+          {addingNew && setForm}
+        </>
+      ) : (
+        setForm
+      )}
+      <p className="muted" style={{ fontSize: '0.8rem' }}>{t('goal.hint')}</p>
+    </div>
+  );
 }
 
 // Add a child — a parent action (behind the PIN). Pick an icon, then set the child's

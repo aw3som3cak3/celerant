@@ -737,6 +737,14 @@ table.plain-table th {
 .goal-chip .sessionbar {
   margin-top: 0.35rem;
 }
+/* A reached goal, celebrated until a parent presses Klar. */
+.goal-chip.reached {
+  color: var(--ink);
+  font-weight: 600;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 12px;
+  padding: 0.4rem 0.7rem;
+}
 .child-tile {
   position: relative;
   width: 96px;

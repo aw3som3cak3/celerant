@@ -32,6 +32,26 @@ function open(): Database.Database {
     }
   }
 
+  // Family goal: rebuild single-row (family_id PK) → multi-row (id PK) + acknowledged_at/carry_offset
+  // (the "keep celebrated goals + carry-over" redesign). Guarded on the missing `id` column so it
+  // runs exactly once; existing single rows become active goals. On a fresh DB the SCHEMA already
+  // made the new shape, so this is a no-op there.
+  const fgCols = db.prepare('PRAGMA table_info(family_goal)').all() as { name: string }[];
+  if (fgCols.length && !fgCols.some((c) => c.name === 'id')) {
+    db.exec(`
+      ALTER TABLE family_goal RENAME TO family_goal_legacy;
+      CREATE TABLE family_goal (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, family_id TEXT NOT NULL REFERENCES family(id),
+        label TEXT NOT NULL, target INTEGER NOT NULL, created_at INTEGER NOT NULL,
+        reached_at INTEGER, acknowledged_at INTEGER, carry_offset INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO family_goal (family_id, label, target, created_at, reached_at)
+        SELECT family_id, label, target, created_at, reached_at FROM family_goal_legacy;
+      DROP TABLE family_goal_legacy;
+      CREATE INDEX IF NOT EXISTS idx_family_goal_family ON family_goal(family_id, created_at);
+    `);
+  }
+
   // Tail of the migration: canonicalise legacy families and heal every ability
   // cache under the current model. Uses this db handle directly (not getDb), so
   // it can't recurse through open(). Idempotent — guarded by a meta flag.

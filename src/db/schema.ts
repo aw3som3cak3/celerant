@@ -174,13 +174,22 @@ CREATE TABLE IF NOT EXISTS card (
   PRIMARY KEY (player_id, skill_code)
 );
 
+-- MULTI-ROW (id PK, not family_id): a family has one ACTIVE goal (reached_at NULL, acknowledged_at
+-- NULL) plus any number of CELEBRATED goals (reached_at set, acknowledged_at NULL) that linger until
+-- the parent presses "Klar" (sets acknowledged_at → archived, hidden). carry_offset seeds a new
+-- goal with points carried over from a replaced unfinished goal. Cooperative + aggregate-only as
+-- ever — no per-child column anywhere here.
 CREATE TABLE IF NOT EXISTS family_goal (
-  family_id   TEXT PRIMARY KEY REFERENCES family(id),
-  label       TEXT NOT NULL,
-  target      INTEGER NOT NULL,
-  created_at  INTEGER NOT NULL,
-  reached_at  INTEGER
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  family_id       TEXT NOT NULL REFERENCES family(id),
+  label           TEXT NOT NULL,
+  target          INTEGER NOT NULL,
+  created_at      INTEGER NOT NULL,
+  reached_at      INTEGER,
+  acknowledged_at INTEGER,
+  carry_offset    INTEGER NOT NULL DEFAULT 0
 );
+CREATE INDEX IF NOT EXISTS idx_family_goal_family ON family_goal(family_id, created_at);
 
 -- LEDGER (instrumentation.md §4.1). Append-only event stream for family goals, so
 -- the PATH a goal took is recoverable, not just its final state. goal_label and

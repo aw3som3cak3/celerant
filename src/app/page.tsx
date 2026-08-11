@@ -28,7 +28,8 @@ function rememberFamily(pair: string): void {
 
 type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
-type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; spellingReview?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null };
+type Celebrated = { id: number; label: string; target: number };
+type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; spellingReview?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null; celebrated?: Celebrated[] };
 type Families = { pairs: string[]; empty: boolean };
 
 export default function Home() {
@@ -196,6 +197,12 @@ function Players({ me }: { me: Me }) {
       <div className="family-card">
         <h2>{t('family.heading')}</h2>
         <div className="bigpair" style={{ margin: '0.4rem 0' }}>{me.icons!.map((k) => <EmojiIcon key={k} iconKey={k} />)}</div>
+        {/* Celebrated goals — reached, lingering for the kids to enjoy until a parent presses Klar. */}
+        {me.celebrated?.map((c) => (
+          <div key={c.id} className="goal-chip reached">
+            <div><Emoji e="🎉" /> {c.label} — klart!</div>
+          </div>
+        ))}
         {me.goal && (
           <div className="goal-chip">
             <div>

@@ -99,19 +99,21 @@ describe('family goal (§4.1) — sessions, family-wide, no per-child', () => {
     expect(Object.keys(repo).some((k) => /contribution/i.test(k))).toBe(false);
   });
 
-  it('a reached goal STAYS until the parent marks it Done, then clears', () => {
+  it('a reached goal moves to CELEBRATED and lingers until the parent acknowledges (Klar)', () => {
     const t0 = NOW + 2_000_000;
     repo.setGoal(familyId, 'bio', 1, t0);
     const sid = repo.createSessionRun(playerId, 2, t0 + 1_000);
     repo.bumpSessionRun(sid, t0 + 1_001);
     repo.bumpSessionRun(sid, t0 + 1_002); // one completed family session
     repo.markGoalReached(familyId, t0 + 2_000);
-    // reached, but still present on the collective screen (getGoal returns it)
-    expect(repo.getGoal(familyId)!.reached_at).not.toBeNull();
-    expect(repo.getGoal(familyId)).toBeDefined();
-    // "Done" (the DELETE route → clearGoal) is the only thing that removes it
-    repo.clearGoal(familyId, t0 + 3_000);
+    // reached → no longer the ACTIVE goal, but celebrated (lingers on the family screen)
     expect(repo.getGoal(familyId)).toBeUndefined();
+    const cel = repo.celebratedGoals(familyId).filter((g) => g.label === 'bio');
+    expect(cel.length).toBe(1);
+    expect(cel[0].reached_at).not.toBeNull();
+    // "Klar" (DELETE route → acknowledgeGoal) is the only thing that removes it
+    repo.acknowledgeGoal(familyId, cel[0].id, t0 + 3_000);
+    expect(repo.celebratedGoals(familyId).some((g) => g.label === 'bio')).toBe(false);
   });
 
   it('a NEW goal starts its count at 0, ignoring earlier completed sessions', () => {
