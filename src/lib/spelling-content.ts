@@ -82,6 +82,19 @@ export const T3_WORDS: WordPool = {
   holdout: T3_PAIRS.slice(8).flatMap((p) => [p.long, p.short]),
 };
 
+// CANDIDATE T3 pairs (pipeline-found, Erik word-vetted) PENDING his in-app vowel-length vet on the
+// granska page (test family only). Deliberately NOT in the live T3_PAIRS/T3_WORDS above —
+// unvetted vowel-length audio must never reach the real kids (A12). After the vet, confirmed pairs
+// move up into T3_PAIRS. Audio: /audio/spelling/t3/<word>.mp3 (Sofie).
+export const T3_PAIRS_REVIEW: readonly { short: string; long: string }[] = [
+  { short: 'håll', long: 'hål' }, { short: 'dörr', long: 'dör' }, { short: 'glass', long: 'glas' },
+  { short: 'sött', long: 'söt' }, { short: 'damm', long: 'dam' }, { short: 'barr', long: 'bar' },
+  { short: 'bytt', long: 'byt' }, { short: 'grått', long: 'gråt' }, { short: 'borr', long: 'bor' },
+  { short: 'mätt', long: 'mät' }, { short: 'bredd', long: 'bred' }, { short: 'stall', long: 'stal' },
+  { short: 'koll', long: 'kol' }, { short: 'lönn', long: 'lön' }, { short: 'still', long: 'stil' },
+];
+export const T3_REVIEW_WORDS: readonly string[] = T3_PAIRS_REVIEW.flatMap((p) => [p.long, p.short]);
+
 // Which pool backs each spelling skill code. A skill absent here is not a word-dictation
 // skill. T3 is now registered — its recorded audio is in public/audio/spelling/t3/.
 export const SPELLING_POOLS: Record<string, WordPool> = {
