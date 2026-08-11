@@ -976,12 +976,12 @@ const tierSpelling: Skill[] = [
     // T1 — letter knowledge / the reading-readiness probe. Hear a word, tap the FIRST letter.
     code: "spelling_t1", subject: "spelling", family: "sp_listen", year: 0, mode: "component", format: "choice", requires: ["spelling_t0b"],
     generate: (r) => {
-      const w = r.pick(RECOG_WORDS);
-      const first = w.word[0];
+      const w = r.pick(TRANSPARENT_WORDS).word; // the expanded pool (102) — first-letter over many words
+      const first = w[0];
       return {
-        prompt: "", answer: { kind: "word", text: first }, steps: [w.word],
+        prompt: "", answer: { kind: "word", text: first }, steps: [w],
         choice: {
-          prompt: { show: "listen", code: "spelling_t1", word: w.word },
+          prompt: { show: "listen", code: "spelling_t1", word: w },
           question: "Vilken bokstav börjar ordet på?",
           options: letterChoices(r, first, SPELLING_LETTERS),
         },

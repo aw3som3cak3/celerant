@@ -16,6 +16,13 @@ describe('recognition pool (T0/T1 shared words)', () => {
     }
   });
 
+  it('every TRANSPARENT_WORDS word has an isolated /recog/ clip (T1/T0b/T1b/T1c audio)', () => {
+    const missing = TRANSPARENT_WORDS.filter(
+      (w) => !existsSync(path.join(process.cwd(), 'public', 'audio', 'spelling', 'recog', `${w.word}.mp3`)),
+    );
+    expect(missing.map((w) => w.word), 'missing /recog/ audio').toEqual([]);
+  });
+
   it('spellingAudio routes a recognition code to the /recog/ isolated clip', () => {
     const a = spellingAudio('spelling_t1', 'sol');
     expect(a).toEqual({ kind: 'file', url: '/audio/spelling/recog/sol.mp3' });
@@ -31,7 +38,7 @@ describe('spelling_t1 — hear a word, tap its first letter', () => {
       expect(c!.prompt.show).toBe('listen');
       // the target word is a real recognition word and the answer is its first letter
       const word = c!.prompt.show === 'listen' ? c!.prompt.word : '';
-      expect(RECOG_WORDS.some((w) => w.word === word)).toBe(true);
+      expect(TRANSPARENT_WORDS.some((w) => w.word === word)).toBe(true);
       expect(item.answer).toBe(word[0]);
       // three distinct letter options, all on the pad, exactly one equal to the answer
       expect(c!.options.length).toBe(3);
