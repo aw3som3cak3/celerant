@@ -20,6 +20,8 @@ const WORDS = [
   'fox', 'sun', 'star', 'car', 'ship', 'key', 'tree', 'gear', 'map', 'bell', 'ladder', 'anchor', 'package',
   // Phase B colours (EN_COLOR_WORDS)
   'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
+  // Phase C action verbs (EN_VERB_WORDS)
+  'run', 'jump', 'sit', 'sleep', 'eat', 'stop', 'open', 'look',
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

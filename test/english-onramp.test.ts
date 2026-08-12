@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem } from '@/lib/item';
-import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, enNounItem, englishReady } from '@/lib/english-content';
+import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, enNounItem, englishReady } from '@/lib/english-content';
 import { SKILLS } from '@/skills';
 
 const RECOG = ['en_noun_cognate', 'en_noun_core', 'en_noun_category', 'en_noun_minpair'];
@@ -59,6 +59,22 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
     }
     for (const w of EN_COLOR_WORDS) {
       expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `colour audio ${w}.mp3`).toBe(true);
+    }
+  });
+
+  it('Phase C: en_verb_action builds a listen prompt + 3 picto options, each with an SVG and audio', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const c = buildItem('en_verb_action', seed).choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_verb_action' });
+      expect(c.options).toHaveLength(3);
+      expect(c.options.every((o) => o.render === 'picto' && typeof (o as { kind?: string }).kind === 'string')).toBe(true);
+      expect(c.options.map((o) => String(o.value))).toContain(String(buildItem('en_verb_action', seed).answer));
+    }
+    for (const v of EN_VERBS) {
+      expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${v.picto}.svg`)), `picto ${v.picto}.svg`).toBe(true);
+    }
+    for (const w of EN_VERB_WORDS) {
+      expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `verb audio ${w}.mp3`).toBe(true);
     }
   });
 

@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1153,6 +1153,22 @@ const tierEnglish: Skill[] = [
           prompt: { show: "listen", code: "en_color", word: target.word },
           question: "Vad hör du?",
           options: options.map((c): ChoiceOption => ({ value: c.word, render: "swatch", color: c.color })),
+        },
+      };
+    },
+  }),
+  // ── Phase C (increment 1) · ACTION VERBS — hear a verb → tap the pictogram (TPR). SVG pictos, no
+  // letters. Programming-relevant verbs (run/stop/open/look…). After colours in the receptive ramp.
+  S({
+    code: "en_verb_action", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_color"],
+    generate: (r) => {
+      const { target, options } = enVerbItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_verb_action", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((v): ChoiceOption => ({ value: v.word, render: "picto", kind: v.picto })),
         },
       };
     },

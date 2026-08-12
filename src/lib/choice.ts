@@ -16,7 +16,8 @@ export type ChoiceOption =
   | { value: 'combine' | 'separate'; render: 'more' | 'fewer'; label: string } // Fler / Färre (label shown, value graded)
   | { value: string; render: 'picture'; kind: string } // tap the emoji whose Swedish name starts with the target sound (T0)
   | { value: string; render: 'letter' } // tap the letter — value IS the glyph, graded as a word (T1)
-  | { value: string; render: 'swatch'; color: string }; // tap the COLOUR — value is the colour word (graded), color is the CSS fill (English on-ramp Phase B)
+  | { value: string; render: 'swatch'; color: string } // tap the COLOUR — value is the colour word (graded), color is the CSS fill (English on-ramp Phase B)
+  | { value: string; render: 'picto'; kind: string }; // tap the SVG pictogram /pictos/<kind>.svg — for verbs/attributes the emoji photo-set lacks (English Phase B/C)
 
 // Carried on Item.choice for a recognition rung. `question` and any option `label`s are
 // display strings held here (Swedish, like the maths `steps`) — the render layer shows

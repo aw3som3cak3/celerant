@@ -132,6 +132,30 @@ export function enColorItem(r: NounRng): { target: EnColor; options: EnColor[] }
   return { target, options: shuffle(r, [target, ...distractors]) };
 }
 
+// ── Phase C (increment 1): ACTION VERBS — hear a verb → tap the pictogram (TPR: hear→point). The
+// emoji photo-set has no actions, so these render as authored SVGs (/public/pictos/<picto>.svg,
+// render:'picto'). Erik's wish: programming-relevant verbs (run, stop, open, look…). Prop-supported
+// so each reads at small size (bed→sleep, chair→sit, octagon→stop, eye→look). First set of 8; a
+// pre-literate child does these receptively long before producing any -ed.
+export type EnVerb = { word: string; picto: string };
+export const EN_VERBS: readonly EnVerb[] = [
+  { word: 'run', picto: 'run' },
+  { word: 'jump', picto: 'jump' },
+  { word: 'sit', picto: 'sit' },
+  { word: 'sleep', picto: 'sleep' },
+  { word: 'eat', picto: 'eat' },
+  { word: 'stop', picto: 'stop' },
+  { word: 'open', picto: 'open' },
+  { word: 'look', picto: 'look' },
+];
+export const EN_VERB_WORDS: readonly string[] = EN_VERBS.map((v) => v.word);
+
+export function enVerbItem(r: NounRng): { target: EnVerb; options: EnVerb[] } {
+  const target = r.pick(EN_VERBS);
+  const distractors = shuffle(r, EN_VERBS.filter((v) => v.word !== target.word)).slice(0, 2);
+  return { target, options: shuffle(r, [target, ...distractors]) };
+}
+
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).
 export const ENGLISH_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('');
 

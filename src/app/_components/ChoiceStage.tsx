@@ -208,6 +208,11 @@ export function ChoiceStage({
               <button key={i} className="ground-option swatch" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <span className="colour-swatch" style={{ background: o.color }} aria-hidden />
               </button>
+            ) : o.render === 'picto' ? (
+              // English Phase B/C: tap the SVG pictogram (verbs/attributes the emoji photo-set lacks).
+              <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <img className="choice-pic" src={`/pictos/${o.kind}.svg`} alt="" draggable={false} />
+              </button>
             ) : null,
           )}
         </div>
