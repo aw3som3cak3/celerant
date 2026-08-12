@@ -225,10 +225,17 @@ const tierGround: Skill[] = [
     },
   }),
   S({
+    // The GENTLE combine: two bunches, pick the bunch with that many. Totals stay ≤ 5, small
+    // enough that a beginner at the edge of her counting range lands them by counting-all
+    // without miscounting — this is the entry rung. The to-10 combine is a SEAM away at
+    // ground_sum (difficulty is graph shape, not a θ-scaled generator): she grows into the
+    // bigger totals by CROSSING ground_count → ground_numeral → ground_sum, not by this rung
+    // silently getting harder. (Was a=1..5,b→10, which put 6–9 totals on a child who could
+    // reliably combine only to ~5 — a floor she sat under at ~37%.)
     code: "ground_count", year: 0, mode: "component", format: "choice", requires: ["ground_structure"],
     generate: (r) => {
       const kind = r.pick(GKIND);
-      const a = r.int(1, 5), b = r.int(1, Math.min(5, 10 - a));
+      const a = r.int(1, 4), b = r.int(1, Math.min(4, 5 - a)); // totals 2..5
       const answer = a + b;
       return {
         prompt: "", answer: int(answer), steps: [`${a} + ${b} = ${answer}`],
