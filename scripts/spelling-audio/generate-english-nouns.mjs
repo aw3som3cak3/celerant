@@ -22,6 +22,8 @@ const WORDS = [
   'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
   // Phase C action verbs (EN_VERB_WORDS)
   'run', 'jump', 'sit', 'sleep', 'eat', 'stop', 'open', 'look',
+  // Phase C -ing forms (EN_VERB_ING_WORDS)
+  'running', 'jumping', 'sitting', 'sleeping', 'eating', 'stopping', 'opening', 'looking',
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

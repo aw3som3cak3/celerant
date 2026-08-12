@@ -1173,6 +1173,23 @@ const tierEnglish: Skill[] = [
       };
     },
   }),
+  // ── Phase C (increment 2) · the -ing form, RECEPTIVELY — hear "running" → tap the run pictogram.
+  // Morphology meaning-first (the -ing continuous), long before producing any -ed. Reuses the verb
+  // pictos (no new asset); the value/answer is the -ing form. requires en_verb_action.
+  S({
+    code: "en_verb_ing", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_verb_action"],
+    generate: (r) => {
+      const { target, options } = enVerbItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.ing }, steps: [target.ing],
+        choice: {
+          prompt: { show: "listen", code: "en_verb_ing", word: target.ing },
+          question: "Vad hör du?",
+          options: options.map((v): ChoiceOption => ({ value: v.ing, render: "picto", kind: v.picto })),
+        },
+      };
+    },
+  }),
   // ── Phase F · the morphographic slice — re-parented onto the receptive ramp AND reading-gated. It
   // is English SPELLING (produce the word), so it needs both: the English receptive ramp (requires) AND
   // READING, earned in Swedish (crossRequires READING_READY = spelling_t1c, the top of the Swedish

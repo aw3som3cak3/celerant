@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem } from '@/lib/item';
-import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, enNounItem, englishReady } from '@/lib/english-content';
+import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, EN_VERB_ING_WORDS, enNounItem, englishReady } from '@/lib/english-content';
 import { SKILLS } from '@/skills';
 
 const RECOG = ['en_noun_cognate', 'en_noun_core', 'en_noun_category', 'en_noun_minpair'];
@@ -75,6 +75,21 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
     }
     for (const w of EN_VERB_WORDS) {
       expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `verb audio ${w}.mp3`).toBe(true);
+    }
+  });
+
+  it('Phase C: en_verb_ing reuses the verb pictos, grades the -ing form, and every -ing has audio', () => {
+    const ings = new Set<string>(EN_VERB_ING_WORDS);
+    for (let seed = 1; seed <= 30; seed++) {
+      const item = buildItem('en_verb_ing', seed);
+      const c = item.choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_verb_ing' });
+      expect(c.options.every((o) => o.render === 'picto')).toBe(true); // reuses the verb pictos
+      expect(c.options.every((o) => ings.has(String(o.value)))).toBe(true); // graded on the -ing form
+      expect(String(item.answer).endsWith('ing')).toBe(true);
+    }
+    for (const w of EN_VERB_ING_WORDS) {
+      expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `-ing audio ${w}.mp3`).toBe(true);
     }
   });
 

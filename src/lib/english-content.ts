@@ -137,18 +137,19 @@ export function enColorItem(r: NounRng): { target: EnColor; options: EnColor[] }
 // render:'picto'). Erik's wish: programming-relevant verbs (run, stop, open, look…). Prop-supported
 // so each reads at small size (bed→sleep, chair→sit, octagon→stop, eye→look). First set of 8; a
 // pre-literate child does these receptively long before producing any -ed.
-export type EnVerb = { word: string; picto: string };
+export type EnVerb = { word: string; picto: string; ing: string };
 export const EN_VERBS: readonly EnVerb[] = [
-  { word: 'run', picto: 'run' },
-  { word: 'jump', picto: 'jump' },
-  { word: 'sit', picto: 'sit' },
-  { word: 'sleep', picto: 'sleep' },
-  { word: 'eat', picto: 'eat' },
-  { word: 'stop', picto: 'stop' },
-  { word: 'open', picto: 'open' },
-  { word: 'look', picto: 'look' },
+  { word: 'run', picto: 'run', ing: 'running' }, // CVC doubling
+  { word: 'jump', picto: 'jump', ing: 'jumping' },
+  { word: 'sit', picto: 'sit', ing: 'sitting' }, // CVC doubling
+  { word: 'sleep', picto: 'sleep', ing: 'sleeping' },
+  { word: 'eat', picto: 'eat', ing: 'eating' },
+  { word: 'stop', picto: 'stop', ing: 'stopping' }, // CVC doubling
+  { word: 'open', picto: 'open', ing: 'opening' },
+  { word: 'look', picto: 'look', ing: 'looking' },
 ];
 export const EN_VERB_WORDS: readonly string[] = EN_VERBS.map((v) => v.word);
+export const EN_VERB_ING_WORDS: readonly string[] = EN_VERBS.map((v) => v.ing);
 
 export function enVerbItem(r: NounRng): { target: EnVerb; options: EnVerb[] } {
   const target = r.pick(EN_VERBS);
