@@ -20,11 +20,12 @@ export type RewardState = {
 // never sets a target auto-collects Pythagoras first (the room is never empty —
 // the approach cue climbs from session one), and once a cat is complete the
 // default advances to the next unresolved one.
-export function resolveSharedTarget(familyId: string, unlockedIds: string[]): Target {
+export function resolveSharedTarget(familyId: string, unlockedIds: string[], goalOpen = true): Target {
   const row = repo.getSharedTarget(familyId);
   if (row) {
-    const resolved = row.target_kind === 'cat' && unlockedIds.includes(row.target_id);
-    if (!resolved) return { kind: row.target_kind, id: row.target_id };
+    const resolvedCat = row.target_kind === 'cat' && unlockedIds.includes(row.target_id); // cat already earned → advance
+    const staleGoal = row.target_kind === 'family' && !goalOpen; // goal reached/absent → not collectable, so don't point at it
+    if (!resolvedCat && !staleGoal) return { kind: row.target_kind, id: row.target_id };
   }
   const nextCat = CATS.find((c) => !unlockedIds.includes(c.id));
   return nextCat ? { kind: 'cat', id: nextCat.id } : { kind: 'family', id: 'family' };
@@ -34,13 +35,14 @@ export function resolveSharedTarget(familyId: string, unlockedIds: string[]): Ta
 // already unlocked is skipped so we advance to the next), else the family default, else
 // the next uncollected cat. So each kid steers their own sessions while the cats stay
 // shared and pooled — and two kids who pick the same target co-collect it ("together").
-export function resolvePlayerTarget(playerId: string, familyId: string, unlockedIds: string[]): Target {
+export function resolvePlayerTarget(playerId: string, familyId: string, unlockedIds: string[], goalOpen = true): Target {
   const row = repo.getPlayerTarget(playerId);
   if (row) {
-    const resolved = row.target_kind === 'cat' && unlockedIds.includes(row.target_id);
-    if (!resolved) return { kind: row.target_kind, id: row.target_id };
+    const resolvedCat = row.target_kind === 'cat' && unlockedIds.includes(row.target_id);
+    const staleGoal = row.target_kind === 'family' && !goalOpen; // a reached goal is no longer a target
+    if (!resolvedCat && !staleGoal) return { kind: row.target_kind, id: row.target_id };
   }
-  return resolveSharedTarget(familyId, unlockedIds);
+  return resolveSharedTarget(familyId, unlockedIds, goalOpen);
 }
 
 // Family-wide reward state; `playerId`, when given, resolves `sharedTarget` to THAT child's
@@ -85,6 +87,6 @@ export function rewardState(familyId: string, playerId?: string, now: number = D
   progress['family'] = goal ? repo.familyGoalProgress(familyId, goal.created_at) : 0;
   const familyGoalOpen = goal != null && goal.reached_at == null;
 
-  const sharedTarget = playerId ? resolvePlayerTarget(playerId, familyId, unlockedCats) : resolveSharedTarget(familyId, unlockedCats);
+  const sharedTarget = playerId ? resolvePlayerTarget(playerId, familyId, unlockedCats, familyGoalOpen) : resolveSharedTarget(familyId, unlockedCats, familyGoalOpen);
   return { progress, unlockedCats, unlockedProps, sharedTarget, familyGoalOpen, familyGoalLabel: goal?.label ?? null, liveFish };
 }

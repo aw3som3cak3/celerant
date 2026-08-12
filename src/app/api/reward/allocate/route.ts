@@ -37,5 +37,7 @@ export async function POST(req: NextRequest) {
   if (run.ended_at == null || run.ended_early === 1 || run.completed < run.target) return json({ error: 'not_completed' }, 400);
 
   repo.setAllocation(sessionId, run.player_id, s.familyId, target.kind, target.id, now);
-  return json({ ok: true, reward: rewardState(s.familyId) });
+  // Resolve the returned default for THIS session's child (matches the done screen's ?p= fetch and
+  // the server-side default allocation) — otherwise the reply's sharedTarget is the family fallback.
+  return json({ ok: true, reward: rewardState(s.familyId, run.player_id) });
 }

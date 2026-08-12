@@ -299,7 +299,7 @@ function Practice() {
           {t('practice.doneToday')}
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
-        {sessionId != null && <SessionAllocation sessionId={sessionId} />}
+        {sessionId != null && <SessionAllocation sessionId={sessionId} playerId={playerId} />}
         {diplomas.length > 0 && (
           // WS III B1: a quiet, peak-end WITNESS of a fluency crossing that happened during play —
           // not a prize won here. No number, no speed, no compare. Batched into one line.
@@ -493,17 +493,19 @@ function renderPrompt(prompt: string): React.ReactNode {
 }
 
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null };
-function SessionAllocation({ sessionId }: { sessionId: number }) {
+function SessionAllocation({ sessionId, playerId }: { sessionId: number; playerId: string }) {
   const { t, locale } = useI18n();
   const [data, setData] = useState<RewardData | null>(null);
   const [chosen, setChosen] = useState<Target | null>(null);
 
   useEffect(() => {
-    getJSON<RewardData>('/api/reward').then((d) => {
+    // Scope to THIS child (?p=) so the done screen shows the kid's OWN default target (their family
+    // goal, a cat…) — not the family-wide fallback, which had every child defaulting to the fish.
+    getJSON<RewardData>(`/api/reward?p=${encodeURIComponent(playerId)}`).then((d) => {
       setData(d);
       setChosen(d.sharedTarget);
     });
-  }, []);
+  }, [playerId]);
 
   async function pick(target: Target) {
     setChosen(target);

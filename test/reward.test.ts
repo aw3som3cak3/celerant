@@ -202,6 +202,22 @@ describe('shared target resolution (spec §Replay reducer)', () => {
     // all cats unlocked -> the family goal
     expect(resolveSharedTarget(fresh, CATS.map((c) => c.id))).toEqual({ kind: 'family', id: 'family' });
   });
+
+  it('a set FAMILY target stops resolving once the goal is closed (reached/absent) — advances to a cat', () => {
+    const fam = repo.createFamily('lynx+puma', 'c:d', 'c:e', NOW);
+    repo.setSharedTarget(fam, 'family', 'family', NOW);
+    // goal OPEN → the family target holds
+    expect(resolveSharedTarget(fam, [], true)).toEqual({ kind: 'family', id: 'family' });
+    // goal CLOSED (just achieved / none) → don't point at it; fall through to the next cat
+    expect(resolveSharedTarget(fam, [], false)).toEqual({ kind: 'cat', id: 'pythagoras' });
+    // rewardState wires the real goal-open state: a reached goal must not resolve to family
+    const goalId = repo.createGoal(fam, 'Simhall', 3, NOW);
+    repo.markGoalReached(fam, NOW + 1000); // active -> celebrated (no open goal)
+    expect(goalId).toBeGreaterThan(0);
+    const st = rewardState(fam, undefined, NOW + 2000);
+    expect(st.familyGoalOpen).toBe(false);
+    expect(st.sharedTarget).not.toEqual({ kind: 'family', id: 'family' });
+  });
 });
 
 describe('auto-allocation on session completion (through the practice flow)', () => {
