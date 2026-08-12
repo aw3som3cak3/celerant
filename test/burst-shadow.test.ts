@@ -85,6 +85,29 @@ describe('WS III burst — Phase B0 (shadow): serves a run, records the measurem
     expect(nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 })).toBe('add_within_10');
   });
 
+  it('also bursts an already-crossed FLUENT skill — the sprint-comparison case (B0 shadow)', () => {
+    const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
+    master(pid, 'add_within_10');
+    // A crossing sprint makes the skill FLUENT (earned). Under building-only it would drop out of the
+    // candidate set — but B0 must burst it to get a same-skill burst-vs-sprint pair.
+    getDb().prepare('INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at) VALUES (?, ?, 30, 20, 0, ?)').run(pid, 'add_within_10', NOW + 5_000);
+    expect(repo.everMilestonedSkills(pid).has('add_within_10')).toBe(true); // now fluent
+    expect(burstReadyCode(pid, 3, NOW + 30_000)).toBe('add_within_10'); // still burst-ready, via the fluent branch
+  });
+
+  it('throttles to one burst per session (a completed run blocks a second start)', () => {
+    const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
+    master(pid, 'add_within_10');
+    master(pid, 'sub_within_10');
+    const sid = repo.createSessionRun(pid, 20, NOW, 'maths');
+    const id = repo.createBurstRun(pid, 'add_within_10', sid, NOW + 30_000, BURST_ITEMS);
+    repo.endBurstRun(id, NOW + 36_000); // one burst already completed this session
+    expect(repo.sessionHasCompletedBurst(sid)).toBe(true);
+    // sub_within_10 is ready and off cooldown, but the session already had its one burst → null.
+    expect(burstReadyCode(pid, 3, NOW + 40_000)).toBe('sub_within_10');
+    expect(nextBurstCode(pid, sid, 3, NOW + 40_000, { remaining: 20 })).toBeNull();
+  });
+
   it('respects the cooldown — a just-run skill is not immediately re-offered', () => {
     const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
     master(pid, 'add_within_10');

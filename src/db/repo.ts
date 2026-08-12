@@ -1389,6 +1389,13 @@ export function endBurstRun(id: number, now: number): void {
   getDb().prepare('UPDATE burst_run SET ended_at = ? WHERE id = ?').run(now, id);
 }
 
+// Has a burst already COMPLETED (ended, result written) in this session? Throttles to ≤ 1 burst per
+// session, so including fluent skills in the shadow window doesn't flood a session with re-served
+// mastered content. (Abandoned runs stay open — ended_at NULL — so they don't count.)
+export function sessionHasCompletedBurst(sessionRunId: number): boolean {
+  return !!getDb().prepare('SELECT 1 FROM burst_run WHERE session_run_id = ? AND ended_at IS NOT NULL LIMIT 1').get(sessionRunId);
+}
+
 // Cooldown key: the most recent time a burst on this skill STARTED (completed or not), so a
 // near-miss re-measures only after the cooldown, never grinds.
 export function lastBurstStartedAt(playerId: string, code: string): number | null {
