@@ -18,6 +18,8 @@ const WORDS = [
   'apple', 'banana', 'tomato', 'pizza', 'rice', 'house', 'fish', 'rose', 'panda', 'koala',
   'elephant', 'giraffe', 'zebra', 'cat', 'dog', 'bird', 'cow', 'duck', 'owl', 'bear',
   'fox', 'sun', 'star', 'car', 'ship', 'key', 'tree', 'gear', 'map', 'bell', 'ladder', 'anchor', 'package',
+  // Phase B colours (EN_COLOR_WORDS)
+  'red', 'green', 'blue', 'yellow', 'orange', 'purple', 'pink', 'brown',
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

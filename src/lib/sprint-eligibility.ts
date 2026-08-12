@@ -1,7 +1,7 @@
 import 'server-only';
 import * as repo from '@/db/repo';
 import { SKILLS, skillDepth, type Subject } from '@/skills';
-import { buildStates } from './practice';
+import { buildStates, crossPassedPredicate } from './practice';
 import { computeUnlocked } from './selector';
 import { SPRINT_ACCURACY_GATE, SPRINT_ACCURACY_WINDOW } from './fluency';
 import { skillLabel } from './labels';
@@ -55,7 +55,7 @@ export function skillEligibility(playerId: string, subject: Subject = 'maths'): 
   const player = repo.playerById(playerId);
   if (!player) return [];
   const states = buildStates(playerId, player.school_year, subject); // subject-scoped pool → per-subject eligibility
-  const unlocked = computeUnlocked(states);
+  const unlocked = computeUnlocked(states, undefined, crossPassedPredicate(playerId, player.school_year));
   const ability = repo.abilities(playerId);
   const attemptCounts = repo.nonWarmupCountsBySkill(playerId); // for the practised-dependent tie-breaker
   // A crossing is a durable DECISION, not a live comparison: once a clean sprint earned

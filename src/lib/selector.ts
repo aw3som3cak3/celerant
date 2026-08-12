@@ -36,6 +36,11 @@ export type SelState = {
   theta: number;
   lastSeenAt: number | null;
   requires: string[];
+  crossRequires?: string[]; // CROSS-SUBJECT prerequisites: codes in ANOTHER subject's graph that must
+  // be PASSED (seed/earned/recog-crossed) before this skill unlocks — e.g. an English spelling rung, or
+  // a maths word-problem, that needs reading first (earned in Swedish). A node stays closed until the
+  // child catches up in the other subject; checked via a global `crossPassed` predicate, not `requires`
+  // (which is same-subject only). See computeUnlocked.
   rate: RateEvidence; // child's fluency evidence for this skill
   aim: number | null; // fluency aim for this skill, or null
   volatility?: number; // Glicko-2 σ — erratic answering, the accuracy side of fluency
@@ -142,6 +147,10 @@ function recency(code: string, recentCodes: string[]): number {
 export function computeUnlocked(
   states: SelState[],
   isGrounded: (code: string) => boolean = () => true,
+  // CROSS-SUBJECT gate: has the child PASSED a code in another subject's graph? Defaults to always-
+  // true (no cross-gating, byte-identical to before). The selection path passes the real predicate
+  // (passedSkills) so a reading-gated skill stays locked until its cross-subject prerequisite is met.
+  crossPassed: (code: string) => boolean = () => true,
 ): Map<string, boolean> {
   const byCode = new Map(states.map((s) => [s.code, s]));
   const memo = new Map<string, boolean>();
@@ -156,6 +165,7 @@ export function computeUnlocked(
     const u =
       !!s &&
       isGrounded(code) && // shadow: always true (see the seam note above)
+      (s.crossRequires ?? []).every((c) => crossPassed(c)) && // cross-subject prerequisites (reading, …)
       s.requires.every((r) => {
         const req = byCode.get(r);
         if (!req) return false;

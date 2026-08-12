@@ -109,6 +109,29 @@ export function enNounItem(r: NounRng, mode: 'cognate' | 'core' | 'category' | '
   return { target, options: shuffle(r, [target, ...distractors]) };
 }
 
+// ── Phase B (increment 1): COLOURS — hear a colour word → tap the colour. No image asset: the option
+// renders as a CSS-fill swatch (render:'swatch'). Programming-relevant (colour values), and clean
+// vocabulary the youngest can do. (Attributes, two-word recombination, and Phase-C verbs/frames need
+// an action/attribute IMAGE set that the emoji pool lacks — a separate asset step; see the spec.)
+export type EnColor = { word: string; color: string };
+export const EN_COLORS: readonly EnColor[] = [
+  { word: 'red', color: '#e23b2e' },
+  { word: 'green', color: '#2ea44f' },
+  { word: 'blue', color: '#2f6fdb' },
+  { word: 'yellow', color: '#f2c73d' },
+  { word: 'orange', color: '#ef7d1a' },
+  { word: 'purple', color: '#8b5cf6' },
+  { word: 'pink', color: '#ec6ec0' },
+  { word: 'brown', color: '#8a5a2b' },
+];
+export const EN_COLOR_WORDS: readonly string[] = EN_COLORS.map((c) => c.word);
+
+export function enColorItem(r: NounRng): { target: EnColor; options: EnColor[] } {
+  const target = r.pick(EN_COLORS);
+  const distractors = shuffle(r, EN_COLORS.filter((c) => c.word !== target.word)).slice(0, 2);
+  return { target, options: shuffle(r, [target, ...distractors]) };
+}
+
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).
 export const ENGLISH_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('');
 

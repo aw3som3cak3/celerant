@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -81,6 +81,10 @@ export type Skill = {
   // every generated item is already generalization; Swedish spelling carries it via pool shape).
   kind?: "rule" | "lexical";
   requires: string[];
+  // CROSS-SUBJECT prerequisites (A11-aware): codes in ANOTHER subject that must be passed before this
+  // unlocks — the reading gate (English spelling / maths-with-words needs reading, earned in Swedish).
+  // The selector/θ stay subject-blind; this only gates UNLOCK, via the global passedSkills predicate.
+  crossRequires?: string[];
   generate(r: Rng): Item;
 };
 
@@ -1059,6 +1063,13 @@ const tierSpelling: Skill[] = [
   }),
 ];
 
+// The cross-subject READING capability: crossing the top of the Swedish recognition ladder (letter,
+// sound-segmentation and vowel recognition) = decoding-ready, "can read simple words". Earned on
+// ACCURACY (recognition crossing), so a pre-literate child reaches it without the fluency system;
+// an åk≥1 child seed-passes it. Any subject's rung that needs reading (English spelling, a future
+// maths word-problem) points its crossRequires here. One constant, tunable.
+const READING_READY = "spelling_t1c";
+
 /* ═══ TIER · ENGLISH (L1-Swedish) — morphographic, first slice ═════════════ */
 // subject:'english' — pooled, mapped, seeded and gated SEPARATELY (the increment-3 scoping the
 // three-subject audit confirmed). Dictation-to-type on the letter pad, form-identical to Swedish
@@ -1129,11 +1140,32 @@ const tierEnglish: Skill[] = [
       };
     },
   }),
-  // ── Phase F · the morphographic slice — now re-parented onto the receptive ramp (was requires:[]),
-  // so a beginner meets English by RECOGNIZING before ever spelling. (A reading gate still belongs on
-  // this production rung — Phase E — but for now the whole receptive chain gates it.)
+  // ── Phase B (increment 1) · COLOURS — hear a colour → tap the swatch (no letters). A parallel
+  // receptive rung after Phase A: gives a pre-literate child (whose spelling stays reading-locked)
+  // more real English to climb. Crosses on the same recognition gate.
   S({
-    code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule", requires: ["en_noun_minpair"],
+    code: "en_color", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_noun_minpair"],
+    generate: (r) => {
+      const { target, options } = enColorItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_color", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((c): ChoiceOption => ({ value: c.word, render: "swatch", color: c.color })),
+        },
+      };
+    },
+  }),
+  // ── Phase F · the morphographic slice — re-parented onto the receptive ramp AND reading-gated. It
+  // is English SPELLING (produce the word), so it needs both: the English receptive ramp (requires) AND
+  // READING, earned in Swedish (crossRequires READING_READY = spelling_t1c, the top of the Swedish
+  // recognition ladder). A pre-literate child keeps her English COMPREHENSION open (Phases A–C) while
+  // this production rung stays closed until she can read — the cross-subject relationship Erik asked
+  // for. An åk≥1 child seed-passes the Swedish reading rung, so the gate is transparent for readers.
+  S({
+    code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule",
+    requires: ["en_noun_minpair"], crossRequires: [READING_READY],
     generate: (r) => { const w = r.pick(EN_ED_REGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({

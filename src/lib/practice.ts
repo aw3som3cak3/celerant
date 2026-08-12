@@ -67,6 +67,7 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
       theta: ab ? ab.theta : 0,
       lastSeenAt: ab ? ab.last_seen_at : null,
       requires: s.requires,
+      crossRequires: s.crossRequires,
       rate,
       aim: aimForSkill(s, toolRate, sg, floor),
       volatility: ab?.volatility,
@@ -77,6 +78,23 @@ export function buildStates(playerId: string, schoolYear: number, subject: Subje
       recogFluent: isRecog ? recogCrossed.has(s.code) : undefined,
     };
   });
+}
+
+// CROSS-SUBJECT gate predicate. A code is PASSED when the child has been granted it the same way
+// componentFluent grants access — seedFluent (grade), earnedFluent (a sprint/burst crossing), or a
+// recogFluent (recognition crossing) — computed GLOBALLY across every subject. This is what a
+// crossRequires (e.g. reading, earned in Swedish) checks against, so a node stays closed until the
+// child catches up in the OTHER subject. Two ledger reads, hoisted once per selection.
+export function crossPassedPredicate(playerId: string, schoolYear: number): (code: string) => boolean {
+  const recog = repo.recogCrossedSkills(playerId);
+  const earned = repo.everMilestonedSkills(playerId);
+  return (code: string) => {
+    const s = SKILL_META.get(code);
+    if (!s) return false;
+    const sg = subjectSeedGrade(schoolYear, s.subject);
+    const seedFluent = s.mode === 'component' ? (s.format === 'choice' ? sg >= 1 : sg >= s.year) : true;
+    return seedFluent || earned.has(code) || recog.has(code);
+  };
 }
 
 // Pending items: item generation writes nothing to any ledger (§6.7). The answer
@@ -198,6 +216,7 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
   // loop runs once, byte-identical to the pre-mixed selector.
   const activeSubjects = opts.subjects && opts.subjects.length > 1 ? opts.subjects : [opts.subject ?? 'maths'];
   const order = orderSubjectsForNext(recentCodes, activeSubjects, Math.random);
+  const crossPassed = crossPassedPredicate(playerId, schoolYear); // cross-subject gate (reading, …), hoisted once
 
   let pick: SelState | undefined;
   let scores: unknown;
@@ -208,7 +227,7 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
   for (const subject of order) {
     const states = buildStates(playerId, schoolYear, subject); // subject-scoped pool
     if (!firstStates) firstStates = states;
-    const unlocked = computeUnlocked(states);
+    const unlocked = computeUnlocked(states, undefined, crossPassed);
     // The child's session-start choice serves as the first item, if still eligible — but only
     // within its own subject.
     if (!warmup && opts.chosenCode && unlocked.get(opts.chosenCode)) {

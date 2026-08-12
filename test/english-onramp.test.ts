@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem } from '@/lib/item';
-import { EN_NOUNS, EN_NOUN_WORDS, enNounItem, englishReady } from '@/lib/english-content';
+import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, enNounItem, englishReady } from '@/lib/english-content';
 import { SKILLS } from '@/skills';
 
 const RECOG = ['en_noun_cognate', 'en_noun_core', 'en_noun_category', 'en_noun_minpair'];
@@ -45,6 +45,20 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
       const cat = enNounItem(rng(seed + 500), 'category');
       // at least one distractor shares the target's category (same-category discrimination)
       expect(cat.options.filter((o) => o.category === cat.target.category).length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('Phase B: en_color builds a listen prompt + 3 swatch options, and every colour has audio', () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const c = buildItem('en_color', seed).choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_color' });
+      expect(c.options).toHaveLength(3);
+      expect(c.options.every((o) => o.render === 'swatch' && typeof (o as { color?: string }).color === 'string')).toBe(true);
+      const values = c.options.map((o) => String(o.value));
+      expect(values).toContain(String(buildItem('en_color', seed).answer));
+    }
+    for (const w of EN_COLOR_WORDS) {
+      expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `colour audio ${w}.mp3`).toBe(true);
     }
   });
 

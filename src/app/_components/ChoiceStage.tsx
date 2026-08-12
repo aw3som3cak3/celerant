@@ -203,6 +203,11 @@ export function ChoiceStage({
               <button key={i} className="ground-option letter" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <span className="ground-numeral">{o.value}</span>
               </button>
+            ) : o.render === 'swatch' ? (
+              // English on-ramp Phase B: tap the COLOUR you heard (no image asset — a CSS fill).
+              <button key={i} className="ground-option swatch" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <span className="colour-swatch" style={{ background: o.color }} aria-hidden />
+              </button>
             ) : null,
           )}
         </div>

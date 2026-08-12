@@ -22,6 +22,7 @@ const EXACT: Record<string, string> = {
   en_noun_core: 'engelska: lyssna & peka (fler ord)',
   en_noun_category: 'engelska: lyssna & peka (samma sort)',
   en_noun_minpair: 'engelska: lyssna & peka (nära ljud)',
+  en_color: 'engelska: lyssna & peka (färger)',
   en_ed_regular: 'engelska: -ed (dåtid)',
   en_past_irregular: 'engelska: oregelbunden dåtid',
   dec_read_tenths: 'tiondelar som decimal',

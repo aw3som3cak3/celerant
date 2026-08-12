@@ -190,7 +190,8 @@ input {
 
 /* Recognition (T0/T1) options: emoji pictures and letter tiles. */
 .choice-pic { width: 88px; height: 88px; object-fit: contain; display: block; }
-.ground-options.picture, .ground-options.letter { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.ground-options.picture, .ground-options.letter, .ground-options.swatch { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.colour-swatch { width: 88px; height: 88px; border-radius: 14px; display: block; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.12); }
 .ground-options.letter .ground-numeral { text-transform: lowercase; }
 
 /* Ear-vetting harness (test family only) — tap a word to hear it. */
