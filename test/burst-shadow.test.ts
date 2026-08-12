@@ -85,14 +85,15 @@ describe('WS III burst — Phase B0 (shadow): serves a run, records the measurem
     expect(nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 })).toBe('add_within_10');
   });
 
-  it('also bursts an already-crossed FLUENT skill — the sprint-comparison case (B0 shadow)', () => {
+  it('does NOT burst an already-crossed FLUENT skill (building-band only)', () => {
     const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
     master(pid, 'add_within_10');
-    // A crossing sprint makes the skill FLUENT (earned). Under building-only it would drop out of the
-    // candidate set — but B0 must burst it to get a same-skill burst-vs-sprint pair.
+    expect(burstReadyCode(pid, 3, NOW + 30_000)).toBe('add_within_10'); // building → ready
+    // A crossing sprint makes it FLUENT → it drops out of the candidate set (bursting mastered skills
+    // read as "för enkelt"; the sprint-comparison read already passed). No other skill is ready here.
     getDb().prepare('INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at) VALUES (?, ?, 30, 20, 0, ?)').run(pid, 'add_within_10', NOW + 5_000);
     expect(repo.everMilestonedSkills(pid).has('add_within_10')).toBe(true); // now fluent
-    expect(burstReadyCode(pid, 3, NOW + 30_000)).toBe('add_within_10'); // still burst-ready, via the fluent branch
+    expect(burstReadyCode(pid, 3, NOW + 30_000)).toBeNull(); // fluent → no longer a candidate
   });
 
   it('throttles to one burst per session (a completed run blocks a second start)', () => {

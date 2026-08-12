@@ -1,7 +1,7 @@
 import 'server-only';
 import * as repo from '@/db/repo';
-import { SKILLS, skillDepth } from '@/skills';
-import { skillEligibility } from './sprint-eligibility';
+import { SKILLS } from '@/skills';
+import { eligibleSprintSkills } from './sprint-eligibility';
 import { classifySprint, sprintRateIsCredible, aimFor, SHADOW_TRIGGER_FACTOR } from './fluency';
 import { seedGradeFor } from './onboarding';
 import { isValidInterval } from './rate';
@@ -41,27 +41,15 @@ function burstAim(playerId: string, code: string, schoolYear: number): { aim: nu
   return { aim, floor };
 }
 
-// Burst CANDIDATES, easiest-first. During the B0 SHADOW window this is BOTH the fluency-building band
-// (accurate, not yet crossed — the real feature target) AND already-crossed FLUENT skills. The fluent
-// ones are included ON PURPOSE: the burst-vs-sprint agreement check needs SAME-SKILL pairs, and sprint
-// ground-truth lives only on the fluent skills (a building-band skill was, by definition, never
-// sprint-crossed). Bursting a fluent skill is harmless here (B0 awards nothing); at B1 this reverts to
-// building-ONLY (a diploma is only earned on a not-yet-fluent skill). See docs/burst-spec.md.
-function burstCandidates(playerId: string) {
-  return skillEligibility(playerId) // unlocked, sprintable, subject:'maths'
-    .filter((e) => e.band === 'building' || e.band === 'fluent')
-    .sort((a, b) => {
-      const sa = META.get(a.code)!;
-      const sb = META.get(b.code)!;
-      return sa.year - sb.year || skillDepth(a.code) - skillDepth(b.code) || a.code.localeCompare(b.code);
-    });
-}
-
-// The easiest burst-READY skill, or null. Ready = a candidate (building or, in B0, fluent) that is
-// shadow-ready (clean practice rate ≥ factor × aim — the OFFER trigger the shadow data validated as a
-// screen) AND off cooldown.
+// The easiest burst-READY skill, or null. Candidates are the fluency-BUILDING band only (accurate,
+// not yet crossed — easiest-first, from the sprint eligibility). We briefly ALSO bursted already-
+// FLUENT skills (2026-08-12) to harvest same-skill burst-vs-sprint pairs — that agreement read came
+// back a clear PASS (burst ≥ sprint on every clean comparison, e.g. mouse add_within_10 35.4 vs 20.8),
+// so we reverted: bursting mastered skills read to the child as "för enkelt" (mouse), and we already
+// have the answer. Building-only is also the B1 target (a diploma is only earned on a not-yet-fluent
+// skill). Ready = a candidate that is shadow-ready (clean practice rate ≥ factor × aim) AND off cooldown.
 export function burstReadyCode(playerId: string, schoolYear: number, now: number): string | null {
-  for (const e of burstCandidates(playerId)) {
+  for (const e of eligibleSprintSkills(playerId)) {
     const last = repo.lastBurstStartedAt(playerId, e.code);
     if (last != null && now - last < BURST_COOLDOWN_MS) continue; // cooldown
     const pr = repo.cleanPracticeRate(playerId, e.code);
