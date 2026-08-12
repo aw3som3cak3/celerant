@@ -24,11 +24,12 @@ const META = new Map(SKILLS.map((s) => [s.code, s]));
 export const BURST_ITEMS = 6; // resolved items per run (B0; small enough to fit a session — tune on data)
 export const BURST_COOLDOWN_MS = 48 * 3600 * 1000; // a skill re-measures at most this often
 
-// B0 rollout gate: the TEST family only, so real children are untouched while the mechanism is
-// validated. Widening to the real family (needed for the burst-vs-sprint agreement data) is a
-// one-line change here once Erik has tablet-checked it.
-export function burstEnabledFor(playerId: string): boolean {
-  return repo.isTestFamilyPlayer(playerId);
+// B0 rollout gate. Widened 2026-08-12 to ALL families — the burst-vs-sprint agreement check needs
+// the real family's sprint history, which the test family lacks. Still a SHADOW (awards nothing);
+// the burst self-gates on readiness (mastered + shadow-ready + cooldown), so most items never burst.
+// Restrict again by returning `repo.isTestFamilyPlayer(playerId)` (or a specific family) if needed.
+export function burstEnabledFor(_playerId: string): boolean {
+  return true;
 }
 
 // The sprint-calibrated aim + tap floor for a skill — computed exactly as recordShadowFluency does,

@@ -34,11 +34,11 @@ describe('WS III burst — Phase B0 (shadow): serves a run, records the measurem
     realFam = repo.createFamily(`bear+owl-${suffix}`, 'b:o', 'b:x', NOW);
   });
 
-  it('is gated to the test family', () => {
+  it('is enabled for all families (B0 widened 2026-08-12 for the agreement data)', () => {
     const t = repo.createPlayer(testFam, 'fox', 3, NOW);
     const r = repo.createPlayer(realFam, 'bear', 3, NOW);
     expect(burstEnabledFor(t)).toBe(true);
-    expect(burstEnabledFor(r)).toBe(false);
+    expect(burstEnabledFor(r)).toBe(true);
   });
 
   it('picks the mastered, shadow-ready skill as burst-ready', () => {
@@ -78,11 +78,11 @@ describe('WS III burst — Phase B0 (shadow): serves a run, records the measurem
     expect(repo.activeBurstRun(pid, sid)).toBeNull();
   });
 
-  it('does not start a burst for a non-test family', () => {
+  it('now also starts a burst for the real family (widened)', () => {
     const pid = repo.createPlayer(realFam, 'bear', 3, NOW);
     master(pid, 'add_within_10');
     const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
-    expect(nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 })).toBeNull();
+    expect(nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 })).toBe('add_within_10');
   });
 
   it('respects the cooldown — a just-run skill is not immediately re-offered', () => {

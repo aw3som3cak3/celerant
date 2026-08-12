@@ -17,7 +17,7 @@ import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
 import { ENGLISH_LETTERS } from '@/lib/english-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
-type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean };
+type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean; burst?: boolean };
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp =
   | { status: 'retry' }
@@ -376,7 +376,10 @@ function Practice() {
       ) : (
         <>
           <InputStage
-            mode="session"
+            // WS III burst (B0): a burst item auto-submits at answer length (sprint clock boundary),
+            // so its interval is measured the same way a sprint's is. Otherwise identical to practice
+            // (same ✓, same vet-inte, same reveal-on-miss) — the run stays invisible.
+            mode={item.burst ? 'sprint' : 'session'}
             item={{ code: item.code, seed: item.seed, family: item.family, answerLength: item.answerLength } as StageItem}
             playerId={playerId}
             onCapture={onCapture}

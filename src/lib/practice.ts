@@ -444,6 +444,7 @@ export type IssuedItem = {
   novel: boolean;
   level: number;
   warmup: boolean; // was this served under the warm-up ramp (client echoes it back on answer)
+  burst?: boolean; // WS III burst (B0): this item is part of a silent timed run → client auto-submits
 };
 
 export function issueNext(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): IssuedItem {
@@ -459,7 +460,7 @@ export function issueNext(playerId: string, schoolYear: number, now: number, opt
     if (burstCode) {
       const meta = SKILL_META.get(burstCode)!;
       const seed = meta.subject !== 'maths' ? nextSpellingWord(playerId, burstCode, 'practice') : randomSeed();
-      return { code: burstCode, seed, family: meta.family, answerLength: answerLengthOf(burstCode, seed), novel: false, level: 0, warmup: false };
+      return { code: burstCode, seed, family: meta.family, answerLength: answerLengthOf(burstCode, seed), novel: false, level: 0, warmup: false, burst: true };
     }
   }
   const { pick, novel, level } = pickNext(playerId, schoolYear, now, opts);
