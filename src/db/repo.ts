@@ -1029,6 +1029,22 @@ export function getAudioReviews(): { tier: string; word: string; verdict: string
     .all() as { tier: string; word: string; verdict: string; note: string | null }[];
 }
 
+// Image eye-vet (granska-bilder) — sibling of the audio review, keyed (kind, word).
+export function setImageReview(kind: string, word: string, verdict: 'ok' | 'bad', note: string | null, at: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO image_review (kind, word, verdict, note, at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(kind, word) DO UPDATE SET verdict = excluded.verdict, note = excluded.note, at = excluded.at`,
+    )
+    .run(kind, word, verdict, note, at);
+}
+
+export function getImageReviews(): { kind: string; word: string; verdict: string; note: string | null }[] {
+  return getDb()
+    .prepare('SELECT kind, word, verdict, note FROM image_review')
+    .all() as { kind: string; word: string; verdict: string; note: string | null }[];
+}
+
 // --- Question log: a resolved wrong/idk answer, with the question rebuilt from its seed, so a
 // broken generated item (misheard audio, ambiguous prompt, wrong key) is inspectable. ---
 export function logWrongQuestion(row: {

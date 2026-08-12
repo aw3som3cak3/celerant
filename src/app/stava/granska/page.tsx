@@ -126,7 +126,8 @@ export default function GranskaPage() {
         Lyssna på varje klipp och avgör om Sofie säger ordet <em>tydligt och rätt</em>. Flagga
         det som låter fel eller otydligt (som «hämta») — de får bärande meningar och görs om.
         Ordet visas här (det är granskning, inte diktamen). Omdömet sparas direkt.{' '}
-        <a href="/stava/fragor">→ Trasiga frågor (fel/idk-logg)</a>
+        <a href="/stava/fragor">→ Trasiga frågor (fel/idk-logg)</a>{' '}
+        <a href="/stava/granska-bilder">→ Granska bilder (engelska)</a>
       </p>
 
       <div className="granska-stats">

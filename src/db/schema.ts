@@ -440,4 +440,17 @@ CREATE TABLE IF NOT EXISTS burst_result (
   at           INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_burst_result_skill ON burst_result(player_id, skill_code, at);
+
+-- image_review: Erik's EYE-vet verdict for one English on-ramp picture asset — a verb pictogram
+-- (SVG), a colour swatch, or a noun emoji. Sibling of audio_review (granska for the eye instead of
+-- the ear). Global, not per-family; the granska-bilder tool writes it, the picto rework reads the
+-- 'bad' rows. kind = 'picto' | 'swatch' | 'noun'; word = the English word. One row per (kind, word).
+CREATE TABLE IF NOT EXISTS image_review (
+  kind    TEXT NOT NULL,
+  word    TEXT NOT NULL,
+  verdict TEXT NOT NULL,   -- 'ok' | 'bad'
+  note    TEXT,
+  at      INTEGER NOT NULL,
+  PRIMARY KEY (kind, word)
+);
 `;
