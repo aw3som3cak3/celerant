@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS sprint (
   interval_ms INTEGER,                       -- summed valid client intervals (input-timing Phase A); NULL = legacy wall-clock row
   sprint_key  TEXT,                          -- client idempotency key for the run; NULL on legacy rows
   voided_at   INTEGER,
-  void_reason TEXT
+  void_reason TEXT,
+  source      TEXT                            -- 'sprint' (or NULL, legacy) | 'burst' (WS III, awarded from an invisible run)
 );
 CREATE INDEX IF NOT EXISTS idx_sprint_player_skill ON sprint(player_id, skill_code, at);
 

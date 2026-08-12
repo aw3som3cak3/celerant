@@ -341,13 +341,14 @@ export function appendSprintIngest(
   credible: boolean,
   sprintKey: string,
   now: number,
+  source: 'sprint' | 'burst' = 'sprint',
 ): number | null {
   if (getDb().prepare('SELECT 1 FROM sprint WHERE sprint_key = ?').get(sprintKey) != null) return null;
   const info = getDb()
     .prepare(
-      'INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at, interval_ms, sprint_key, voided_at, void_reason) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO sprint (player_id, skill_code, duration_s, correct, errors, at, interval_ms, sprint_key, voided_at, void_reason, source) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?)',
     )
-    .run(playerId, skillCode, correct, errors, now, intervalMs, sprintKey, credible ? null : now, credible ? null : 'not_credible');
+    .run(playerId, skillCode, correct, errors, now, intervalMs, sprintKey, credible ? null : now, credible ? null : 'not_credible', source);
   if (credible && intervalMs > 0) {
     getDb()
       .prepare("UPDATE ability SET rate = ?, rate_state = 'measured' WHERE player_id = ? AND skill_code = ?")
@@ -1394,6 +1395,20 @@ export function endBurstRun(id: number, now: number): void {
 // mastered content. (Abandoned runs stay open — ended_at NULL — so they don't count.)
 export function sessionHasCompletedBurst(sessionRunId: number): boolean {
   return !!getDb().prepare('SELECT 1 FROM burst_run WHERE session_run_id = ? AND ended_at IS NOT NULL LIMIT 1').get(sessionRunId);
+}
+
+// The skills that earned a DIPLOMA via a burst crossing in this session (B1) — a milestone,
+// credible burst run. Bursts fire only on not-yet-fluent (building) skills, so a milestone here is
+// always a NEW crossing. The done-screen reveals these (batched, peak-end). Codes only; the caller
+// maps to labels.
+export function burstDiplomasInSession(sessionRunId: number): string[] {
+  return (
+    getDb()
+      .prepare(
+        "SELECT DISTINCT br.skill_code AS code FROM burst_run br JOIN burst_result r ON r.burst_run_id = br.id WHERE br.session_run_id = ? AND r.outcome = 'milestone' AND r.credible = 1",
+      )
+      .all(sessionRunId) as { code: string }[]
+  ).map((x) => x.code);
 }
 
 // Cooldown key: the most recent time a burst on this skill STARTED (completed or not), so a

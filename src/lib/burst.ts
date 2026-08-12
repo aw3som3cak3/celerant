@@ -119,6 +119,13 @@ export function settleBurstOnAnswer(playerId: string, sessionRunId: number, answ
     credible: sprintRateIsCredible(correct, errors),
     at: now,
   });
+  // B1 AWARD: a milestone crossing writes a sprint-ledger row tagged source='burst' — so
+  // everMilestonedSkills earns the diploma, replay sets the measured rate, the skill's successor
+  // UNLOCKS (new content — the "stuck on same questions" fix), and it drops out of burst eligibility
+  // (now fluent). Pays NO bonus. Near-miss/collapse write only the shadow burst_result above.
+  if (outcome === 'milestone') {
+    repo.appendSprintIngest(playerId, active.skill_code, correct, errors, sumValid, true, `burst-${active.id}`, now, 'burst');
+  }
   repo.endBurstRun(active.id, now);
 }
 

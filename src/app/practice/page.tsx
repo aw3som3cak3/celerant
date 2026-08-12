@@ -21,7 +21,7 @@ type Item = { code: string; seed: number; family: string; answerLength: number; 
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp =
   | { status: 'retry' }
-  | { status: 'correct' | 'revealed'; steps?: string[]; session?: Session; next: Item | null };
+  | { status: 'correct' | 'revealed'; steps?: string[]; session?: Session; next: Item | null; diplomas?: string[] };
 type Choice = { code: string; label: string; sample: string };
 
 const QUIET_WORDS: Record<string, string[]> = {
@@ -51,8 +51,7 @@ function Practice() {
   const [busy, setBusy] = useState(false);
   const [icon, setIcon] = useState<string | null>(null);
   const [hasDiplomas, setHasDiplomas] = useState(false);
-  const [offer, setOffer] = useState<{ code: string; label: string; family: string } | null>(null);
-  const [offerDismissed, setOfferDismissed] = useState(false);
+  const [diplomas, setDiplomas] = useState<string[]>([]); // diplomas earned via a burst this session (WS III B1)
   const triesRef = useRef(1); // client-tracked try count for the CURRENT item (1, then 2 on a retry)
   const autoStarted = useRef(false);
   const resumingRef = useRef(false);
@@ -217,6 +216,7 @@ function Practice() {
           playerId, sessionId, code: c.code, seed: c.seed, given, idk: c.idk, tries: triesRef.current, warmup: item.warmup, intervalMs: c.intervalMs, idemKey: c.idemKey,
         });
         ackAnswers([c.idemKey]); // the server processed it (recorded or a retry) — clear it
+        if (r.status !== 'retry' && r.session?.done) setDiplomas(r.diplomas ?? []); // B1: this session's burst crossings
         if (r.status === 'retry') {
           triesRef.current = 2;
           setRetry(true);
@@ -255,19 +255,6 @@ function Practice() {
     [item, playerId, onCapture],
   );
 
-  useEffect(() => {
-    if (phase !== 'done' || !playerId) return;
-    getJSON<{ offer: { code: string; label: string; family: string } | null }>(`/api/sprint/offer?playerId=${playerId}`).then((r) => {
-      if (!r.offer) return;
-      setOffer(r.offer);
-      postJSON('/api/sprint/log', { playerId, event: 'offered', skill: r.offer.code });
-    });
-  }, [phase, playerId]);
-
-  function declineOffer() {
-    if (offer) postJSON('/api/sprint/log', { playerId, event: 'declined', skill: offer.code });
-    setOfferDismissed(true);
-  }
 
   async function endEarly() {
     await postJSON('/api/session/end', { playerId, sessionId });
@@ -313,13 +300,13 @@ function Practice() {
         </div>
         <p className="muted">{t('practice.doneCount', { n: target })}</p>
         {sessionId != null && <SessionAllocation sessionId={sessionId} />}
-        {offer && !offerDismissed && (
-          <div className="sprint-offer">
-            <p>{t('sprint.offerLine', { skill: offer.label })}</p>
-            <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center' }}>
-              <a className="next-btn primary" href={`/sprint?p=${playerId}&start=${encodeURIComponent(offer.code)}&go=1`}><Emoji e="⚡" /> {t('sprint.offerGo')}</a>
-              <button className="next-btn" onClick={declineOffer}>{t('sprint.offerLater')}</button>
-            </div>
+        {diplomas.length > 0 && (
+          // WS III B1: a quiet, peak-end WITNESS of a fluency crossing that happened during play —
+          // not a prize won here. No number, no speed, no compare. Batched into one line.
+          <div className="diploma-earned">
+            <p><Emoji e="🏅" /> {diplomas.length === 1
+              ? `Grattis! Du fick diplom i ${diplomas[0]}.`
+              : `Grattis! Du fick diplom i ${diplomas.slice(0, -1).join(', ')} och ${diplomas[diplomas.length - 1]}.`}</p>
           </div>
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>

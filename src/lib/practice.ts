@@ -532,7 +532,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
 
 export type SessionAnswerResult =
   | { status: 'retry' }
-  | { status: 'correct' | 'revealed'; steps: string[]; session?: SessionProgress; next: IssuedItem | null };
+  | { status: 'correct' | 'revealed'; steps: string[]; session?: SessionProgress; next: IssuedItem | null; diplomas?: string[] };
 
 // A1: idempotent on idemKey; grades authoritatively by re-generating from the seed;
 // first-try-wrong returns retry and records NOTHING (identical to the pending flow);
@@ -600,7 +600,10 @@ export function sessionAnswer(
 
   const done = session?.done ?? false;
   const next = done ? null : issueNext(playerId, player.school_year, now, sessionSelectOpts(player, sessionId, now));
-  return { status: correct ? 'correct' : 'revealed', steps: it.steps, session, next };
+  // B1: on the last item, reveal any diplomas the child earned via a burst crossing this session
+  // (batched, peak-end — never mid-session). Labels, so the client just renders them.
+  const diplomas = done && sessionId != null ? repo.burstDiplomasInSession(sessionId).map(skillLabel) : undefined;
+  return { status: correct ? 'correct' : 'revealed', steps: it.steps, session, next, diplomas };
 }
 
 // Test-only: read the stashed answer for a pending item (the client never can).

@@ -1408,6 +1408,15 @@ table.plain-table th {
 }
 .sprint-offer p { margin: 0 0 0.7rem; }
 
+/* WS III B1: the quiet diploma witness on the done screen — a calm card, not a prize banner.
+   No number, no speed, no compare; it just names what already happened during play. */
+.diploma-earned {
+  margin: 1.2rem auto 0; max-width: 24rem;
+  padding: 0.9rem 1.1rem; border: 1px solid var(--accent); border-radius: 14px;
+  background: rgba(200, 162, 74, 0.08);
+}
+.diploma-earned p { margin: 0; font-size: 1.05rem; }
+
 /* GROUND / acquisition scene (shadow). A softer, more picture-book register than the
    drill UI — big objects, big choices, no timer, no score. */
 .ground-wrap { max-width: 460px; margin: 0 auto; padding: 1rem; text-align: center; }

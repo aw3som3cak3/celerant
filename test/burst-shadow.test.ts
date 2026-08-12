@@ -47,35 +47,54 @@ describe('WS III burst — Phase B0 (shadow): serves a run, records the measurem
     expect(burstReadyCode(pid, 3, NOW + 30_000)).toBe('add_within_10');
   });
 
-  it('serves a full run then writes one shadow result — and the award engine is untouched', () => {
+  it('a NEAR-MISS run writes only the shadow result — the award engine is untouched', () => {
     const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
     master(pid, 'add_within_10');
     const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
 
-    // Start the run, then answer BURST_ITEMS resolved items of the burst skill.
+    // Start the run, then answer BURST_ITEMS resolved items SLOWLY (rate < aim → near_miss, no award).
     const code = nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 });
     expect(code).toBe('add_within_10');
     for (let i = 0; i < BURST_ITEMS; i++) {
       const at = NOW + 40_000 + i * 1000;
-      repo.appendAttempt({ playerId: pid, skillCode: code!, itemJson: '{}', given: '1', correct: 1, tries: 1, dontKnow: false, latencyMs: 1400, at, sessionRunId: sid });
+      repo.appendAttempt({ playerId: pid, skillCode: code!, itemJson: '{}', given: '1', correct: 1, tries: 1, dontKnow: false, latencyMs: 5000, at, sessionRunId: sid });
       settleBurstOnAnswer(pid, sid, code!, 3, at);
-      // mid-run the run continues (same skill), no result yet
       if (i < BURST_ITEMS - 1) expect(burstResults(pid, 'add_within_10')).toHaveLength(0);
     }
 
     const results = burstResults(pid, 'add_within_10');
     expect(results).toHaveLength(1);
     expect(results[0].correct).toBe(BURST_ITEMS);
-    expect(results[0].rate).toBeGreaterThan(0);
-    expect(results[0].outcome).toMatch(/milestone|near_miss|collapse/);
+    expect(results[0].outcome).toBe('near_miss'); // slow but accurate
     expect(results[0].credible).toBe(1);
 
-    // AWARD ENGINE UNTOUCHED: no sprint row, no measured rate, no earned-fluent, run closed.
+    // AWARD ENGINE UNTOUCHED on a near-miss: no sprint row, no measured rate, no earned-fluent.
     expect((getDb().prepare('SELECT COUNT(*) c FROM sprint WHERE player_id = ?').get(pid) as { c: number }).c).toBe(0);
     expect(repo.everMilestonedSkills(pid).size).toBe(0);
-    const ab = repo.abilities(pid).get('add_within_10');
-    expect(ab?.rate_state ?? 'provisional').not.toBe('measured');
+    expect(repo.abilities(pid).get('add_within_10')?.rate_state ?? 'provisional').not.toBe('measured');
+    expect(repo.burstDiplomasInSession(sid)).toEqual([]);
     expect(repo.activeBurstRun(pid, sid)).toBeNull();
+  });
+
+  it('B1: a MILESTONE run awards a diploma — earned + measured, via a source=burst sprint row', () => {
+    const pid = repo.createPlayer(testFam, 'fox', 3, NOW);
+    master(pid, 'add_within_10');
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+
+    const code = nextBurstCode(pid, sid, 3, NOW + 30_000, { remaining: 10 });
+    for (let i = 0; i < BURST_ITEMS; i++) {
+      const at = NOW + 40_000 + i * 1000;
+      repo.appendAttempt({ playerId: pid, skillCode: code!, itemJson: '{}', given: '1', correct: 1, tries: 1, dontKnow: false, latencyMs: 900, at, sessionRunId: sid }); // fast → rate ≫ aim
+      settleBurstOnAnswer(pid, sid, code!, 3, at);
+    }
+    expect(burstResults(pid, 'add_within_10')[0].outcome).toBe('milestone');
+
+    // AWARDED: a source='burst' sprint row, earned-fluent, a measured rate, and a session diploma.
+    const src = getDb().prepare('SELECT source FROM sprint WHERE player_id = ? AND skill_code = ?').get(pid, 'add_within_10') as { source: string } | undefined;
+    expect(src?.source).toBe('burst');
+    expect(repo.everMilestonedSkills(pid).has('add_within_10')).toBe(true);
+    expect(repo.abilities(pid).get('add_within_10')?.rate_state).toBe('measured');
+    expect(repo.burstDiplomasInSession(sid)).toContain('add_within_10');
   });
 
   it('now also starts a burst for the real family (widened)', () => {
