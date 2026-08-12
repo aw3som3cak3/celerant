@@ -13,6 +13,7 @@ import { grade } from './grade';
 import { skillLabel } from './labels';
 import { extractFeatures, FEATURES_VERSION } from './features';
 import { answerLengthOf, buildItem } from './item';
+import { nextBurstCode, settleBurstOnAnswer } from './burst';
 
 const STRETCH_TARGET = 0.65; // "svårare" toggle (motivation §3.2)
 
@@ -114,6 +115,8 @@ export type NextOpts = {
   subject?: Subject; // which subject's pool to select from (default maths) — spelling scoping
   subjects?: Subject[]; // a MIXED session: interleave these subjects (laggard up-weighted). When
   // absent or length<=1 the selector is single-subject and byte-identical to before.
+  sessionId?: number; // the active session run; enables the burst hook (WS III B0). Absent outside a session.
+  remaining?: number; // items left in the session (target - completed); the burst only starts if it fits.
 };
 
 // Order the active subjects for the NEXT item when a session spans several (a mixed Öva).
@@ -444,6 +447,21 @@ export type IssuedItem = {
 };
 
 export function issueNext(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): IssuedItem {
+  // WS III burst (B0, SHADOW, test family only): a burst may drive the next item's skill — a short
+  // consecutive run of one mastered skill, silently timed. It never changes the answer path or the
+  // client; when no burst is active/ready this is a no-op and selection is unchanged.
+  if (opts.sessionId != null) {
+    const burstCode = nextBurstCode(playerId, opts.sessionId, schoolYear, now, {
+      warmupTarget: opts.warmupTarget,
+      peakEnd: opts.peakEnd,
+      remaining: opts.remaining ?? 0,
+    });
+    if (burstCode) {
+      const meta = SKILL_META.get(burstCode)!;
+      const seed = meta.subject !== 'maths' ? nextSpellingWord(playerId, burstCode, 'practice') : randomSeed();
+      return { code: burstCode, seed, family: meta.family, answerLength: answerLengthOf(burstCode, seed), novel: false, level: 0, warmup: false };
+    }
+  }
   const { pick, novel, level } = pickNext(playerId, schoolYear, now, opts);
   // Word choice is downstream of skill selection (A11): the selector picked `pick.code`;
   // for a spelling skill the PROVIDER now picks the seed (an unseen practice word), else a
@@ -490,6 +508,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
   let warmupTarget: number | undefined;
   let subject: Subject = 'maths';
   let subjects: Subject[] | undefined;
+  let remaining: number | undefined;
   if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);
     if (run && run.player_id === player.id && run.ended_at == null) {
@@ -498,6 +517,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
       // single-subject session leaves run.subjects NULL and stays scalar, byte-identical.
       subjects = run.subjects ? (JSON.parse(run.subjects) as Subject[]) : undefined;
       peakEnd = run.completed === run.target - 1;
+      remaining = run.target - run.completed; // items left, for the burst fits-the-session guard
       const ramp = rampLen(completed, run.target);
       if (run.completed < ramp) {
         warmupTarget = repo.lastTwoMissed(player.id) ? RAMP_FLOOR_P : rampTargetP(run.completed, ramp, baseTarget);
@@ -506,7 +526,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
       }
     }
   }
-  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp, subject, subjects };
+  return { stretch: player.stretch === 1, chosenCode, peakEnd, warmupTarget, baseTarget, reachUp, subject, subjects, sessionId, remaining };
 }
 
 export type SessionAnswerResult =
@@ -568,6 +588,9 @@ export function sessionAnswer(
     // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
     repo.recordShadowFluency(playerId, code, now);
     repo.recordRecogShadow(playerId, code, now); // D1: recognition-rung shadow (invisible)
+    // WS III burst (B0, SHADOW): if this resolved answer belongs to an active burst run, advance it
+    // and, on completion, record its silent measurement. Awards nothing; ignored when no run active.
+    if (sessionId != null) settleBurstOnAnswer(playerId, sessionId, code, player.school_year, now);
     session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
   } else if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);

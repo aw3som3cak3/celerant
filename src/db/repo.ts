@@ -1335,6 +1335,87 @@ export function recordRecogShadow(playerId: string, skillCode: string, now: numb
   );
 }
 
+// ── WS III burst, PHASE B0 (SHADOW) ─────────────────────────────────────────
+// These reads/writes are ISOLATED from the award/replay/unlock engine: no replay path, no
+// everMilestonedSkills, no ability rate, no selector reads any of them. They only serve a
+// consecutive run and record its measurement, to be compared offline to the sprint ledger.
+
+// B0 gate lives here so the family check is one place: the test family (fox+hotdog) only.
+export function isTestFamilyPlayer(playerId: string): boolean {
+  const row = getDb()
+    .prepare('SELECT f.icon_pair AS ip FROM player p JOIN family f ON f.id = p.family_id WHERE p.id = ?')
+    .get(playerId) as { ip: string } | undefined;
+  return !!row && row.ip.includes('fox') && row.ip.includes('hotdog');
+}
+
+// The clean practice rate (correct/min) used as the burst READINESS signal — mirrors the
+// recordShadowFluency read exactly (first-try-correct client intervals, outliers trimmed).
+export function cleanPracticeRate(playerId: string, code: string): number | null {
+  const rows = getDb()
+    .prepare(
+      "SELECT latency_ms FROM attempt WHERE player_id = ? AND skill_code = ? AND voided_at IS NULL AND warmup = 0 AND dont_know = 0 AND tries = 1 AND correct = 1 AND latency_ms BETWEEN 300 AND 30000 ORDER BY at DESC LIMIT 20",
+    )
+    .all(playerId, code) as { latency_ms: number }[];
+  if (rows.length < SHADOW_MIN_N) return null;
+  return (rows.length * 60000) / rows.reduce((a, r) => a + r.latency_ms, 0);
+}
+
+export type BurstRunRow = { id: number; skill_code: string; started_at: number; done_n: number; target_n: number };
+
+export function activeBurstRun(playerId: string, sessionRunId: number): BurstRunRow | null {
+  return (
+    (getDb()
+      .prepare(
+        'SELECT id, skill_code, started_at, done_n, target_n FROM burst_run WHERE player_id = ? AND session_run_id = ? AND ended_at IS NULL AND done_n < target_n ORDER BY id DESC LIMIT 1',
+      )
+      .get(playerId, sessionRunId) as BurstRunRow | undefined) ?? null
+  );
+}
+
+export function createBurstRun(playerId: string, code: string, sessionRunId: number, startedAt: number, targetN: number): number {
+  const info = getDb()
+    .prepare('INSERT INTO burst_run (player_id, skill_code, session_run_id, started_at, target_n, done_n) VALUES (?, ?, ?, ?, ?, 0)')
+    .run(playerId, code, sessionRunId, startedAt, targetN);
+  return Number(info.lastInsertRowid);
+}
+
+export function bumpBurstRun(id: number): { done_n: number; target_n: number } {
+  const db = getDb();
+  db.prepare('UPDATE burst_run SET done_n = done_n + 1 WHERE id = ?').run(id);
+  return db.prepare('SELECT done_n, target_n FROM burst_run WHERE id = ?').get(id) as { done_n: number; target_n: number };
+}
+
+export function endBurstRun(id: number, now: number): void {
+  getDb().prepare('UPDATE burst_run SET ended_at = ? WHERE id = ?').run(now, id);
+}
+
+// Cooldown key: the most recent time a burst on this skill STARTED (completed or not), so a
+// near-miss re-measures only after the cooldown, never grinds.
+export function lastBurstStartedAt(playerId: string, code: string): number | null {
+  const row = getDb().prepare('SELECT MAX(started_at) m FROM burst_run WHERE player_id = ? AND skill_code = ?').get(playerId, code) as { m: number | null };
+  return row?.m ?? null;
+}
+
+// The run's resolved attempts (the consecutive block since it started), for the rate computation.
+export function burstRunAttempts(playerId: string, code: string, sessionRunId: number, sinceAt: number): { correct: number; latency_ms: number }[] {
+  return getDb()
+    .prepare(
+      'SELECT correct, latency_ms FROM attempt WHERE player_id = ? AND skill_code = ? AND session_run_id = ? AND at >= ? AND voided_at IS NULL AND warmup = 0 AND dont_know = 0 ORDER BY at',
+    )
+    .all(playerId, code, sessionRunId, sinceAt) as { correct: number; latency_ms: number }[];
+}
+
+export function insertBurstResult(r: {
+  playerId: string; code: string; burstRunId: number; correct: number; errors: number;
+  intervalMs: number; rate: number; aim: number; floor: number; outcome: string; credible: boolean; at: number;
+}): void {
+  getDb()
+    .prepare(
+      'INSERT INTO burst_result (player_id, skill_code, burst_run_id, correct, errors, interval_ms, rate, aim, floor, outcome, credible, at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(r.playerId, r.code, r.burstRunId, r.correct, r.errors, r.intervalMs, r.rate, r.aim, r.floor, r.outcome, r.credible ? 1 : 0, r.at);
+}
+
 // Skills the child has EARNED fluency on — a durable, monotonic decision reconstructed
 // from the SPRINT ledger (not the motivational usage_event, which the model never
 // reads). A skill is earned the first time a clean sprint crossed its aim, judged

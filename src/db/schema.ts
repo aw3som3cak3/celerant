@@ -401,4 +401,42 @@ CREATE TABLE IF NOT EXISTS question_log (
 );
 CREATE INDEX IF NOT EXISTS ix_question_log_at ON question_log(at);
 CREATE INDEX IF NOT EXISTS ix_question_log_skill ON question_log(skill_code, at);
+
+-- burst_run / burst_result (WS III burst — PHASE B0, SHADOW). A burst is a short CONSECUTIVE run of
+-- ONE mastered sprintable skill, served inline in ordinary practice and SILENTLY timed, to read
+-- capability under sprint-like conditions (a warmed-up same-shape batch) WITHOUT the stopwatch. B0 is
+-- a SHADOW: it serves the run and records the measurement but AWARDS NOTHING — burst_result is read
+-- OFFLINE (vs sprint ground-truth) and by NO award/replay/unlock path. The award (done-screen diploma,
+-- fluent-drop) is B1, gated on B0 agreement. burst_run is the ephemeral in-flight run state.
+CREATE TABLE IF NOT EXISTS burst_run (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id      TEXT NOT NULL REFERENCES player(id),
+  skill_code     TEXT NOT NULL,
+  session_run_id INTEGER,             -- the session this run lives in (a run stays within one session)
+  started_at     INTEGER NOT NULL,
+  target_n       INTEGER NOT NULL,    -- resolved items the run needs (BURST_ITEMS)
+  done_n         INTEGER NOT NULL DEFAULT 0,
+  ended_at       INTEGER              -- set on completion (result written) or abandonment
+);
+CREATE INDEX IF NOT EXISTS ix_burst_run_active ON burst_run(player_id, session_run_id, ended_at);
+
+-- One COMPLETED burst's measurement, snapshotted at fire time (aim/rate/floor) — the stored-crossing
+-- invariant, so a B1 award reads a stored value, never a recomputation against a moving aim. SHADOW in
+-- B0: no award path reads this; it is compared offline to the sprint ledger to decide the cutover.
+CREATE TABLE IF NOT EXISTS burst_result (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  player_id    TEXT NOT NULL REFERENCES player(id),
+  skill_code   TEXT NOT NULL,
+  burst_run_id INTEGER,
+  correct      INTEGER NOT NULL,
+  errors       INTEGER NOT NULL,
+  interval_ms  INTEGER NOT NULL,   -- summed VALID client intervals over the run
+  rate         REAL NOT NULL,      -- correct/min = correct*60000 / interval_ms
+  aim          REAL NOT NULL,      -- the sprint-calibrated aim at fire (snapshot)
+  floor        REAL NOT NULL,      -- demonstrated-throughput tap floor at fire (snapshot)
+  outcome      TEXT NOT NULL,      -- classifySprint kind: 'milestone' | 'near_miss' | 'collapse'
+  credible     INTEGER NOT NULL,   -- accuracy held (sprintRateIsCredible)
+  at           INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_burst_result_skill ON burst_result(player_id, skill_code, at);
 `;
