@@ -17,8 +17,8 @@ const NOW = Date.UTC(2026, 7, 10);
 const MATHS = skillsForSubject('maths')[0].code;
 
 describe('mixed subjects — spelling joins whenever there are headphones (E: no årskurs gate)', () => {
-  it('headphones → maths+spelling for EVERYONE incl the youngest (the ladder gates the tier)', () => {
-    expect(mixedSubjectsFor({ headphones: true })).toEqual(['maths', 'spelling']);
+  it('headphones → maths+spelling+english for EVERYONE incl the youngest (the ladder gates each tier)', () => {
+    expect(mixedSubjectsFor({ headphones: true })).toEqual(['maths', 'spelling', 'english']);
   });
   it('no headphones → maths only', () => {
     expect(mixedSubjectsFor({ headphones: false })).toEqual(['maths']);

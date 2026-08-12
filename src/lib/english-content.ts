@@ -21,11 +21,92 @@
 
 import type { WordPool } from './spelling-content';
 
-// English is offered only to children who already read/write some English — the readers. Below
-// this, the mixed Öva stays maths (+Swedish) as before. One number retunes it.
-export const ENGLISH_MIN_YEAR = 3;
-export function englishReady(schoolYear: number): boolean {
-  return schoolYear >= ENGLISH_MIN_YEAR;
+// English on-ramp (docs/english-onramp-spec.md): the RECEPTIVE tier (hear a word → tap the picture,
+// no letters) is first contact and is offered to EVERYONE with headphones — including the youngest —
+// exactly like Swedish recognition. The p-band + the grade-0 English seed keep each child at their own
+// rung. (The PRINT/PRODUCTION tier — spelling, the -ed morphograph — must still be reading-gated; that
+// gate is ENGLISH_PRINT_MIN_YEAR below, wired when Phase D/E lands. For now those rungs sit LOCKED
+// behind the whole receptive chain, so a pre-literate child can't reach them yet regardless.)
+export function englishReady(_schoolYear: number): boolean {
+  return true;
+}
+// Reading gate for the PRODUCTION/PRINT English rungs (Phase D+). Not yet wired — the receptive chain
+// gates them for now; this is the honest-proxy floor for when print rungs go live. See the spec.
+export const ENGLISH_PRINT_MIN_YEAR = 1;
+
+// ── Receptive vocabulary (Phase A): hear an English word → tap its PICTURE ──────────────────────
+// A concrete-noun pool carrying a /public/emoji/<emoji>.png filename stem (same render path as the
+// Swedish recognition pictures). `cognate` = a transparent SV↔EN cognate (the floor rung's easy wins);
+// `category` drives the same-category distractor rung. Erik's wish: bias toward words that double as
+// PROGRAMMING vocabulary where they're still good first-contact nouns (key, tree, gear, map, bell,
+// anchor, package…); the action verbs (run/stop/wait…) and keywords (if/for/while…) land in Phases C+.
+export type EnNoun = { word: string; emoji: string; cognate: boolean; category: 'animal' | 'food' | 'thing' | 'nature' };
+export const EN_NOUNS: readonly EnNoun[] = [
+  // transparent cognates — the floor's easy wins
+  { word: 'apple', emoji: 'apple', cognate: true, category: 'food' },
+  { word: 'banana', emoji: 'banana', cognate: true, category: 'food' },
+  { word: 'tomato', emoji: 'tomato', cognate: true, category: 'food' },
+  { word: 'pizza', emoji: 'pizza', cognate: true, category: 'food' },
+  { word: 'rice', emoji: 'rice', cognate: true, category: 'food' },
+  { word: 'house', emoji: 'house', cognate: true, category: 'thing' },
+  { word: 'fish', emoji: 'fish', cognate: true, category: 'animal' },
+  { word: 'rose', emoji: 'rose', cognate: true, category: 'nature' },
+  { word: 'panda', emoji: 'panda', cognate: true, category: 'animal' },
+  { word: 'koala', emoji: 'koala', cognate: true, category: 'animal' },
+  { word: 'elephant', emoji: 'elephant', cognate: true, category: 'animal' },
+  { word: 'giraffe', emoji: 'giraffe', cognate: true, category: 'animal' },
+  { word: 'zebra', emoji: 'zebra', cognate: true, category: 'animal' },
+  // non-cognate core + PROGRAMMING nouns (★)
+  { word: 'cat', emoji: 'cat', cognate: false, category: 'animal' },
+  { word: 'dog', emoji: 'dog', cognate: false, category: 'animal' },
+  { word: 'bird', emoji: 'bird', cognate: false, category: 'animal' },
+  { word: 'cow', emoji: 'cow', cognate: false, category: 'animal' },
+  { word: 'duck', emoji: 'duck', cognate: false, category: 'animal' },
+  { word: 'owl', emoji: 'owl', cognate: false, category: 'animal' },
+  { word: 'bear', emoji: 'bear', cognate: false, category: 'animal' },
+  { word: 'fox', emoji: 'fox', cognate: false, category: 'animal' },
+  { word: 'sun', emoji: 'sun', cognate: false, category: 'nature' },
+  { word: 'star', emoji: 'star', cognate: false, category: 'nature' },
+  { word: 'car', emoji: 'car', cognate: false, category: 'thing' },
+  { word: 'ship', emoji: 'ship', cognate: false, category: 'thing' },
+  { word: 'key', emoji: 'key', cognate: false, category: 'thing' }, // ★ dict key
+  { word: 'tree', emoji: 'deciduous_tree', cognate: false, category: 'nature' }, // ★ data structure
+  { word: 'gear', emoji: 'gear', cognate: false, category: 'thing' }, // ★ settings
+  { word: 'map', emoji: 'world_map', cognate: false, category: 'thing' }, // ★ hashmap
+  { word: 'bell', emoji: 'bell', cognate: false, category: 'thing' }, // ★ event/notification
+  { word: 'ladder', emoji: 'ladder', cognate: false, category: 'thing' },
+  { word: 'anchor', emoji: 'anchor', cognate: false, category: 'thing' }, // ★ git anchor
+  { word: 'package', emoji: 'package', cognate: false, category: 'thing' }, // ★ npm package
+];
+export const EN_NOUN_WORDS: readonly string[] = EN_NOUNS.map((n) => n.word);
+
+type NounRng = { int(a: number, b: number): number; pick<T>(xs: readonly T[]): T };
+const shuffle = <T>(r: NounRng, xs: T[]): T[] => {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) { const j = r.int(0, i); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+};
+
+// One receptive item: a target word + two distractors, per discrimination mode. The correct picture
+// IS the word played (direct comprehension). Modes are the Phase-A seams:
+//  cognate  — target is a cognate; distractors from a DIFFERENT category (easy, unrelated pictures)
+//  core     — target is non-cognate; distractors different category
+//  category — distractors SAME category (finer meaning discrimination)
+//  onset    — distractors share the first letter/sound (English sound discrimination)
+// Distractor candidates fall back (→ any other word) so every target yields a full 3-option set.
+export function enNounItem(r: NounRng, mode: 'cognate' | 'core' | 'category' | 'onset'): { target: EnNoun; options: EnNoun[] } {
+  const pool = EN_NOUNS;
+  const target =
+    mode === 'cognate' ? r.pick(pool.filter((w) => w.cognate))
+    : mode === 'core' ? r.pick(pool.filter((w) => !w.cognate))
+    : r.pick(pool);
+  const primary =
+    mode === 'category' ? pool.filter((w) => w.category === target.category && w.word !== target.word)
+    : mode === 'onset' ? pool.filter((w) => w.word[0] === target.word[0] && w.word !== target.word)
+    : pool.filter((w) => w.category !== target.category); // unrelated: a different category reads as clearly different
+  const backfill = pool.filter((w) => w.word !== target.word && !primary.includes(w));
+  const distractors = [...shuffle(r, primary), ...shuffle(r, backfill)].slice(0, 2);
+  return { target, options: shuffle(r, [target, ...distractors]) };
 }
 
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).

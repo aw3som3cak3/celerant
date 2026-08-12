@@ -279,6 +279,15 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     mark('bridge_english_v1');
   }
 
+  // Seed the English on-ramp (Phase A) receptive rungs (en_noun_cognate…en_noun_minpair) into every
+  // existing player's ability cache — same reason as bridge_english_v1: without a seeded row the
+  // selector reads θ 0 (out of band) and never serves the new floor. Also re-seeds so the re-parented
+  // en_ed_regular (now behind en_noun_minpair) reflects its new lock state. Replay-all, runs once.
+  if (!done('bridge_english_onramp_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_english_onramp_v1');
+  }
+
   // Backfill the question log from EXISTING wrong/idk attempts (one-off). Forward logging only
   // captures new answers, but every past miss still carries its seed in item_json, so the question
   // is deterministically rebuildable — populate the diagnostic immediately instead of from empty.

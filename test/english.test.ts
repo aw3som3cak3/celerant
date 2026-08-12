@@ -11,7 +11,7 @@ import * as repo from '@/db/repo';
 import { issueNext, sessionSelectOpts } from '@/lib/practice';
 import { subjectSeedGrade, seedGradeFor } from '@/lib/onboarding';
 import { mixedSubjectsFor } from '@/lib/spelling-content';
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, EN_KIND, EN_POOLS, englishReady, ENGLISH_MIN_YEAR } from '@/lib/english-content';
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, EN_KIND, EN_POOLS, englishReady } from '@/lib/english-content';
 import { skillByCode } from '@/skills';
 import { buildItem } from '@/lib/item';
 import { grade } from '@/lib/grade';
@@ -27,23 +27,23 @@ describe('English — subject scoping + the beginner seed (A11 subjectSeedGrade)
     }
   });
 
-  it('mixedSubjectsFor builds the active SET; English only with headphones AND readiness', () => {
+  it('mixedSubjectsFor: English joins with headphones for EVERYONE (receptive tier ungated, incl. the youngest)', () => {
     expect(mixedSubjectsFor({ headphones: false, schoolYear: 4 })).toEqual(['maths']);
-    expect(mixedSubjectsFor({ headphones: true, schoolYear: 0 })).toEqual(['maths', 'spelling']); // too young for English
-    expect(mixedSubjectsFor({ headphones: true, schoolYear: ENGLISH_MIN_YEAR })).toEqual(['maths', 'spelling', 'english']);
+    expect(mixedSubjectsFor({ headphones: true, schoolYear: 0 })).toEqual(['maths', 'spelling', 'english']); // the 5yo too — receptive rungs need no letters
+    expect(mixedSubjectsFor({ headphones: true, schoolYear: 4 })).toEqual(['maths', 'spelling', 'english']);
     expect(mixedSubjectsFor({ explicit: 'english' })).toEqual(['english']);
-    expect(englishReady(ENGLISH_MIN_YEAR - 1)).toBe(false);
+    expect(englishReady(0)).toBe(true);
   });
 
-  it('a reader EARNS the English floor — en_ed_regular is served (not grade-skipped), the irregular waits behind it', () => {
+  it('a beginner meets the RECEPTIVE floor first — en_noun_cognate is served, the -ed production rung waits behind the ramp', () => {
     const fam = repo.createFamily(`en-${Math.random().toString(36).slice(2)}`, 'x:y', 'x:z', NOW);
-    const pid = repo.createPlayer(fam, 'sushi', 4, NOW); // åk4 reader, fresh
+    const pid = repo.createPlayer(fam, 'sushi', 4, NOW); // åk4 reader, fresh — still an English beginner
     const sid = repo.createSessionRun(pid, 10, NOW, 'english');
     const opts = sessionSelectOpts({ id: pid, school_year: 4, stretch: 0 }, sid, NOW);
     const seen = new Set<string>();
     for (let i = 0; i < 40; i++) seen.add(issueNext(pid, 4, NOW, opts).code);
-    expect([...seen]).toEqual(['en_ed_regular']); // the floor, earned — NOT skipped as "mastered"
-    expect(seen.has('en_past_irregular')).toBe(false); // locked behind the -ed rule
+    expect([...seen]).toEqual(['en_noun_cognate']); // first contact = recognition, not cold spelling
+    expect(seen.has('en_ed_regular')).toBe(false); // -ed production is locked behind the receptive chain
   });
 });
 

@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1068,8 +1068,72 @@ const tierSpelling: Skill[] = [
 // -ed RULE (holdout = generalization) is split from the irregular-past LEXICAL node (closed set),
 // tagged via `kind` before content (A3). See src/lib/english-content.ts.
 const tierEnglish: Skill[] = [
+  // ── Phase A · RECEPTIVE vocabulary (docs/english-onramp-spec.md) — first contact, NO letters.
+  // Hear an English word → tap its PICTURE (the same listen+picture rung as Swedish spelling_t0). The
+  // correct picture IS the word played (direct comprehension). Four seams: cognate wins → non-cognate
+  // core → same-category distractors → same-onset (sound) discrimination. Crossed on the recognition
+  // gate (12 @ 90%); English seeds at grade 0 for EVERY child, so nobody skips — even the 5yo climbs.
   S({
-    code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule", requires: [],
+    code: "en_noun_cognate", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: [],
+    generate: (r) => {
+      const { target, options } = enNounItem(r, "cognate");
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_noun_cognate", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((w): ChoiceOption => ({ value: w.word, render: "picture", kind: w.emoji })),
+        },
+      };
+    },
+  }),
+  S({
+    code: "en_noun_core", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_noun_cognate"],
+    generate: (r) => {
+      const { target, options } = enNounItem(r, "core");
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_noun_core", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((w): ChoiceOption => ({ value: w.word, render: "picture", kind: w.emoji })),
+        },
+      };
+    },
+  }),
+  S({
+    code: "en_noun_category", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_noun_core"],
+    generate: (r) => {
+      const { target, options } = enNounItem(r, "category");
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_noun_category", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((w): ChoiceOption => ({ value: w.word, render: "picture", kind: w.emoji })),
+        },
+      };
+    },
+  }),
+  S({
+    code: "en_noun_minpair", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_noun_category"],
+    generate: (r) => {
+      const { target, options } = enNounItem(r, "onset");
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_noun_minpair", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((w): ChoiceOption => ({ value: w.word, render: "picture", kind: w.emoji })),
+        },
+      };
+    },
+  }),
+  // ── Phase F · the morphographic slice — now re-parented onto the receptive ramp (was requires:[]),
+  // so a beginner meets English by RECOGNIZING before ever spelling. (A reading gate still belongs on
+  // this production rung — Phase E — but for now the whole receptive chain gates it.)
+  S({
+    code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule", requires: ["en_noun_minpair"],
     generate: (r) => { const w = r.pick(EN_ED_REGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({
