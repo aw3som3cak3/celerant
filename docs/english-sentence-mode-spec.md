@@ -1,6 +1,8 @@
 # English sentence-mode interference slice — build spec
 
-Status: **design proposed, self-contained for a fresh agent.** This is the top of the English
+Status: **increments 1–2 BUILT and deployed (2026-08-13); increment 3 deferred — see "Decisions
+RESOLVED" at the bottom.** All eight seams ship as recognition rungs.
+Original status: design proposed, self-contained for a fresh agent. This is the top of the English
 ramp: L1-Swedish → L2-English **sentence-level grammatical interference** — the "Swenglish" errors
 (V2 word order, do-support, continuous aspect, prepositions, is/get/become, make/do, false friends).
 It is **production/discrimination at the sentence level**, reading-and-writing gated, and it is the
@@ -321,12 +323,45 @@ pass with a literate kid (sushi, åk4) is the acceptance test — she is the one
 - Reading-gated via `crossRequires` (default `READING_READY = spelling_t1c`).
 - Interference-over-frequency sequence; RULE+disjoint-holdout for syntactic seams; own authoring.
 
-## Decisions OPEN (state before authoring, per §2.6)
-- Whether full-sentence reading needs a **stronger reading anchor** than `spelling_t1c` (a Swedish
-  word-production rung) — default to `READING_READY`; revisit if sentences prove too hard to read.
-- Exact **preposition collocation set** for S5 (start ~6: good at, listen to, think about, wait for,
-  in the picture, interested in) and the **false-friend set** for S8.
-- Whether to add the **tile production** rungs at all, or keep the slice recognition-only.
+## Decisions RESOLVED (as built, 2026-08-13)
+- **Reading anchor: `READING_READY` (`spelling_t1c`) kept.** The real gate is the `requires` chain,
+  not the `crossRequires`: the slice sits above `en_ed_regular` and `en_past_irregular`, which are
+  English word DICTATION rungs. A child who can spell English words can read these sentences, so a
+  second anchor would be redundant.
+- **S5 preposition set (8):** good AT, listen TO, look AT, wait FOR, think ABOUT, IN the picture,
+  interested IN, afraid OF — the *på*-cluster first, since one Swedish preposition mis-transfers into
+  five English ones. Holdout (unseen collocations, same interference classes): angry WITH (arg på),
+  proud OF (stolt över), tired OF (trött på), married TO (gift med), ask FOR (be om). Three carrier
+  sentences per collocation so the answer can't be keyed to a remembered sentence.
+- **S8 false-friend set (6):** lära/teach-learn, låna/borrow-lend, chef/boss, fabrik/factory,
+  recept/recipe, semester/holiday. Airtight pairs ONLY — every lure is unambiguously wrong English,
+  so the one-answer-by-construction rule (§2.5) holds. **rolig→funny is deliberately excluded**:
+  "a fun joke" is arguable, so it would be the one item with two defensible answers.
+- **Generalization for a recognition rung.** A choice rung has no practice→holdout phase mechanism
+  (the generator is ability-blind and there is no sprint), so a disjoint holdout alone cannot make a
+  crossing mean generalization. Solved by COMPOSING sentences combinatorially — adverbial × clause,
+  subject × predicate, subject × verb × cue — giving 18–100 practice items per RULE seam, far wider
+  than the 12-attempt accuracy window. The disjoint holdout is authored alongside (its constituents
+  are disjoint sets, so no sentence can coincide) and is what a production rung would draw from.
+  LEXICAL rungs carry a holdout but NO width floor: a closed contrast is meant to repeat.
+- **Options are TWO, always** — the minimal pair. A wrong tap is then the interference error itself,
+  so the question log reads as a diagnosis rather than a miss.
+- **Pools are NOT registered in `EN_POOLS`.** A code in `SPELLING_POOLS` is routed by `buildItem` to
+  the word-dictation branch (seed → word, letter pad) and would never build its `choice` spec.
+
+## Decision DEFERRED — the tile production rungs (increment 3)
+NOT built, and it is not just a UI increment: **a tile rung has no honest fluency aim.** A production
+(`format:'numpad'`) rung crosses on SPEED against `letterAimFor`, which budgets motor time as
+LETTERS typed. For "Today I eat an apple." at åk4 (`defaultLetterCeiling(4)` = 22 letters/min) that
+is 60/(46.4 + 2) ≈ **1.2 items/min** — while tapping five word-tiles takes well under ten seconds,
+i.e. ~6× the aim. The gate would be a rubber stamp on the first clean run. Two further snags:
+`sprintBatch` draws non-maths sprint words from `SPELLING_POOLS[code]`, which these pools must stay
+out of (above), so a tile rung would be flagged `sprintable` yet never actually sprint unless it is
+added to `NON_SPRINTABLE` or given a new word-source branch.
+Building it therefore means either mis-measuring it or touching the aim model — **an A11 boundary
+call for Erik**, not a content increment. The recognition rungs already give each seam as a clean
+discrimination; production is the natural next thing to want once a tablet pass shows the
+recognitions are solid.
 
 ## Engine boundary / STOP-FLAG
 Selector, θ, gate, ledger, reward stay untouched and subject-blind (A11). You add: content (skills/
