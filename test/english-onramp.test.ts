@@ -143,11 +143,26 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
     expect(englishReady(4)).toBe(true);
   });
 
-  it('the -ed production rung is re-parented onto the ramp (behind en_noun_minpair)', () => {
+  it('the -ed production rung sits behind the print bridge (spelling after reading)', () => {
     const ed = SKILLS.find((s) => s.code === 'en_ed_regular')!;
-    expect(ed.requires).toContain('en_noun_minpair');
-    // the receptive rungs are choice-format and chained
+    expect(ed.requires).toContain('en_word_picture'); // re-parented onto the top of the print bridge
     expect(SKILLS.find((s) => s.code === 'en_noun_cognate')!.format).toBe('choice');
     expect(SKILLS.find((s) => s.code === 'en_noun_minpair')!.requires).toContain('en_noun_category');
+  });
+
+  it('Phase D print bridge: reading-gated, hear→printed-word and printed-word→picture', () => {
+    for (const code of ['en_word_recognise', 'en_word_picture']) {
+      expect(SKILLS.find((s) => s.code === code)!.crossRequires).toContain('spelling_t1c'); // needs reading
+    }
+    for (let seed = 1; seed <= 20; seed++) {
+      const rec = buildItem('en_word_recognise', seed).choice!;
+      expect(rec.prompt).toMatchObject({ show: 'listen', code: 'en_word_recognise' }); // hear the word
+      expect(rec.options.every((o) => o.render === 'word')).toBe(true); // pick the printed word
+      expect(rec.options.map((o) => String(o.value))).toContain(String(buildItem('en_word_recognise', seed).answer));
+
+      const pic = buildItem('en_word_picture', seed).choice!;
+      expect(pic.prompt).toMatchObject({ show: 'word' }); // the printed word is shown
+      expect(pic.options.every((o) => o.render === 'picture')).toBe(true); // pick the picture
+    }
   });
 });

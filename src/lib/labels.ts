@@ -28,6 +28,8 @@ const EXACT: Record<string, string> = {
   en_verb_ing: 'engelska: lyssna & peka (-ing)',
   en_two_word: 'engelska: lyssna & peka (två ord)',
   en_frame_svo: 'engelska: lyssna & peka (mening)',
+  en_word_recognise: 'engelska: läsa (hör → ord)',
+  en_word_picture: 'engelska: läsa (ord → bild)',
   en_ed_regular: 'engelska: -ed (dåtid)',
   en_past_irregular: 'engelska: oregelbunden dåtid',
   dec_read_tenths: 'tiondelar som decimal',

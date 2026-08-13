@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem, enTwoWordItem, enFrameItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem, enTwoWordItem, enFrameItem, enWordItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1238,6 +1238,41 @@ const tierEnglish: Skill[] = [
       };
     },
   }),
+  // ── Phase D · PRINT BRIDGE — needs READING (crossRequires READING_READY). A pre-literate child caps
+  // here (fluent English comprehension) until she can read; a reader flows through. Sidman equivalence:
+  // teach spoken↔print, and picture↔print emerges. No new asset — reuses noun audio + emoji + text.
+  S({
+    // hear the word → tap the printed WORD (spoken → print).
+    code: "en_word_recognise", subject: "english", family: "en_read", year: 1, mode: "component", format: "choice",
+    requires: ["en_frame_svo"], crossRequires: [READING_READY],
+    generate: (r) => {
+      const { target, options } = enWordItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_word_recognise", word: target.word },
+          question: "Vilket ord hör du?",
+          options: options.map((n): ChoiceOption => ({ value: n.word, render: "word" })),
+        },
+      };
+    },
+  }),
+  S({
+    // read the printed word → tap the PICTURE (print → meaning; the reading-comprehension direction).
+    code: "en_word_picture", subject: "english", family: "en_read", year: 1, mode: "component", format: "choice",
+    requires: ["en_word_recognise"], crossRequires: [READING_READY],
+    generate: (r) => {
+      const { target, options } = enWordItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "word", word: target.word },
+          question: "Tryck på rätt bild",
+          options: options.map((n): ChoiceOption => ({ value: n.word, render: "picture", kind: n.emoji })),
+        },
+      };
+    },
+  }),
   // ── Phase F · the morphographic slice — re-parented onto the receptive ramp AND reading-gated. It
   // is English SPELLING (produce the word), so it needs both: the English receptive ramp (requires) AND
   // READING, earned in Swedish (crossRequires READING_READY = spelling_t1c, the top of the Swedish
@@ -1246,7 +1281,7 @@ const tierEnglish: Skill[] = [
   // for. An åk≥1 child seed-passes the Swedish reading rung, so the gate is transparent for readers.
   S({
     code: "en_ed_regular", subject: "english", family: "en_verb", year: 1, mode: "component", kind: "rule",
-    requires: ["en_noun_minpair"], crossRequires: [READING_READY],
+    requires: ["en_word_picture"], crossRequires: [READING_READY],
     generate: (r) => { const w = r.pick(EN_ED_REGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
   }),
   S({

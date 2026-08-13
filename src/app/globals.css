@@ -198,6 +198,10 @@ input {
 .sizednoun { display: flex; align-items: center; justify-content: center; width: 110px; height: 110px; }
 .nounverb { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .nounverb img { width: 52px; height: 52px; object-fit: contain; }
+/* English print bridge: a printed word as prompt / as a tappable option. */
+.printed-word { font-size: 2.4rem; font-weight: 700; letter-spacing: 0.02em; text-align: center; margin: 0.4rem 0; }
+.ground-options.word { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.word-option { font-size: 1.5rem; font-weight: 600; padding: 0.2rem 0.6rem; }
 .ground-options.letter .ground-numeral { text-transform: lowercase; }
 
 /* Ear-vetting harness (test family only) — tap a word to hear it. */

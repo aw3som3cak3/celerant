@@ -224,6 +224,15 @@ export function enFrameItem(r: NounRng): { target: EnFrame; options: EnFrame[] }
 }
 export const EN_FRAME_PHRASES: readonly string[] = FRAME_NOUNS.flatMap((n) => FRAME_VERBS.map((v) => `the ${n.word} is ${v.ing}`));
 
+// ── Phase D: PRINT BRIDGE (needs reading — cross-subject gated). Same noun pick, two directions:
+// hear→tap the printed WORD (en_word_recognise), and read the printed word→tap the PICTURE
+// (en_word_picture). Sidman equivalence: teach spoken↔print and the picture↔print relation emerges.
+export function enWordItem(r: NounRng): { target: EnNoun; options: EnNoun[] } {
+  const target = r.pick(EN_NOUNS);
+  const distractors = shuffle(r, EN_NOUNS.filter((n) => n.word !== target.word)).slice(0, 2);
+  return { target, options: shuffle(r, [target, ...distractors]) };
+}
+
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).
 export const ENGLISH_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('');
 

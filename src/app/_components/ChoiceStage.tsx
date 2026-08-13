@@ -138,6 +138,9 @@ export function ChoiceStage({
           <button type="button" className="listen-btn" onClick={playPrompt} aria-label="Hör ordet igen">
             <span aria-hidden>🔊</span> Hör ordet
           </button>
+        ) : prompt.show === 'word' ? (
+          // English print bridge (Phase D): read the printed word, then pick the picture.
+          <div className="printed-word">{prompt.word}</div>
         ) : prompt.show === 'group' ? (
           <div className="ground-prompt">
             <Objects kind={prompt.kind} n={prompt.a} />
@@ -222,6 +225,11 @@ export function ChoiceStage({
               // SVO frame ("the dog is running"): agent emoji + action pictogram — bind BOTH.
               <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <span className="nounverb"><img src={`/emoji/${o.noun}.png`} alt="" draggable={false} /><img src={`/pictos/${o.verb}.svg`} alt="" draggable={false} /></span>
+              </button>
+            ) : o.render === 'word' ? (
+              // English print bridge (Phase D): tap the printed word you heard.
+              <button key={i} className="ground-option word" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <span className="word-option">{o.value}</span>
               </button>
             ) : null,
           )}
