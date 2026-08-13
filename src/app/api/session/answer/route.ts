@@ -23,6 +23,7 @@ const Body = z.object({
   warmup: z.boolean().optional(),
   intervalMs: z.number().int().min(0).max(24 * 3600 * 1000),
   idemKey: z.string().min(1).max(80),
+  env: z.string().max(600).optional(), // model-INVISIBLE device fingerprint (JSON); stored verbatim, no model path reads it
 });
 
 export async function POST(req: NextRequest) {
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
     d.warmup ?? false,
     d.intervalMs,
     d.idemKey,
+    d.env ?? null,
     now,
   );
   return json(result);

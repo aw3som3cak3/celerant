@@ -256,6 +256,7 @@ export type AppendAttempt = {
   at: number;
   idemKey?: string | null; // client idempotency key (input-timing Phase A); NULL server-generated
   sessionRunId?: number | null; // which session this item belonged to — for position-in-session analysis
+  envJson?: string | null; // model-INVISIBLE device fingerprint (JSON), aim-calibration analysis only; no model path reads it
 };
 
 // Append to the ledger, then rebuild the cache. Item generation itself writes
@@ -264,10 +265,10 @@ export function appendAttempt(a: AppendAttempt): number {
   const warmup = a.warmup ? 1 : 0;
   const info = getDb()
     .prepare(
-      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key, session_run_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key, session_run_id, env_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null, a.sessionRunId ?? null);
+    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null, a.sessionRunId ?? null, a.envJson ?? null);
   applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at, a.latencyMs); // fast path, not full replay
   return Number(info.lastInsertRowid);
 }
@@ -357,10 +358,10 @@ export function appendSprintIngest(
   return Number(info.lastInsertRowid);
 }
 
-export function appendToolRate(playerId: string, digitsPerMin: number, now: number): void {
+export function appendToolRate(playerId: string, digitsPerMin: number, now: number, envJson: string | null = null): void {
   getDb()
-    .prepare('INSERT INTO tool_rate (player_id, digits_per_min, at) VALUES (?, ?, ?)')
-    .run(playerId, digitsPerMin, now);
+    .prepare('INSERT INTO tool_rate (player_id, digits_per_min, at, env_json) VALUES (?, ?, ?, ?)')
+    .run(playerId, digitsPerMin, now, envJson);
   // A new ceiling invalidates every provisional (aim-derived) rate — rare, so a
   // full replay is the honest, correct move.
   replay(playerId);

@@ -297,7 +297,7 @@ const TOOL_ITEMS = 12; // enough copies for a stable digit rate without tiring a
 const TOOL_LENGTHS = [2, 3, 4]; // digit counts cycled across the items
 
 export type ToolStart = { toolId: string; numbers: string[] };
-export type ToolCopy = { i: number; given: string; intervalMs: number };
+export type ToolCopy = { i: number; given: string; intervalMs: number; env?: string };
 
 export function startToolMeasure(playerId: string, now: number): ToolStart {
   const rng = makeRng(randomSeed());
@@ -318,6 +318,7 @@ export function submitToolMeasure(playerId: string, toolId: string, copies: Tool
   tools.delete(toolId);
   let digits = 0;
   let sumMs = 0;
+  let env: string | null = null; // device the probe ran on (model-INVISIBLE) — from the first counted copy
   for (const c of copies) {
     // The FIRST number is orientation, not speed: the child is still reading the
     // instructions and finding the pad, so its interval measures getting-started, not
@@ -329,11 +330,12 @@ export function submitToolMeasure(playerId: string, toolId: string, copies: Tool
     if (target && c.given === target && isValidInterval(c.intervalMs)) {
       digits += target.length;
       sumMs += c.intervalMs;
+      if (env == null && c.env) env = c.env;
     }
   }
   if (digits === 0 || sumMs <= 0) return null;
   const digitsPerMin = (digits * 60000) / sumMs;
-  repo.appendToolRate(playerId, digitsPerMin, now); // ledger write → replay
+  repo.appendToolRate(playerId, digitsPerMin, now, env); // ledger write → replay
   return { digitsPerMin };
 }
 

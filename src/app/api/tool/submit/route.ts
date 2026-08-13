@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 const Body = z.object({
   playerId: z.string().min(1),
   toolId: z.string().min(1),
-  copies: z.array(z.object({ i: z.number().int().min(0), given: z.string().max(12), intervalMs: z.number().min(0) })).max(64),
+  copies: z.array(z.object({ i: z.number().int().min(0), given: z.string().max(12), intervalMs: z.number().min(0), env: z.string().max(600).optional() })).max(64),
 });
 
 export async function POST(req: NextRequest) {

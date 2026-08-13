@@ -9,6 +9,7 @@ import { TopBar } from './_components/TopBar';
 import { EmojiIcon } from './_components/Icon';
 import { Emoji } from './_components/Emoji';
 import { useI18n } from './_components/LocaleProvider';
+import { getDeviceTag, setDeviceTag, type DeviceTag } from './_components/deviceEnv';
 
 const CACHE_KEY = 'celerant.family';
 
@@ -262,6 +263,7 @@ function Players({ me }: { me: Me }) {
             {editing ? t('common.done') : <><Emoji e="✏️" /> {t('players.changeIcon')}</>}
           </button>
         </div>
+        <DeviceTagBar />
       </div>
       {changing && (
         <ChangeIconModal
@@ -271,6 +273,29 @@ function Players({ me }: { me: Me }) {
         />
       )}
     </>
+  );
+}
+
+// A one-time, per-DEVICE input tag a parent sets once. The browser reports touch vs
+// mouse-class honestly, but a mouse and a touchpad are indistinguishable to it — and
+// that's exactly the split that matters (the youngest is slow with a mouse, fast with a
+// touchpad). So we ask, once, on this device. Stored in localStorage, stamped onto every
+// later measurement (model-INVISIBLE); it only informs the future aim calibration, never
+// what a child is served. Subtle on purpose — parent setup, not a child control.
+function DeviceTagBar() {
+  const [tag, setTag] = useState<DeviceTag | null>(null);
+  useEffect(() => setTag(getDeviceTag()), []);
+  const pick = (v: DeviceTag) => { setDeviceTag(v); setTag(v); };
+  const opts: [DeviceTag, string, string][] = [['mouse', '🖱️', 'mus'], ['touchpad', '🖐️', 'styrplatta'], ['touch', '👆', 'pekskärm']];
+  return (
+    <div className="device-tag" role="group" aria-label="Vad styr barnet med på den här enheten?">
+      <span className="device-tag-label">Den här enheten:</span>
+      {opts.map(([v, e, label]) => (
+        <button key={v} type="button" className={`device-tag-btn ${tag === v ? 'on' : ''}`} onClick={() => pick(v)}>
+          <span aria-hidden>{e}</span> {label}
+        </button>
+      ))}
+    </div>
   );
 }
 

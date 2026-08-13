@@ -11,6 +11,7 @@ import { InputStage, type StageItem, type Captured } from '../_components/InputS
 import { ChoiceStage } from '../_components/ChoiceStage';
 import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
+import { deviceEnvJson } from '../_components/deviceEnv';
 import { buildItem } from '@/lib/item';
 import { makeRng } from '@/lib/rng';
 import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
@@ -213,7 +214,7 @@ function Practice() {
       enqueueAnswer({ idemKey: c.idemKey, playerId, kind: 'session', context: String(sessionId), code: c.code, seed: c.seed, given, tries: triesRef.current, intervalMs: c.intervalMs, ts: Date.now() });
       try {
         const r = await postJSON<AnswerResp>('/api/session/answer', {
-          playerId, sessionId, code: c.code, seed: c.seed, given, idk: c.idk, tries: triesRef.current, warmup: item.warmup, intervalMs: c.intervalMs, idemKey: c.idemKey,
+          playerId, sessionId, code: c.code, seed: c.seed, given, idk: c.idk, tries: triesRef.current, warmup: item.warmup, intervalMs: c.intervalMs, idemKey: c.idemKey, env: c.env,
         });
         ackAnswers([c.idemKey]); // the server processed it (recorded or a retry) — clear it
         if (r.status !== 'retry' && r.session?.done) setDiplomas(r.diplomas ?? []); // B1: this session's burst crossings
@@ -250,7 +251,7 @@ function Practice() {
   const onChoice = useCallback(
     (chosen: string | number, intervalMs: number) => {
       if (!item) return;
-      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: String(chosen), intervalMs, idk: false });
+      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: String(chosen), intervalMs, idk: false, env: deviceEnvJson() });
     },
     [item, playerId, onCapture],
   );

@@ -935,6 +935,30 @@ table.plain-table th {
 }
 .pill-btn:hover { border-color: var(--accent); color: var(--accent); }
 .pill-btn.accent { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Per-device input tag (parent setup) — deliberately quiet: small, muted, below the fold
+   of the family card so the kids' eyes skip it. */
+.device-tag {
+  display: flex; flex-wrap: wrap; gap: 0.35rem;
+  justify-content: center; align-items: center;
+  margin-top: 1.4rem;
+}
+.device-tag-label { font-size: 0.72rem; color: var(--ink-soft); opacity: 0.7; margin-right: 0.15rem; }
+.device-tag-btn {
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  cursor: pointer;
+  opacity: 0.75;
+}
+.device-tag-btn:hover { border-color: var(--accent); color: var(--accent); opacity: 1; }
+.device-tag-btn.on {
+  border-color: var(--accent); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  opacity: 1;
+}
 /* the primary "back to the family" button on the done screen */
 .next-btn.primary {
   background: var(--accent);

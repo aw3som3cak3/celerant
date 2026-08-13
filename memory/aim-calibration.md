@@ -1,0 +1,19 @@
+---
+name: aim-calibration
+description: "The normative fluency-aim calibration — device-context capture LANDED (model-invisible env_json); the data-driven tuning FUNCTION is still to build. Erik's 'does a function tune the fluent-speed number over time' thread."
+metadata:
+  node_type: memory
+  type: project
+---
+
+**The question (Erik, 2026-08-13):** "we keep looking at [the fluent-speed] number but I'm not sure if we have a function that, based on collected data, tunes this number over time — if not we should build one." Answer: **no such function exists.** The aim is `60/(motor_time + RETRIEVAL_BUDGET_S)`; `RETRIEVAL_BUDGET_S=2` is the fixed constant that actually encodes "fast enough = fluent", and `defaultCeiling(y)=12+5y` is the hand-anchored cold-start tap (both manually re-anchored once from n=4, never auto-tuned). One piece already self-corrects from data: `bestObservedDigitRate` floors the per-child tap up from demonstrated throughput. The GLOBAL stringency does not. There IS a `src/lib/calibration.ts`, but it monitors the **accuracy/difficulty** side (predicted ~80% first-try vs observed, fatigue-by-position) — NOT speed. So the speed-aim calibration is the half never built. See [[theta-measurement-principles]] ("calibration monitor still to build"), [[writing-speed-aim-cap]].
+
+**The agreed design (not yet built):** calibrate the aim **normatively**, to the Precision-Teaching RESA criterion — the rate that empirically PREDICTS retention + transfer (the ledger has both: accuracy-over-time, dependent-skill ease), NOT average speed (a normative threshold, not a descriptive one). Constraint: **n=4 kids** → a per-skill auto-fit is data-starved; fit the FEW global constants (`RETRIEVAL_BUDGET_S`, `defaultCeiling` params) pooled across all skills/kids. Build it as a **MONITOR first** (shadow → validate → cutover, like everything here, and matching the anti-gamification ethos): it surfaces current-aim vs data-suggested-aim for Erik's approval, never a self-moving bar. The stored-crossing invariant already protects earned diplomas from a moving aim, so tuning can't revoke — but still human-in-loop.
+
+**What LANDED 2026-08-13 — device-context capture (the "capture data first" step).** Erik's key addition: capture the INPUT DEVICE, because the youngest is slow with a mouse but fast with a touchpad — a device confound on every motor measurement. Built:
+- `src/app/_components/deviceEnv.ts` — `deviceEnv()`/`deviceEnvJson()` compact fingerprint `{pt (last pointerType from a single passive capture-phase listener), fine/coarse/hover, mtp, mob, plat, vw/vh, tag}`; `getDeviceTag`/`setDeviceTag` (localStorage `celerant.deviceTag.v1`).
+- **The honest limit:** the browser reports touch-vs-mouse-class faithfully but CANNOT tell a mouse from a touchpad (both = a "fine" pointer firing identical `pointerType:'mouse'`). That exact split — the one Erik cares about — comes ONLY from `tag`, a **per-device** label the parent sets once. UI = quiet `DeviceTagBar` at the bottom of the family card (mus / styrplatta / pekskärm).
+- Storage: `env_json TEXT` on **attempt** AND **tool_rate** (the writing probe), append-only. Rides the existing POSTs: InputStage.capture → Captured.env → /api/session/answer → sessionAnswer(envJson) → appendAttempt; and warmup copies → /api/tool/submit → submitToolMeasure (env from first counted copy) → appendToolRate.
+- **THE HARD RULE (documented in-code, same as probe/usage_event):** no replay / selector / θ / aim / gate path ever reads `env_json`. Analyst-only, until the calibration is deliberately built. Verified: nothing SELECTs env_json anywhere. 567 tests green, build clean.
+
+**Next (pending):** once device-tagged measurements accumulate, build the RESA monitor. Watch item it would formalize: the burst lenient-bar (bursts read ~1.5× sprint) — see [[ws3-burst-shadow]].

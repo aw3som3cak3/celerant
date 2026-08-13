@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS attempt (
   at           INTEGER NOT NULL,
   idem_key     TEXT,                        -- client idempotency key; NULL on legacy/server-generated rows
   session_run_id INTEGER,                   -- the session this item belonged to; NULL outside a session (position-in-session analysis)
+  env_json     TEXT,                         -- model-INVISIBLE device fingerprint (JSON); de-confounds a motor rate from the device. NO model path reads it (see deviceEnv.ts)
   voided_at    INTEGER,
   void_reason  TEXT
 );
@@ -90,6 +91,7 @@ CREATE TABLE IF NOT EXISTS tool_rate (
   player_id      TEXT NOT NULL REFERENCES player(id),
   digits_per_min REAL NOT NULL,
   at             INTEGER NOT NULL,
+  env_json       TEXT,                        -- model-INVISIBLE device fingerprint of the probe run (JSON); the writing speed's confound control (see deviceEnv.ts)
   voided_at      INTEGER
 );
 

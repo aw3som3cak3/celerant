@@ -5,6 +5,7 @@ import { buildItem, isAnswerComplete } from '@/lib/item';
 import { inputModeFor } from './AnswerInput';
 import { useWakeLock } from './useWakeLock';
 import { newIdemKey } from './answerQueue';
+import { deviceEnvJson } from './deviceEnv';
 
 // The shared input surface + per-item clock, used by BOTH sessions and sprints so a
 // rate measured in one is comparable to a rate measured in the other (input-timing
@@ -40,6 +41,7 @@ export type Captured = {
   given: string;
   intervalMs: number;
   idk: boolean; // "vet inte" — resolves the item without an answer (session only)
+  env?: string; // model-INVISIBLE device fingerprint (JSON), for aim-calibration analysis; see deviceEnv.ts
 };
 
 function renderPrompt(prompt: string): React.ReactNode {
@@ -138,7 +140,7 @@ export function InputStage({
       if (!idk && given.trim() === '') return;
       capturedRef.current = true;
       const intervalMs = Math.max(0, Math.round(performance.now() - startRef.current));
-      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: given.trim(), intervalMs, idk });
+      onCapture({ idemKey: newIdemKey(playerId), code: item.code, seed: item.seed, given: given.trim(), intervalMs, idk, env: deviceEnvJson() });
     },
     [item, disabled, playerId, onCapture],
   );

@@ -569,6 +569,7 @@ export function sessionAnswer(
   warmup: boolean,
   intervalMs: number,
   idemKey: string,
+  envJson: string | null, // model-INVISIBLE device fingerprint (JSON), for aim-calibration analysis only
   now: number,
 ): SessionAnswerResult {
   const playerId = player.id;
@@ -599,6 +600,7 @@ export function sessionAnswer(
       at: now,
       idemKey,
       sessionRunId: sessionId ?? null,
+      envJson,
     });
     if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
       repo.appendUsageEvent(playerId, 'card_earned', code, now);

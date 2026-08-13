@@ -27,7 +27,7 @@ describe('question_log: every wrong / idk answer records the rebuilt question', 
     const seed = 4242;
     const sid = repo.createSessionRun(pid, 5, now, 'maths');
     // tries>1 so it's a RESOLVED wrong (first-try-wrong would just retry and record nothing)
-    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, code, seed, 'nonsense', false, 2, false, 3000, 'idem-w', now);
+    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, code, seed, 'nonsense', false, 2, false, 3000, 'idem-w', null, now);
     const log = repo.getQuestionLog(now, 50);
     expect(log.length).toBe(1);
     expect(log[0].skill_code).toBe(code);
@@ -42,7 +42,7 @@ describe('question_log: every wrong / idk answer records the rebuilt question', 
   it('an "idk" logs the question with dont_know set and no given', () => {
     const now = NOW + 2_000_000;
     const sid = repo.createSessionRun(pid, 5, now, 'maths');
-    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, 'add_within_10', 77, null, true, 0, false, 3000, 'idem-i', now);
+    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, 'add_within_10', 77, null, true, 0, false, 3000, 'idem-i', null, now);
     const log = repo.getQuestionLog(now, 50);
     expect(log.length).toBe(1);
     expect(log[0].dont_know).toBe(1);
@@ -56,7 +56,7 @@ describe('question_log: every wrong / idk answer records the rebuilt question', 
     const seed = 999;
     const it = buildItem(code, seed) as { answer: unknown };
     const sid = repo.createSessionRun(pid, 5, now, 'maths');
-    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, code, seed, String(it.answer), false, 1, false, 3000, 'idem-c', now);
+    sessionAnswer({ id: pid, school_year: 2, stretch: 0 }, sid, code, seed, String(it.answer), false, 1, false, 3000, 'idem-c', null, now);
     expect(repo.getQuestionLog(now, 50).length).toBe(0);
   });
 });

@@ -108,6 +108,12 @@ const MIGRATIONS = [
   // Mixed Öva (one-ova-track): the SET of subjects a session interleaves. NULL on legacy rows
   // and on single-subject sessions — the selector falls back to the scalar `subject`.
   'ALTER TABLE session_run ADD COLUMN subjects TEXT',
+  // Device-context capture for the normative fluency-aim calibration (still to build): a
+  // model-INVISIBLE JSON fingerprint of the device a measurement ran on, so a motor rate
+  // can be de-confounded from a slow mouse (a slow device ≠ a slow child). THE HARD RULE,
+  // same as probe/usage_event: no replay/selector/θ/aim/gate path ever reads env_json.
+  'ALTER TABLE attempt ADD COLUMN env_json TEXT',
+  'ALTER TABLE tool_rate ADD COLUMN env_json TEXT',
 ];
 
 export function getDb(): Database.Database {

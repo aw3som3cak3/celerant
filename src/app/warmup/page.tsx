@@ -7,7 +7,7 @@ import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type Captured } from '../_components/InputStage';
 
 type Started = { toolId: string; numbers: string[] };
-type Copy = { i: number; given: string; intervalMs: number };
+type Copy = { i: number; given: string; intervalMs: number; env?: string };
 
 // The writing-speed probe — the child's FIRST speed run of the day. It measures how
 // fast a child enters digits on the SAME numpad they answer real problems with, so the
@@ -55,7 +55,7 @@ function Warmup() {
 
   const onCapture = useCallback(
     (c: Captured) => {
-      copiesRef.current.push({ i: idx, given: c.given, intervalMs: c.intervalMs });
+      copiesRef.current.push({ i: idx, given: c.given, intervalMs: c.intervalMs, env: c.env });
       if (idx + 1 >= (started?.numbers.length ?? 0)) finish();
       else setIdx((n) => n + 1);
     },
