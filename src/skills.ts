@@ -1342,6 +1342,37 @@ const tierEnglish: Skill[] = [
     requires: ["en_do_negation"], crossRequires: [READING_READY],
     generate: (r) => sentenceItem(r, "en_continuous"),
   }),
+  S({
+    // S5 · PREPOSITIONS — the collocation set. Not derivable, but the ERROR is rule-like: the L1
+    // default preposition transfers (*på* → "on" almost everywhere). RULE with a disjoint holdout of
+    // UNSEEN collocations of the same interference classes, so a crossing = the discrimination
+    // generalized ("the Swedish preposition is not the English one"), not eight memorised phrases.
+    code: "en_preposition", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
+    requires: ["en_continuous"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_preposition"),
+  }),
+  S({
+    // S6 · is/get/become — Swedish *bli* is one word for change-of-state (get), age (turn) and
+    // profession (become). LEXICAL: a closed contrast, and "become" is sometimes the right answer,
+    // so the rung teaches the split rather than "never say become".
+    code: "en_is_get", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "lexical",
+    requires: ["en_preposition"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_is_get"),
+  }),
+  S({
+    // S7 · make/do — one Swedish verb (*göra*), two English ones, split by collocation alone.
+    code: "en_make_do", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "lexical",
+    requires: ["en_is_get"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_make_do"),
+  }),
+  S({
+    // S8 · FALSE FRIENDS — Swedish words that look like an English word with another meaning
+    // (lära/learn, låna/borrow, chef/boss, fabrik/factory, recept/recipe, semester/holiday). Only
+    // airtight pairs: every lure is unambiguously wrong English, so ONE answer stands by construction.
+    code: "en_false_friend", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "lexical",
+    requires: ["en_make_do"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_false_friend"),
+  }),
 ];
 
 /* ═══ export ══════════════════════════════════════════════════════════ */

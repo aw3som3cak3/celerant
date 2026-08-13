@@ -477,6 +477,158 @@ const ASPECT_CUES: readonly EnAspectCue[] = [
   { en: 'every day', cont: false }, { en: 'on Mondays', cont: false },
 ];
 
+// Every S5-S8 item is an English CLOZE: read the sentence, pick the word that fills the gap.
+const cloze = (text: string, answer: string, lure: string): EnSentenceSpec => ({ text, lang: 'en', answer, lure });
+
+// ── S5 · PREPOSITIONS (the collocation set) ─────────────────────────────────────────────────────
+// Not a rule you can derive — a collocation you must know — but the ERROR is rule-like: the L1
+// default preposition mis-transfers, and *på* is the worst offender (bra på, lyssna på, titta på,
+// vänta på, tänka på, på bilden all become "on"). So each item is an English cloze and the lure is
+// the preposition the Swedish phrase would hand you. Kept RULE-shaped with a disjoint holdout: the
+// holdout is UNSEEN collocations of the same interference classes, so a crossing means the child
+// generalized the discrimination "the Swedish preposition is not the English one", not eight facts.
+// Three carrier sentences per collocation, so the answer can't be keyed to a memorised sentence.
+const PREP_PRACTICE: readonly EnSentenceSpec[] = [
+  // bra PÅ → good AT
+  cloze('My sister is good ___ football.', 'at', 'on'),
+  cloze('The cat is good ___ jumping.', 'at', 'on'),
+  cloze('Are you good ___ maths?', 'at', 'on'),
+  // lyssna PÅ → listen TO
+  cloze('I listen ___ music every day.', 'to', 'on'),
+  cloze('Listen ___ me, please.', 'to', 'on'),
+  cloze('We listen ___ the radio in the car.', 'to', 'on'),
+  // titta PÅ → look AT
+  cloze('Look ___ the big dog!', 'at', 'on'),
+  cloze('She looks ___ the stars at night.', 'at', 'on'),
+  cloze("Don't look ___ me like that.", 'at', 'on'),
+  // vänta PÅ → wait FOR
+  cloze('I wait ___ the bus every morning.', 'for', 'on'),
+  cloze('Wait ___ me!', 'for', 'on'),
+  cloze('We waited ___ the rain to stop.', 'for', 'on'),
+  // tänka PÅ → think ABOUT
+  cloze('I think ___ my dog when I am at school.', 'about', 'on'),
+  cloze('What do you think ___ the film?', 'about', 'on'),
+  cloze('She thinks ___ her holiday.', 'about', 'on'),
+  // PÅ bilden → IN the picture
+  cloze('There is a cat ___ the picture.', 'in', 'on'),
+  cloze('Who is the boy ___ the photo?', 'in', 'on'),
+  cloze('I can see three birds ___ the picture.', 'in', 'on'),
+  // intresserad AV → interested IN
+  cloze('He is interested ___ cars.', 'in', 'of'),
+  cloze('Are you interested ___ music?', 'in', 'of'),
+  cloze('My mum is interested ___ old houses.', 'in', 'of'),
+  // rädd FÖR → afraid OF
+  cloze('The mouse is afraid ___ the cat.', 'of', 'for'),
+  cloze('I am not afraid ___ the dark.', 'of', 'for'),
+  cloze('Are you afraid ___ big dogs?', 'of', 'for'),
+];
+// HOLDOUT: unseen collocations, same interference classes (a Swedish preposition that is not the
+// English one). None of these phrases appears in practice.
+const PREP_HOLDOUT: readonly EnSentenceSpec[] = [
+  cloze('My dad is angry ___ me.', 'with', 'on'), // arg PÅ
+  cloze('She is angry ___ her brother.', 'with', 'on'),
+  cloze('I am proud ___ my little sister.', 'of', 'over'), // stolt ÖVER
+  cloze('We are proud ___ our school.', 'of', 'over'),
+  cloze('I am tired ___ this game.', 'of', 'on'), // trött PÅ
+  cloze('She is tired ___ waiting.', 'of', 'on'),
+  cloze('My aunt is married ___ a teacher.', 'to', 'with'), // gift MED
+  cloze('He is married ___ my cousin.', 'to', 'with'),
+  cloze('Please ask ___ help when you need it.', 'for', 'about'), // be OM
+  cloze('She asked ___ a glass of water.', 'for', 'about'),
+];
+
+// ── S6 · is / get / become (bli) ────────────────────────────────────────────────────────────────
+// Swedish *bli* covers become, get, turn and plain be, so the learner reaches for "become"
+// everywhere ("I become happy", "I become six"). English splits it: GET for a change of state,
+// TURN for an age, BECOME for a profession or a lasting change — which is the item that stops this
+// being "never say become": one option set per item, and "become" is sometimes the right one.
+// LEXICAL: a closed contrast set; the holdout is unseen frames of the same three classes.
+const IS_GET_PRACTICE: readonly EnSentenceSpec[] = [
+  cloze('I ___ happy when I see my dog.', 'get', 'become'),
+  cloze('My sister ___ angry very fast.', 'gets', 'becomes'),
+  cloze('The soup ___ cold on the table.', 'gets', 'becomes'),
+  cloze('It ___ dark early in the winter.', 'gets', 'becomes'),
+  cloze('I ___ six years old tomorrow.', 'turn', 'become'),
+  cloze('My brother ___ ten next week.', 'turns', 'becomes'),
+  cloze('He wants to ___ a doctor.', 'become', 'get'),
+  cloze('When I grow up I will ___ a teacher.', 'become', 'get'),
+  cloze('The little bird ___ hungry.', 'gets', 'becomes'),
+  cloze('You ___ wet in the rain.', 'get', 'become'),
+  cloze('She ___ eight on Monday.', 'turns', 'becomes'),
+  cloze('They want to ___ pilots.', 'become', 'get'),
+];
+const IS_GET_HOLDOUT: readonly EnSentenceSpec[] = [
+  cloze('The sky ___ dark before the rain.', 'gets', 'becomes'),
+  cloze('I ___ tired in the evening.', 'get', 'become'),
+  cloze('My cousin ___ twelve in June.', 'turns', 'becomes'),
+  cloze('She wants to ___ a vet.', 'become', 'get'),
+  cloze('The water ___ hot on the stove.', 'gets', 'becomes'),
+  cloze('We ___ hungry after school.', 'get', 'become'),
+];
+
+// ── S7 · make / do (göra) ───────────────────────────────────────────────────────────────────────
+// One Swedish verb, two English ones, split by collocation and nothing else — so this is pure
+// discrimination practice. MAKE builds something (a cake, a noise, the bed); DO performs an
+// activity (homework, the dishes, your best). LEXICAL: the pairs are the skill.
+const MAKE_DO_PRACTICE: readonly EnSentenceSpec[] = [
+  cloze('___ your homework before dinner.', 'Do', 'Make'),
+  cloze('Can you ___ me a sandwich?', 'make', 'do'),
+  cloze('I have to ___ the dishes tonight.', 'do', 'make'),
+  cloze('She wants to ___ a cake for my birthday.', 'make', 'do'),
+  cloze('Please ___ your bed in the morning.', 'make', 'do'),
+  cloze('We always ___ our best.', 'do', 'make'),
+  cloze("Don't ___ so much noise!", 'make', 'do'),
+  cloze('I will ___ the shopping on Saturday.', 'do', 'make'),
+  cloze('He can ___ a paper plane.', 'make', 'do'),
+  cloze('Did you ___ the test at school?', 'do', 'make'),
+  cloze("Let's ___ a snowman!", 'make', 'do'),
+  cloze('I ___ my chores every day.', 'do', 'make'),
+];
+const MAKE_DO_HOLDOUT: readonly EnSentenceSpec[] = [
+  cloze('Can you ___ a cup of tea?', 'make', 'do'),
+  cloze('We ___ an experiment in school.', 'did', 'made'),
+  cloze('She wants to ___ a wish.', 'make', 'do'),
+  cloze('___ the washing up, please.', 'Do', 'Make'),
+  cloze('The bees ___ honey.', 'make', 'do'),
+  cloze('I ___ nothing all day.', 'did', 'made'),
+];
+
+// ── S8 · FALSE FRIENDS ──────────────────────────────────────────────────────────────────────────
+// Swedish words that LOOK like an English word with a different meaning. Only airtight pairs are
+// used: in every item the lure is unambiguously wrong English, so the one-answer-by-construction
+// rule (spec §2.5) holds. (rolig→funny is deliberately absent: "a fun joke" is arguable, so it
+// would be the one item with two defensible answers.) LEXICAL, disjoint holdout.
+const FALSE_FRIEND_PRACTICE: readonly EnSentenceSpec[] = [
+  // lära = learn AND teach
+  cloze('My teacher ___ me English.', 'teaches', 'learns'),
+  cloze('Can you ___ me to swim?', 'teach', 'learn'),
+  cloze('I ___ new words every day.', 'learn', 'teach'),
+  // låna = borrow AND lend
+  cloze('Can I ___ your pen, please?', 'borrow', 'lend'),
+  cloze('Can you ___ me your pen?', 'lend', 'borrow'),
+  cloze('I want to ___ a book from the library.', 'borrow', 'lend'),
+  // chef = boss, not a cook
+  cloze('My mum is the ___ at her work.', 'boss', 'chef'),
+  cloze('Who is the ___ of this company?', 'boss', 'chef'),
+  // fabrik = factory, not fabric
+  cloze('They make cars in a big ___.', 'factory', 'fabric'),
+  cloze('My dad works in a ___ near the town.', 'factory', 'fabric'),
+  // recept = recipe, not receipt
+  cloze('Mum reads the ___ for the cake.', 'recipe', 'receipt'),
+  cloze('This ___ needs four eggs.', 'recipe', 'receipt'),
+  // semester = holiday, not a school term
+  cloze('We go to Spain on ___ in the summer.', 'holiday', 'semester'),
+  cloze('We have a long ___ in July.', 'holiday', 'semester'),
+];
+const FALSE_FRIEND_HOLDOUT: readonly EnSentenceSpec[] = [
+  cloze('I read a short ___ in school today.', 'story', 'novel'), // novell = short story
+  cloze('She wrote a ___ about her cat.', 'story', 'novel'),
+  cloze('Dad wears a ___ and a tie to work.', 'suit', 'costume'), // kostym = suit
+  cloze('He bought a new ___ for the party.', 'suit', 'costume'),
+  cloze('We eat dinner at the ___.', 'table', 'board'), // bord = table
+  cloze('Put the plates on the ___.', 'table', 'board'),
+];
+
 // The seam pools, keyed by skill code. Each `question` is the Swedish instruction shown above the
 // options (display strings live with the content, like the maths `steps` — no i18n in the generator).
 export const EN_SENTENCE_POOLS: Record<string, EnSentencePool> = {
@@ -500,6 +652,10 @@ export const EN_SENTENCE_POOLS: Record<string, EnSentencePool> = {
     practice: aspectSpecs(ASPECT_SUBJ_PRACTICE, ASPECT_VERBS_PRACTICE, ASPECT_CUES),
     holdout: aspectSpecs(ASPECT_SUBJ_HOLDOUT, ASPECT_VERBS_HOLDOUT, ASPECT_CUES),
   },
+  en_preposition: { question: 'Vilket ord passar i luckan?', practice: PREP_PRACTICE, holdout: PREP_HOLDOUT },
+  en_is_get: { question: 'Vilket ord passar i luckan?', practice: IS_GET_PRACTICE, holdout: IS_GET_HOLDOUT },
+  en_make_do: { question: 'Vilket ord passar i luckan?', practice: MAKE_DO_PRACTICE, holdout: MAKE_DO_HOLDOUT },
+  en_false_friend: { question: 'Vilket ord passar i luckan?', practice: FALSE_FRIEND_PRACTICE, holdout: FALSE_FRIEND_HOLDOUT },
 };
 
 // One generator for every sentence rung: seed-pick a PRACTICE item, seed-shuffle its two options so

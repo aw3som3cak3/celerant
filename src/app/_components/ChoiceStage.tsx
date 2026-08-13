@@ -124,6 +124,9 @@ export function ChoiceStage({
     const t2 = setTimeout(() => setRevealed(true), 650 + 800); // unlock once the slide has finished
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, [itemKey, isStructure]);
+  const phraseOptions =
+    prompt.show === 'sentence' && options.some((o) => typeof o.value === 'string' && (o.value.includes(' ') || o.value.length > 12));
+
   const replayScene = useCallback(() => {
     setPlayed(false);
     setRevealed(false);
@@ -195,9 +198,10 @@ export function ChoiceStage({
           )}
         </div>
       ) : (
-        // A sentence prompt implies phrase-length options: stack them one per row so two whole
-        // candidate sentences stay readable (and tappable) on a tablet instead of squeezing side-by-side.
-        <div className={`ground-options ${options[0]?.render ?? 'numeral'}${prompt.show === 'sentence' ? ' stacked' : ''}`}>
+        // Sentence-mode options come in two lengths: whole candidate sentences / verb phrases, which
+        // must stack one per row to stay readable and tappable on a tablet, and single-word cloze
+        // fills (at/on, make/do), which read better side-by-side as the minimal pair they are.
+        <div className={`ground-options ${options[0]?.render ?? 'numeral'}${phraseOptions ? ' stacked' : ''}`}>
           {options.map((o, i) =>
             o.render === 'numeral' ? (
               <button key={i} className="ground-option" onClick={() => pick(o.value)} disabled={disabled} type="button">
