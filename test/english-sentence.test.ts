@@ -168,9 +168,22 @@ describe('English sentence mode — the interference slice', () => {
     expect([...seen].sort()).toEqual(['continuous', 'simple']); // the DISCRIMINATION, not one form
   });
 
-  it('sits above the word tier, reading-gated, recognition-crossed, and chained one seam at a time', () => {
-    expect(skillByCode('en_sv_order').requires).toContain('en_past_irregular'); // above English word production
-    const chain = ['en_past_irregular', ...SEAMS];
+  it('hangs off the PRINT BRIDGE (never a production rung), reading-gated, chained one seam at a time', () => {
+    // The door must obey the tier's own rule. en_word_picture is the top of the print bridge —
+    // accuracy-crossed and reading-gated — so the whole path in is fluency-free and the READING gate
+    // is the real barrier. Anchoring on a production rung (it once required en_past_irregular) would
+    // dam a diagnostic recognition tier behind an irregular-past sprint it has no dependency on.
+    expect(skillByCode('en_sv_order').requires).toEqual(['en_word_picture']);
+    const door = skillByCode('en_word_picture');
+    expect(door.format, 'the door is accuracy-crossed, not a fluency target').toBe('choice');
+    expect(door.sprintable).toBe(false);
+    expect(door.crossRequires).toContain('spelling_t1c');
+    // no rung in this slice may depend on an English PRODUCTION rung, directly or as its door
+    const production = new Set(SKILLS.filter((s) => s.subject === 'english' && s.format !== 'choice').map((s) => s.code));
+    for (const code of SEAMS) {
+      for (const r of skillByCode(code).requires) expect(production.has(r), `${code} requires production rung ${r}`).toBe(false);
+    }
+    const chain = ['en_word_picture', ...SEAMS];
     for (let i = 1; i < chain.length; i++) expect(skillByCode(chain[i]).requires).toContain(chain[i - 1]);
     for (const code of SEAMS) {
       const s = skillByCode(code);

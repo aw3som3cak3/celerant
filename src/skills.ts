@@ -1319,13 +1319,18 @@ const tierEnglish: Skill[] = [
   // seam at a time as a MINIMAL PAIR: the Swedish sentence gives the meaning (or an English cloze
   // gives the frame) and the two options are the English form against the transferred Swedish rule.
   // All recognition (format:'choice') ⇒ each crosses on ACCURACY (12 first-try @ 90%), no fluency
-  // coupling, no sprint. All READING-gated (crossRequires READING_READY) — they are read, not heard —
-  // and anchored above en_past_irregular so the child arrives having produced English words first.
+  // coupling, no sprint — and the DOOR obeys the same rule: the tier hangs off en_word_picture, the
+  // top of the print bridge (read a printed word → tap its picture), which is itself accuracy-crossed
+  // and READING-gated. It used to require en_past_irregular, and that was wrong: it dammed a
+  // fluency-free diagnostic tier behind an irregular-past SPRINT, so the real barrier to entry was a
+  // production-fluency gate rather than reading. Nothing here depends on spelling went/came fluently
+  // — "Today I eat an apple" vs "Today eat I an apple" has no such prerequisite — so the tier now
+  // sits PARALLEL to the English spelling tail (en_ed_regular…), both branching off the print bridge.
   // Ordered by INTERFERENCE severity, not frequency: word order → do-support → aspect.
   S({
     // S1 · V2/inversion: "Idag äter jag ett äpple" → "Today I eat an apple", NOT "Today eat I…".
     code: "en_sv_order", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
-    requires: ["en_past_irregular"], crossRequires: [READING_READY],
+    requires: ["en_word_picture"], crossRequires: [READING_READY],
     generate: (r) => sentenceItem(r, "en_sv_order"),
   }),
   S({

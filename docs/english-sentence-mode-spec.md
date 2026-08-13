@@ -231,7 +231,7 @@ future generalization; it is explicitly OUT of scope here.)
 ## 2.6 Skill-graph placement, sequence, kinds, gating
 All `subject:'english'`, `family:'en_sentence'`, reading-gated. Suggested rungs (recognition v1):
 ```
-en_sv_order      (S1 recognition: pick correct SVO order)   RULE   requires en_past_irregular
+en_sv_order      (S1 recognition: pick correct SVO order)   RULE   requires en_word_picture  ← see below
 en_do_question   (S2: do-support in questions)              RULE   requires en_sv_order
 en_do_negation   (S3: do-support in negation)               RULE   requires en_do_question
 en_continuous    (S4: simple vs continuous)                 RULE   requires en_do_negation
@@ -246,7 +246,17 @@ en_false_friend  (S8: false friends)                        LEXICAL requires en_
   the choice; default to `READING_READY` to start.
 - `year: 2` (an English difficulty rung above `-ed`; keep it ≥ the `-ed` year so seeding places it
   above). `mode:'component'`, `format:'choice'` (v1), `kind` as tabled.
-- `en_sv_order` `requires: ['en_past_irregular']` anchors the slice above the word-production tier.
+- ~~`en_sv_order` `requires: ['en_past_irregular']` anchors the slice above the word-production tier.~~
+  **REVERSED as built (2026-08-13).** `en_sv_order` `requires: ['en_word_picture']` — the top of the
+  PRINT BRIDGE. The original anchor contradicted the tier's own principle: every rung here is
+  accuracy-crossed with no fluency coupling, but its DOOR was a production rung that crosses on a
+  burst/sprint, so the real barrier to a fluency-free diagnostic tier was an irregular-past SPRINT
+  rather than reading. The stated rationale ("arrives having produced English words first") was a
+  maturity nicety paid for with the hardest kind of gate, and it is not a real dependency: word order
+  ("Today I eat an apple" vs "Today eat I…") has nothing to do with spelling *went/came* fluently.
+  The slice now sits PARALLEL to the English spelling tail — both branch off `en_word_picture` — so
+  reading is the barrier, which is what the design wanted all along. No migration: unlock is computed
+  live from `requires` in `computeUnlocked`, never stored.
 - RULE nodes need a **disjoint holdout** in their pool (practice sentences vs unseen holdout sentences
   of the same structure) so a crossing = generalization — mirror `EN_ED_REGULAR`'s shape.
 
