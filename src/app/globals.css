@@ -1670,3 +1670,27 @@ table.plain-table th {
   padding-left: 0;
   padding-right: 0;
 }
+
+/* ── SCAFFOLDED ACQUISITION (docs/scaffolded-acquisition-spec.md §3) ─────────
+   The faded derived-fact scaffold. Deliberately quiet: the solved steps sit ABOVE
+   the live prompt in a smaller, softer type so the child reads her own work, and
+   the L2 tip is a whisper under the fact — never a banner, never a score. */
+.acq-stage { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; width: 100%; }
+.acq-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  text-align: center;
+  font-size: 1.3rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.acq-step { opacity: 0; animation: reveal 220ms ease forwards; }
+.acq-reveal { display: flex; flex-direction: column; align-items: center; }
+.acq-cued { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.acq-hint {
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  font-weight: 400;
+  letter-spacing: 0;
+}

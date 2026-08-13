@@ -14,6 +14,8 @@ import { skillLabel } from './labels';
 import { extractFeatures, FEATURES_VERSION } from './features';
 import { answerLengthOf, buildItem } from './item';
 import { nextBurstCode, settleBurstOnAnswer } from './burst';
+import { acquisitionPlans, noteScaffoldServed, servedLevel, isScaffolded, settleAcquisitionOnAnswer, type AcquisitionPlan } from './acquisition';
+import { L_BARE, type StrategyId } from './acquisition-content';
 
 const STRETCH_TARGET = 0.65; // "svårare" toggle (motivation §3.2)
 
@@ -195,7 +197,16 @@ export function sessionChoices(playerId: string, schoolYear: number, stretch: bo
     .map(({ code, label, sample }) => ({ code, label, sample }));
 }
 
-type Picked = { pick: SelState; novel: boolean; level: number; scores: unknown; introduced: boolean };
+type Picked = {
+  pick: SelState;
+  novel: boolean;
+  level: number;
+  scores: unknown;
+  introduced: boolean;
+  // SCAFFOLDED ACQUISITION: the plans computed for the subject the pick came from, so the
+  // GENERATION step below can ask "bare fact, or scaffold?" without recomputing them.
+  acqPlans: Map<string, AcquisitionPlan>;
+};
 
 // The selection core — buildStates → selectItem → the chosen skill and display
 // flags — shared by the server-generated path (nextItem) and the client-generated
@@ -223,16 +234,25 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
   let introduced = false;
   let firstStates: SelState[] | undefined;
   let chosenStates: SelState[] | undefined;
+  let acqPlans = new Map<string, AcquisitionPlan>();
+  let chosenAcqPlans = new Map<string, AcquisitionPlan>();
 
   for (const subject of order) {
     const states = buildStates(playerId, schoolYear, subject); // subject-scoped pool
     if (!firstStates) firstStates = states;
+    // SCAFFOLDED ACQUISITION (spec §2, §5): which skills in THIS subject's pool are
+    // ready-but-unlearned — the child failed the fact, every derivation input is fluent, and she
+    // has not graduated. Suppressed during the warm-up ramp and the two-miss retreat, which own
+    // the opening/rescue items (same guard the burst uses): the scaffold returns the moment the
+    // ramp ends. Empty for every subject without derivations, and for every child who is not
+    // currently stuck on one — in which case selection below is byte-identical to before.
+    acqPlans = warmup ? new Map() : acquisitionPlans(playerId, states);
     const unlocked = computeUnlocked(states, undefined, crossPassed);
     // The child's session-start choice serves as the first item, if still eligible — but only
     // within its own subject.
     if (!warmup && opts.chosenCode && unlocked.get(opts.chosenCode)) {
       const c = states.find((s) => s.code === opts.chosenCode);
-      if (c) { pick = c; chosenStates = states; break; }
+      if (c) { pick = c; chosenStates = states; chosenAcqPlans = acqPlans; break; }
     }
     const r = selectItem(states, {
       now,
@@ -245,10 +265,11 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
       // must stay easy and the session must end on a sure win.
       reachUp: warmup || opts.peakEnd ? false : opts.reachUp,
       seedGrade: seedGradeFor(schoolYear),
+      acquisitionCodes: acqPlans.size ? new Set(acqPlans.keys()) : undefined, // the one eligibility touch
     });
     scores = r.scores;
     introduced = r.introduced;
-    if (r.chosen) { pick = r.chosen; chosenStates = states; break; }
+    if (r.chosen) { pick = r.chosen; chosenStates = states; chosenAcqPlans = acqPlans; break; }
   }
   // Nothing in-band in any active subject → the floor of the first subject (unchanged fallback).
   if (!pick) { pick = firstStates!.find((s) => s.requires.length === 0)!; chosenStates = firstStates; }
@@ -260,7 +281,7 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
   const unlocked = computeUnlocked(states);
   const unlockedCount = states.filter((s) => unlocked.get(s.code)).length;
   const level = Math.max(1, Math.min(8, Math.round((unlockedCount / states.length) * 8)));
-  return { pick, novel, level, scores, introduced };
+  return { pick, novel, level, scores, introduced, acqPlans: chosenAcqPlans };
 }
 
 export function nextItem(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): NextItem {
@@ -464,6 +485,11 @@ export type IssuedItem = {
   level: number;
   warmup: boolean; // was this served under the warm-up ramp (client echoes it back on answer)
   burst?: boolean; // WS III burst (B0): this item is part of a silent timed run → client auto-submits
+  // SCAFFOLDED ACQUISITION: render this item as a faded, self-teaching derivation instead of the
+  // bare fact. Present ONLY for levels 0-2; a bare L3 item carries nothing and is indistinguishable
+  // from any other item. The client rebuilds the scaffold from (code, seed, strategy) with the same
+  // shared builder the server reasons about (buildScaffold) — no prompt or answer crosses the wire.
+  acq?: { level: number; strategy: StrategyId };
 };
 
 export function issueNext(playerId: string, schoolYear: number, now: number, opts: NextOpts = {}): IssuedItem {
@@ -482,12 +508,20 @@ export function issueNext(playerId: string, schoolYear: number, now: number, opt
       return { code: burstCode, seed, family: meta.family, answerLength: answerLengthOf(burstCode, seed), novel: false, level: 0, warmup: false, burst: true };
     }
   }
-  const { pick, novel, level } = pickNext(playerId, schoolYear, now, opts);
+  const { pick, novel, level, acqPlans } = pickNext(playerId, schoolYear, now, opts);
   // Word choice is downstream of skill selection (A11): the selector picked `pick.code`;
   // for a spelling skill the PROVIDER now picks the seed (an unseen practice word), else a
   // random seed as before. issueNext is the practice path → phase 'practice'.
   const seed = SKILL_META.get(pick.code)?.subject !== 'maths' ? nextSpellingWord(playerId, pick.code, 'practice') : randomSeed();
-  return { code: pick.code, seed, family: pick.family, answerLength: answerLengthOf(pick.code, seed), novel, level, warmup: opts.warmupTarget != null };
+  // SCAFFOLDED ACQUISITION — THE GENERATION-LAYER DECISION (spec §5). The selector has already
+  // picked the skill on its own unchanged terms; the only question here is which ITEM to emit for
+  // it: the bare fact, or the faded derivation at this child's current level. Opening the arc is
+  // recorded now, at serve time, so the answer path knows what she was shown without asking the
+  // client (the burst does the same with burst_run).
+  const plan = acqPlans.get(pick.code);
+  if (plan) noteScaffoldServed(playerId, plan, now);
+  const acq = plan && plan.level < L_BARE ? { level: plan.level, strategy: plan.strategy } : undefined;
+  return { code: pick.code, seed, family: pick.family, answerLength: answerLengthOf(pick.code, seed), novel, level, warmup: opts.warmupTarget != null, acq };
 }
 
 // The A13/A14 content-side item provider: choose the seed encoding an UNSEEN word from the
@@ -584,9 +618,16 @@ export function sessionAnswer(
   }
 
   let session: SessionProgress | undefined;
+  // SCAFFOLDED ACQUISITION: the level this skill is being served at, read from the SERVER's own
+  // state (the client is never asked). Levels 0-2 were scaffolded — the attempt is recorded, but
+  // as warmup-class: a weak upward θ nudge, no θ damage on a miss, and NEVER a rate (appendAttempt
+  // sets warmup=1 for them, which is what every rate/aim/sprint query already filters on). Level 3
+  // is the bare rung and stays an ordinary attempt in every respect.
+  const acqLevel = servedLevel(playerId, code);
+  const scaffolded = isScaffolded(acqLevel);
   if (!already) {
     const features = extractFeatures(code, it.prompt, it.answer);
-    const itemJson = JSON.stringify({ prompt: it.prompt, seed, features, features_version: FEATURES_VERSION, warmup, tries });
+    const itemJson = JSON.stringify({ prompt: it.prompt, seed, features, features_version: FEATURES_VERSION, warmup, tries, acqLevel });
     const attemptId = repo.appendAttempt({
       playerId,
       skillCode: code,
@@ -596,6 +637,7 @@ export function sessionAnswer(
       tries: idk ? 0 : tries,
       dontKnow: idk,
       warmup,
+      acqLevel,
       latencyMs: intervalMs, // CLIENT-measured render→capture; never a server round-trip
       at: now,
       idemKey,
@@ -605,14 +647,20 @@ export function sessionAnswer(
     if (correct && repo.insertCardIfFirst(playerId, code, attemptId, now)) {
       repo.appendUsageEvent(playerId, 'card_earned', code, now);
     }
-    // Diagnostics: a resolved wrong/idk answer → log the rebuilt question (never warm-up).
-    if (!correct && !warmup) logFailedQuestion(playerId, code, seed, given, idk, now, it);
+    // Diagnostics: a resolved wrong/idk answer → log the rebuilt question (never warm-up, and
+    // never a SCAFFOLDED one: the child was not shown this bare question, so logging it as a
+    // failed question would misrepresent what happened — the fade level records it instead).
+    if (!correct && !warmup && !scaffolded) logFailedQuestion(playerId, code, seed, given, idk, now, it);
     // WS III-a shadow detector — invisible; notes when a mastered skill looks fluency-ready.
     repo.recordShadowFluency(playerId, code, now);
     repo.recordRecogShadow(playerId, code, now); // D1: recognition-rung shadow (invisible)
     // WS III burst (B0, SHADOW): if this resolved answer belongs to an active burst run, advance it
     // and, on completion, record its silent measurement. Awards nothing; ignored when no run active.
     if (sessionId != null) settleBurstOnAnswer(playerId, sessionId, code, player.school_year, now);
+    // SCAFFOLDED ACQUISITION: advance the fade schedule (two clean first-try successes thin the
+    // scaffold a level; any miss softens it by one, never below the fullest) and graduate off the
+    // bare rung — after which acquisition stops firing and the skill is an ordinary rung again.
+    if (acqLevel != null) settleAcquisitionOnAnswer(playerId, code, acqLevel, correct, idk ? 0 : tries, idk, now);
     session = sessionId != null ? advanceSession(playerId, sessionId, now) : undefined;
   } else if (sessionId != null) {
     const run = repo.sessionRunById(sessionId);

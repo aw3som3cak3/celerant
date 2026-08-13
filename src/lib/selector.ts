@@ -19,6 +19,15 @@ export const TARGET_SUCCESS = 0.8;
 // an out-of-band one waits until the child's θ brings it into the band.
 export const P_BAND = 0.2;
 
+// SCAFFOLDED ACQUISITION — the priority a ready-but-unlearned skill takes in place of its
+// distance-to-target term (see acquisitionCodes). Sized to give a TEACHING CADENCE, not a drill:
+// the best a normal skill can score is ~0.40 (perfectly on target, maximally overdue, plus the
+// jitter), so at 0.5 an acquisition skill wins only once its interleaving penalty has decayed —
+// i.e. never twice in a row, never two items apart, and about one item in eight per unlearned
+// fact. Below ~0.4 it would lose to the flood of never-seen in-band skills and the hole would go
+// on being routed around (which is the bug); far above it, one gap would eat the session.
+export const ACQ_PRIORITY = 0.5;
+
 // Fluency evidence for a component, three-valued (addendum §7). `unknown` is
 // distinct from a low measured/provisional value: it means nothing has been
 // measured or seeded, which is only possible before placement has run.
@@ -71,6 +80,7 @@ export type SkillScore = {
   decay: number;
   recency: number;
   score: number;
+  acquisition?: boolean; // this skill will be served as a SCAFFOLD, not a bare item (see acquisitionCodes)
 };
 
 // A skill is "fluent enough to unlock what follows it" only if it is a compound
@@ -196,6 +206,21 @@ export type SelectOptions = {
   // Ignored (falls through to normal in-band selection) if there is no above-band
   // skill, i.e. the child is already at his ceiling.
   reachUp?: boolean;
+  // SCAFFOLDED ACQUISITION — THE ONE SELECTION-LAYER TOUCH (spec §5). Codes the caller has
+  // determined will be served as a self-teaching SCAFFOLD rather than a bare item: the child
+  // failed/idk'd the fact, but every input its derivation needs is already fluent, so what she
+  // will actually see is winnable by construction. Two consequences, and no others:
+  //   (a) such a skill stays in the candidate pool even when its BARE-fact p sits below the
+  //       band — otherwise the very fact she just missed drops out of reach and the selector
+  //       routes around a ready-but-unlearned skill, which is the whole failure this fixes;
+  //   (b) it is RANKED as if it sat exactly at the target (which is what a scaffold is), so it
+  //       competes on the ordinary spacing/interleaving terms instead of on its bare p.
+  // Everything else is untouched: unlock/gate, θ, the band for every other skill, previousCode,
+  // the recency penalty (so a scaffold is never hammered back-to-back) and peak-end, which
+  // still picks by RAW p and therefore never ends a session on a scaffold unless it is the
+  // only candidate. Absent (the default) ⇒ byte-identical to the pre-acquisition selector.
+  // The selector stays subject-blind: it receives a set of codes and never asks why.
+  acquisitionCodes?: ReadonlySet<string>;
   // The child's placement grade (seedGradeFor). Governs the pre-symbolic floor:
   // a child placed above it (seedGrade ≥ 1) who has real symbolic work is not
   // served the year-0 on-ramp rungs. Default 0 → no suppression (beginner). See
@@ -216,8 +241,12 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
     const p = predict(s.theta);
     const d = decay(s, opts.now);
     const r = recency(s.code, opts.recentCodes);
-    const score = -Math.abs(p - target) + 0.35 * d - 0.5 * r + 0.05 * opts.rand();
-    return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score };
+    // An acquisition skill is not ranked on its bare-fact p at all — what will actually be
+    // served is a faded scaffold whose every step she can already do. It takes ACQ_PRIORITY in
+    // place of the distance term, and then competes on the ORDINARY spacing/interleaving terms.
+    const acquisition = opts.acquisitionCodes?.has(s.code) ?? false;
+    const score = (acquisition ? ACQ_PRIORITY : -Math.abs(p - target)) + 0.35 * d - 0.5 * r + 0.05 * opts.rand();
+    return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score, acquisition };
   });
 
   // PLACEMENT-AWARE FLOOR (one-ova-track / number-sense-onramp). The year-0 rungs
@@ -244,7 +273,9 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
   // newly unlocked. A skill that's too hard waits until the child's θ rises to
   // meet it (or its θ is re-seeded down). Nothing outside the band is ever served.
   const eligible = scores.filter((s) => s.eligible);
-  let pool = eligible.filter((s) => Math.abs(s.p - target) <= P_BAND);
+  // ...plus the acquisition candidates, which enter the pool on the scaffold's winnability
+  // rather than on the bare fact's p (the one eligibility touch — see acquisitionCodes).
+  let pool = eligible.filter((s) => s.acquisition || Math.abs(s.p - target) <= P_BAND);
 
   // Empty band: never serve the least-bad too-hard item. Fall back to the item
   // closest to target from the SAFE side — err too-easy, never too-hard (failing

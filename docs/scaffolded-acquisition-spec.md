@@ -1,6 +1,7 @@
 # Scaffolded acquisition — teaching a fact in-app, not routing to a grownup
 
-Status: SPEC (2026-08-13). First slice: multiplication derived facts (sushi's 3/4/6/8× gap
+Status: BUILT (2026-08-13) — first slice shipped; see §10 for what was resolved in the build.
+First slice: multiplication derived facts (sushi's 3/4/6/8× gap
 is the first real case). Self-contained for a fresh builder.
 
 ## 0. The problem, and the principle it forces
@@ -178,3 +179,53 @@ it hands off cleanly and disappears.
 - Whether L0's sub-steps count as their own (weak) practice for the input skills, or are inert.
 - Ignition timing: fire acquisition on the *first* miss/idk of a ready fact, or after two, to
   avoid scaffolding a careless slip.
+
+## 10. As built (2026-08-13) — the decisions this slice resolved
+
+Where it lives: `src/lib/acquisition-content.ts` (pure + client-safe: derivations, scaffold
+builder, fade fold), `src/lib/acquisition.ts` (server: trigger, state, settle),
+`src/app/_components/AcquisitionStage.tsx` (the child-facing surface, on `InputStage`),
+`acquisition_state` + `attempt.acq_level` (schema/migration), and the ONE selector touch in
+`selector.ts` (`SelectOptions.acquisitionCodes`).
+
+- **The decision point.** `pickNext` picks a skill unchanged; `issueNext` then asks the plan map
+  whether to emit the bare fact or the scaffold at this child's level. The answer path
+  (`sessionAnswer`) reads the level from the SERVER's own state — the client is never trusted for
+  it — flags the attempt, and settles the fade schedule.
+- **Ledger flag.** `attempt.acq_level` = the level SERVED (0–3), NULL on every ordinary/legacy
+  row. Levels 0–2 additionally set the existing `warmup` flag, which is what every rate / aim /
+  sprint / burst / calibration query already filters on — so a derived latency cannot reach the
+  fluency number through any path, present or future, without someone deliberately removing that
+  filter. L3 is the bare rung: `warmup = 0`, honest timing, ordinary θ.
+- **θ.** Scaffolded success = half-K UP (as warm-up); scaffolded MISS = no θ update at all
+  (`applyAttemptToCache` and `computeAbility`, one rule, both paths). A NULL `acq_level` keeps
+  the old behaviour byte-for-byte, so every existing child's replay is unchanged.
+- **Thresholds** (§9.1): 2 clean first-try successes to advance a level, 1 miss/idk to drop one
+  (never below L0). The drop is faster than the climb on purpose — a miss means the scaffold was
+  too thin. L3 + 2 clean = graduation, which is monotonic.
+- **Ignition** (§9.4): the last ordinary attempt must be a miss/idk AND either she has never
+  produced the fact cleanly in the last 8 (a fresh table → ignite on the first miss) or ≥2 of the
+  last 4 were misses (an established fact needs more than one slip).
+- **Derivation choice** (§9.2): shallowest fluent path; ×8 falls back from `x4_double` to
+  `x2_double_double` when ×4 isn't fluent. Inputs include the ADD/SUB rung the last step needs
+  (`add_2d_carry` / `sub_2d_borrow`), because "35 + 7" is a real step. Doubling is rendered as an
+  addition (28 + 28), not "× 2": 28 × 2 is not a fact in the ×2 table she owns.
+- **L0 sub-steps are INERT** (§9.3): they write nothing, score nothing, time nothing. One served
+  item is still exactly one resolved attempt, and a fumbled sub-step just shows its value and
+  moves on.
+- **Eligibility** (§5): `acquisitionCodes` — a plain set of codes handed to `selectItem`. Such a
+  skill (a) stays in the candidate pool below the band and (b) takes `ACQ_PRIORITY = 0.5` in
+  place of its distance-to-target term. Sized against the best score a normal skill can reach
+  (~0.40) so an unlearned fact returns about once every eight items and never twice in a row —
+  a teaching cadence, not a drill. Everything else — unlock/gate, θ, the band for other skills,
+  peak-end, previousCode, interleaving — is untouched, and an absent set is byte-identical to
+  the pre-acquisition selector.
+- **Ramp.** Acquisition stands aside while the onboarding ramp or the two-miss retreat is
+  running (the same guard the burst uses); those own the opening and the rescue.
+- **Burst.** A skill under acquisition is skipped by `burstReadyCode` — one machine owns a skill
+  at a time.
+- **State is a cache.** `replay()` refolds `acquisition_state` from `attempt.acq_level` with the
+  same pure transition the live path applies, so a void/reassign/årskurs change re-derives it.
+- **Fallback.** `stalledAcquisitions()` reports a skill missing 3× in a row at L0 (an input we
+  believed fluent isn't there); `STRATEGY_COPY` holds the parent-language text. No surface reads
+  it yet — that is the one deliberate TODO, and a stalled skill keeps being taught meanwhile.

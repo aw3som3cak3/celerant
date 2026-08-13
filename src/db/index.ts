@@ -114,6 +114,11 @@ const MIGRATIONS = [
   // same as probe/usage_event: no replay/selector/θ/aim/gate path ever reads env_json.
   'ALTER TABLE attempt ADD COLUMN env_json TEXT',
   'ALTER TABLE tool_rate ADD COLUMN env_json TEXT',
+  // SCAFFOLDED ACQUISITION (docs/scaffolded-acquisition-spec.md): the fade level a scaffolded
+  // item was SERVED at (0 full … 3 bare), NULL on every ordinary attempt — including every row
+  // that predates this, so replay reproduces their θ byte-for-byte. Levels 0-2 also carry
+  // warmup=1, which is what keeps a derived latency out of the fluency/aim path.
+  'ALTER TABLE attempt ADD COLUMN acq_level INTEGER',
 ];
 
 export function getDb(): Database.Database {

@@ -50,6 +50,11 @@ function burstAim(playerId: string, code: string, schoolYear: number): { aim: nu
 // skill). Ready = a candidate that is shadow-ready (clean practice rate ≥ factor × aim) AND off cooldown.
 export function burstReadyCode(playerId: string, schoolYear: number, now: number): string | null {
   for (const e of eligibleSprintSkills(playerId)) {
+    // A skill mid-ACQUISITION is being taught, not measured: its items may be scaffolded (and so
+    // warmup-class, i.e. invisible to the burst's own rate sum), and one machine at a time must
+    // own the skill. In practice a skill under acquisition can't reach the sprint-eligibility
+    // accuracy bar anyway — this makes that structural rather than incidental.
+    if (repo.acquisitionLevel(playerId, e.code) != null) continue;
     const last = repo.lastBurstStartedAt(playerId, e.code);
     if (last != null && now - last < BURST_COOLDOWN_MS) continue; // cooldown
     const pr = repo.cleanPracticeRate(playerId, e.code);

@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS attempt (
   idem_key     TEXT,                        -- client idempotency key; NULL on legacy/server-generated rows
   session_run_id INTEGER,                   -- the session this item belonged to; NULL outside a session (position-in-session analysis)
   env_json     TEXT,                         -- model-INVISIBLE device fingerprint (JSON); de-confounds a motor rate from the device. NO model path reads it (see deviceEnv.ts)
+  acq_level    INTEGER,                     -- SCAFFOLDED ACQUISITION: the fade level this item was SERVED at (0 full … 3 bare), NULL = an ordinary item. Levels 0-2 are scaffolded and also carry warmup=1 (warmup-class: weak-up θ, NEVER a rate). The ledger truth acquisition_state is folded from.
   voided_at    INTEGER,
   void_reason  TEXT
 );
@@ -455,4 +456,23 @@ CREATE TABLE IF NOT EXISTS image_review (
   at      INTEGER NOT NULL,
   PRIMARY KEY (kind, word)
 );
+
+-- acquisition_state (SCAFFOLDED ACQUISITION — docs/scaffolded-acquisition-spec.md §5). The
+-- per-(child, skill) fade level of the self-teaching derived-fact scaffold. This is a CACHE, like
+-- the ability cache: the truth is the attempt ledger (attempt.acq_level on every acquisition-managed
+-- attempt), and replay() rebuilds this table by folding those rows (foldFade). Model-invisible to
+-- fluency: nothing here is read by the rate/aim/sprint path, and the selector reads it only through
+-- the narrow acquisition-eligibility touch (a ready-but-unlearned skill stays selectable).
+CREATE TABLE IF NOT EXISTS acquisition_state (
+  player_id  TEXT NOT NULL REFERENCES player(id),
+  skill_code TEXT NOT NULL,
+  fade_level INTEGER NOT NULL,          -- 0 full | 1 partial | 2 cued | 3 bare | 4 GRADUATED (monotonic)
+  strategy   TEXT,                      -- the derivation chosen at ignition (StrategyId), kept stable across the arc
+  clean      INTEGER NOT NULL DEFAULT 0, -- consecutive first-try successes at the current level
+  l0_misses  INTEGER NOT NULL DEFAULT 0, -- consecutive misses at L0 — the grownup-alert fallback seam (§7)
+  started_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (player_id, skill_code)
+);
+
 `;

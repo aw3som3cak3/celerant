@@ -8,6 +8,7 @@ import { skillsForSubject } from '@/lib/subjects';
 import { wordForSeed } from '@/lib/spelling-content';
 import { aimFor, aimForSkill, bestObservedDigitRate as bestObservedFrom, SPRINT_ACC_FLOOR, SHADOW_TRIGGER_FACTOR, SPRINT_ACCURACY_WINDOW, SPRINT_ACCURACY_GATE, RECOG_ACCURACY_WINDOW, RECOG_ACCURACY_GATE } from '@/lib/fluency';
 import { expectedPhysicalDigits } from '@/lib/item';
+import { L_BARE as ACQ_BARE_LEVEL, GRADUATED as ACQ_GRADUATED, isClean, applyOutcome, foldFade, isStalled, type FadeState } from '@/lib/acquisition-content';
 import { seedGradeFor } from '@/lib/onboarding';
 import { doseResponse, staggeredBaseline, crossover, displacement } from '@/lib/analysis';
 
@@ -27,6 +28,7 @@ function applyAttemptToCache(
   warmup: number,
   at: number,
   latencyMs: number,
+  acqLevel: number | null = null,
 ): void {
   const db = getDb();
   const ab = db
@@ -36,18 +38,26 @@ function applyAttemptToCache(
     | undefined;
   if (!ab) return; // a skill not in the graph: no cache row to update
   const decision = updateDecision(dontKnow || given === null, tries, correct, latencyMs);
+  // SCAFFOLDED ACQUISITION (spec §5, invariant 2): a scaffolded item (fade level 0-2) is
+  // warmup-class for θ — a WEAK UPWARD nudge on success (so a ready-but-unlearned skill is
+  // pulled back INTO band rather than avoided) and NO update at all on a miss (the miss says
+  // the scaffold was too thin, not that the child got worse; the response is to soften a
+  // level). A bare L3 item is an ordinary item in every respect. NULL (every pre-existing row)
+  // keeps the old behaviour byte-for-byte. Mirrored exactly in replay.computeAbility.
+  const scaffolded = acqLevel != null && acqLevel < ACQ_BARE_LEVEL;
   let theta = ab.theta;
   let rd = ab.rd;
   let vol = ab.volatility;
   let nObs = ab.n_obs;
-  if (decision.apply) {
+  if (decision.apply && !(scaffolded && decision.correct === 0)) {
     // Same idle-inflation as replay, from the stored last_seen — so this fast
     // path stays byte-for-byte identical to a full replay (ui-lifecycle §7).
     const idle = ab.last_seen_at == null ? 0 : (at - ab.last_seen_at) / RATING_PERIOD_MS;
     // Warm-up: a correct answer on an easy opener is uninformative (she was meant
     // to get it), so halve it; a warm-up MISS is surprising and updates fully
-    // (onboarding-ramp §4).
-    const halve = decision.halveKChild || (warmup === 1 && decision.correct === 1);
+    // (onboarding-ramp §4). A scaffolded acquisition success is halved for the same
+    // reason (she was helped to it) — and its miss never reaches here at all.
+    const halve = decision.halveKChild || (warmup === 1 && decision.correct === 1) || scaffolded;
     const u = update({ theta, rd, vol, childObs: nObs }, decision.correct, halve, idle);
     theta = u.theta;
     rd = u.rd;
@@ -252,6 +262,7 @@ export type AppendAttempt = {
   tries: number;
   dontKnow: boolean;
   warmup?: boolean;
+  acqLevel?: number | null; // SCAFFOLDED ACQUISITION: the fade level this item was SERVED at (0-3); NULL = an ordinary item
   latencyMs: number;
   at: number;
   idemKey?: string | null; // client idempotency key (input-timing Phase A); NULL server-generated
@@ -262,14 +273,19 @@ export type AppendAttempt = {
 // Append to the ledger, then rebuild the cache. Item generation itself writes
 // nothing (§6.7); this is the only write on the answer path.
 export function appendAttempt(a: AppendAttempt): number {
-  const warmup = a.warmup ? 1 : 0;
+  const acqLevel = a.acqLevel ?? null;
+  // A SCAFFOLDED acquisition item (levels 0-2) is also flagged warmup — that one flag is what
+  // every rate/aim/sprint/analysis query already filters on, so a derived latency can never
+  // reach the fluency number (invariant 2). A bare L3 item keeps warmup as given: it IS the
+  // ordinary retrieval rung, and its timing is honest.
+  const warmup = a.warmup || (acqLevel != null && acqLevel < ACQ_BARE_LEVEL) ? 1 : 0;
   const info = getDb()
     .prepare(
-      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key, session_run_id, env_json)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO attempt (player_id, skill_code, item_json, given, correct, tries, dont_know, warmup, latency_ms, at, idem_key, session_run_id, env_json, acq_level)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null, a.sessionRunId ?? null, a.envJson ?? null);
-  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at, a.latencyMs); // fast path, not full replay
+    .run(a.playerId, a.skillCode, a.itemJson, a.given, a.correct, a.tries, a.dontKnow ? 1 : 0, warmup, a.latencyMs, a.at, a.idemKey ?? null, a.sessionRunId ?? null, a.envJson ?? null, acqLevel);
+  applyAttemptToCache(a.playerId, a.skillCode, a.given, a.tries, a.correct, a.dontKnow, warmup, a.at, a.latencyMs, acqLevel); // fast path, not full replay
   return Number(info.lastInsertRowid);
 }
 
@@ -1488,6 +1504,100 @@ export function everMilestonedSkills(playerId: string): Set<string> {
     // A milestone crossing: clean AND at/above the aim it faced at the time.
     if (acc >= SPRINT_ACC_FLOOR && rate >= aimFor(tr, seedGrade, sp.skill_code, floor)) out.add(sp.skill_code);
     floor = Math.max(floor, rate * expectedPhysicalDigits(sp.skill_code)); // this sprint joins the floor for LATER ones
+  }
+  return out;
+}
+
+// ── SCAFFOLDED ACQUISITION — the fade state + the ignition evidence ─────────
+// docs/scaffolded-acquisition-spec.md. `acquisition_state` is a CACHE of the ledger (every
+// acquisition-managed attempt stores the level it was served at in attempt.acq_level);
+// replay() rebuilds it with the same pure fold the live path applies one row at a time.
+
+export type AcquisitionRow = {
+  player_id: string;
+  skill_code: string;
+  fade_level: number;
+  strategy: string | null;
+  clean: number;
+  l0_misses: number;
+  started_at: number;
+  updated_at: number;
+};
+
+// Every acquisition row this child has, by skill code — one query for the whole selection pass.
+export function acquisitionStates(playerId: string): Map<string, AcquisitionRow> {
+  const rows = getDb().prepare('SELECT * FROM acquisition_state WHERE player_id = ?').all(playerId) as AcquisitionRow[];
+  return new Map(rows.map((r) => [r.skill_code, r]));
+}
+
+// The level an item for this skill is being SERVED at right now, or null when the skill is not
+// under acquisition (no row) or has GRADUATED. This is the server's own record — the client
+// never tells us what it was shown.
+export function acquisitionLevel(playerId: string, skillCode: string): number | null {
+  const r = getDb()
+    .prepare('SELECT fade_level FROM acquisition_state WHERE player_id = ? AND skill_code = ?')
+    .get(playerId, skillCode) as { fade_level: number } | undefined;
+  if (!r || r.fade_level >= ACQ_GRADUATED) return null;
+  return r.fade_level;
+}
+
+// IGNITION: open the arc for (child, skill) at the fullest scaffold. Idempotent — an existing
+// row (mid-arc or graduated) is never reset, so a graduated skill can never be re-ignited.
+export function startAcquisition(playerId: string, skillCode: string, strategy: string, now: number): void {
+  getDb()
+    .prepare(
+      `INSERT INTO acquisition_state (player_id, skill_code, fade_level, strategy, clean, l0_misses, started_at, updated_at)
+       VALUES (?, ?, 0, ?, 0, 0, ?, ?)
+       ON CONFLICT(player_id, skill_code) DO NOTHING`,
+    )
+    .run(playerId, skillCode, strategy, now, now);
+}
+
+// Apply ONE resolved outcome to the fade schedule (advance on CLEAN_TO_ADVANCE clean first-try
+// successes, drop a level on any miss/idk, graduate off L3). Same pure transition replay folds.
+export function settleAcquisition(playerId: string, skillCode: string, servedLevel: number, ok: boolean, now: number): FadeState | null {
+  const db = getDb();
+  const row = db
+    .prepare('SELECT fade_level, clean, l0_misses FROM acquisition_state WHERE player_id = ? AND skill_code = ?')
+    .get(playerId, skillCode) as { fade_level: number; clean: number; l0_misses: number } | undefined;
+  if (!row) return null;
+  const next = applyOutcome({ level: row.fade_level, clean: row.clean, l0Misses: row.l0_misses }, servedLevel, ok);
+  db.prepare('UPDATE acquisition_state SET fade_level = ?, clean = ?, l0_misses = ?, updated_at = ? WHERE player_id = ? AND skill_code = ?')
+    .run(next.level, next.clean, next.l0Misses, now, playerId, skillCode);
+  return next;
+}
+
+// The grownup-alert FALLBACK query (spec §7): skills where even the fullest scaffold keeps
+// failing — an input we believed fluent isn't really there. No surface reads this yet; the
+// parent-language strategy copy is STRATEGY_COPY in acquisition-content.ts.
+export function stalledAcquisitions(playerId: string): { skillCode: string; strategy: string | null }[] {
+  return [...acquisitionStates(playerId).values()]
+    .filter((r) => r.fade_level < ACQ_GRADUATED && isStalled({ level: r.fade_level, clean: r.clean, l0Misses: r.l0_misses }))
+    .map((r) => ({ skillCode: r.skill_code, strategy: r.strategy }));
+}
+
+// The last `perSkill` ORDINARY (non-warmup, non-scaffolded) outcomes for each of `codes`,
+// newest first — the evidence the ignition test reads (spec §2.3). One query for the whole
+// candidate set; a skill with no history simply has no entry.
+export function recentSkillOutcomes(playerId: string, codes: string[], perSkill: number): Map<string, boolean[]> {
+  const out = new Map<string, boolean[]>();
+  if (codes.length === 0) return out;
+  const placeholders = codes.map(() => '?').join(',');
+  const rows = getDb()
+    .prepare(
+      `SELECT skill_code, correct, tries, dont_know FROM (
+         SELECT skill_code, correct, tries, dont_know,
+                ROW_NUMBER() OVER (PARTITION BY skill_code ORDER BY id DESC) rn
+           FROM attempt
+          WHERE player_id = ? AND voided_at IS NULL AND warmup = 0 AND acq_level IS NULL
+            AND skill_code IN (${placeholders})
+       ) WHERE rn <= ? ORDER BY skill_code, rn`,
+    )
+    .all(playerId, ...codes, perSkill) as { skill_code: string; correct: number; tries: number; dont_know: number }[];
+  for (const r of rows) {
+    const list = out.get(r.skill_code) ?? [];
+    list.push(isClean(r.correct, r.tries, r.dont_know === 1));
+    out.set(r.skill_code, list);
   }
   return out;
 }

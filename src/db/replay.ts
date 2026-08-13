@@ -5,6 +5,7 @@ import { update, updateDecision, SEED_RD, SEED_VOL, RATING_PERIOD_MS } from '@/m
 import { aimForSkill, bestObservedDigitRate } from '@/lib/fluency';
 import { subjectSeedGrade } from '@/lib/onboarding';
 import { buildItem } from '@/lib/item';
+import { L_BARE as ACQ_BARE_LEVEL, applyOutcome, isClean, type FadeState } from '@/lib/acquisition-content';
 
 // replay(playerId) — the most important function in the codebase (ui-lifecycle
 // §1). `ability` is a cache; this rebuilds it for one player by seeding θ and
@@ -39,7 +40,7 @@ type Row = {
 export function computeAbility(
   chosenYear: number,
   toolRate: number | null,
-  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; latency_ms: number; at: number }[],
+  attempts: { skill_code: string; given: string | null; correct: number; tries: number; dont_know: number; warmup: number; latency_ms: number; at: number; acq_level?: number | null }[],
   sprints: { skill_code: string; correct: number; errors: number; duration_s: number; interval_ms: number | null; at: number }[],
 ): Map<string, Row> {
   const cache = new Map<string, Row>();
@@ -79,12 +80,17 @@ export function computeAbility(
     const c = cache.get(a.skill_code);
     if (!c) continue; // a skill deleted from the graph: its evidence is skipped
     const decision = updateDecision(a.dont_know === 1 || a.given === null, a.tries, a.correct, a.latency_ms);
-    if (decision.apply) {
+    // SCAFFOLDED ACQUISITION: a scaffolded item (fade level 0-2) is warmup-class — weak UPWARD
+    // on success, and NO update at all on a miss (a miss means the scaffold was too thin; the
+    // response is to soften a level, never to crater θ). Same rule as the fast path, driven by
+    // the stored flag; NULL (every ordinary/legacy row) is byte-for-byte the old behaviour.
+    const scaffolded = a.acq_level != null && a.acq_level < ACQ_BARE_LEVEL;
+    if (decision.apply && !(scaffolded && decision.correct === 0)) {
       // Idle since this skill was last seen — grows RD (spacing affecting belief).
       const idle = c.last_seen_at == null ? 0 : (a.at - c.last_seen_at) / RATING_PERIOD_MS;
       // Warm-up success is halved, a warm-up miss is full — same rule as the fast
       // path, driven by the stored flag, so replay reproduces θ (onboarding §4).
-      const halve = decision.halveKChild || (a.warmup === 1 && decision.correct === 1);
+      const halve = decision.halveKChild || (a.warmup === 1 && decision.correct === 1) || scaffolded;
       const u = update({ theta: c.theta, rd: c.rd, vol: c.volatility, childObs: c.n_obs }, decision.correct, halve, idle);
       c.theta = u.theta;
       c.rd = u.rd;
@@ -134,7 +140,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
 
   const attempts = db
     .prepare(
-      'SELECT skill_code, given, correct, tries, dont_know, warmup, latency_ms, at FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
+      'SELECT skill_code, given, correct, tries, dont_know, warmup, latency_ms, at, acq_level FROM attempt WHERE player_id = ? AND voided_at IS NULL ORDER BY at, id',
     )
     .all(playerId) as {
     skill_code: string;
@@ -145,6 +151,7 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
     warmup: number;
     latency_ms: number;
     at: number;
+    acq_level: number | null;
   }[];
 
   const sprints = db
@@ -164,8 +171,43 @@ function replayOne(db: ReturnType<typeof getDb>, playerId: string, override?: { 
     for (const [code, r] of cache) {
       ins.run(playerId, code, r.theta, r.rd, r.volatility, r.n_obs, r.last_seen_at, r.rate, r.rate_state);
     }
+    rebuildAcquisitionState(db, playerId, attempts);
   });
   tx();
+}
+
+// Rebuild acquisition_state from the ledger (scaffolded-acquisition §5). Like `ability`, the
+// fade state is a CACHE: every acquisition-managed attempt stores the level it was SERVED at,
+// and folding those rows with the SAME pure transition the live path applies reproduces the
+// state exactly. So a void / reassign / årskurs change re-derives the fade schedule instead of
+// leaving it stranded on evidence that no longer exists. The chosen strategy is not derivable
+// from the ledger (it depends on which inputs were fluent at ignition), so an existing row's
+// strategy is preserved; a fold with no surviving evidence drops the row and the trigger simply
+// re-ignites from the child's attempt history.
+function rebuildAcquisitionState(
+  db: ReturnType<typeof getDb>,
+  playerId: string,
+  attempts: { skill_code: string; correct: number; tries: number; dont_know: number; acq_level: number | null }[],
+): void {
+  const prior = db.prepare('SELECT skill_code, strategy, started_at FROM acquisition_state WHERE player_id = ?').all(playerId) as
+    { skill_code: string; strategy: string | null; started_at: number }[];
+  const priorBy = new Map(prior.map((r) => [r.skill_code, r]));
+  const folded = new Map<string, FadeState>();
+  for (const a of attempts) {
+    if (a.acq_level == null) continue;
+    const ok = isClean(a.correct, a.tries, a.dont_know === 1);
+    folded.set(a.skill_code, applyOutcome(folded.get(a.skill_code) ?? null, a.acq_level, ok));
+  }
+  db.prepare('DELETE FROM acquisition_state WHERE player_id = ?').run(playerId);
+  const ins = db.prepare(
+    `INSERT INTO acquisition_state (player_id, skill_code, fade_level, strategy, clean, l0_misses, started_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+  );
+  const now = Date.now();
+  for (const [code, st] of folded) {
+    const p = priorBy.get(code);
+    ins.run(playerId, code, st.level, p?.strategy ?? null, st.clean, st.l0Misses, p?.started_at ?? now, now);
+  }
 }
 
 // The model version the ability cache is built under. Bump when the seed or the

@@ -8,6 +8,8 @@ import { Emoji } from '../_components/Emoji';
 import { CATS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { InputStage, type StageItem, type Captured } from '../_components/InputStage';
+import { AcquisitionStage } from '../_components/AcquisitionStage';
+import { type StrategyId } from '@/lib/acquisition-content';
 import { ChoiceStage } from '../_components/ChoiceStage';
 import { newIdemKey } from '../_components/answerQueue';
 import { enqueueAnswer, ackAnswers, pendingAnswers } from '../_components/answerQueue';
@@ -18,7 +20,10 @@ import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
 import { ENGLISH_LETTERS } from '@/lib/english-content';
 
 // The item the SERVER issues for the client to build locally (input-timing A4).
-type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean; burst?: boolean };
+type Item = { code: string; seed: number; family: string; answerLength: number; novel: boolean; level: number; warmup: boolean; burst?: boolean;
+  // SCAFFOLDED ACQUISITION: present ⇒ render the faded derivation at this level instead of the
+  // bare fact (the client rebuilds it from code+seed+strategy; the answer never crosses the wire).
+  acq?: { level: number; strategy: StrategyId } };
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp =
   | { status: 'retry' }
@@ -364,6 +369,26 @@ function Practice() {
             options={choiceItem.options}
             onCapture={onChoice}
             disabled={busy || phase === 'correct'}
+            armKey={armKey}
+          />
+          <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
+          <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>
+        </>
+      ) : item.acq ? (
+        <>
+          {/* SCAFFOLDED ACQUISITION: a fact she has met and not encoded, taught in-app as a faded
+              derivation on the same pad and clock. Levels 0-2 only; the bare rung carries no acq. */}
+          <AcquisitionStage
+            key={`acq:${item.code}:${item.seed}`}
+            item={{ code: item.code, seed: item.seed, family: item.family, answerLength: item.answerLength } as StageItem}
+            level={item.acq.level}
+            strategy={item.acq.strategy}
+            playerId={playerId}
+            locale={locale}
+            onCapture={onCapture}
+            disabled={busy || phase === 'correct'}
+            showIdk
+            idkLabel={t('practice.dontKnow')}
             armKey={armKey}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
