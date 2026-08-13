@@ -8,7 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
-import { EN_VERBS, EN_COLORS, EN_NOUNS } from '@/lib/english-content';
+import { EN_VERBS, EN_COLORS, EN_NOUNS, EN_ATTRS } from '@/lib/english-content';
 
 type Kind = 'picto' | 'swatch' | 'noun';
 type Clip = { kind: Kind; word: string; picto?: string; color?: string; emoji?: string };
@@ -18,6 +18,7 @@ const KIND_LABEL: Record<Kind, string> = { picto: 'Verb (SVG)', swatch: 'Färg',
 
 const CLIPS: Clip[] = [
   ...EN_VERBS.map((v): Clip => ({ kind: 'picto', word: v.word, picto: v.picto })),
+  ...EN_ATTRS.map((a): Clip => ({ kind: 'picto', word: a.word, picto: a.picto })),
   ...EN_COLORS.map((c): Clip => ({ kind: 'swatch', word: c.word, color: c.color })),
   ...EN_NOUNS.map((n): Clip => ({ kind: 'noun', word: n.word, emoji: n.emoji })),
 ];

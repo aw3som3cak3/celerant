@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem } from '@/lib/item';
-import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, EN_VERB_ING_WORDS, enNounItem, englishReady } from '@/lib/english-content';
+import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, EN_VERB_ING_WORDS, EN_ATTRS, EN_ATTR_WORDS, enNounItem, englishReady } from '@/lib/english-content';
 import { SKILLS } from '@/skills';
 
 const RECOG = ['en_noun_cognate', 'en_noun_core', 'en_noun_category', 'en_noun_minpair'];
@@ -91,6 +91,22 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
     for (const w of EN_VERB_ING_WORDS) {
       expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `-ing audio ${w}.mp3`).toBe(true);
     }
+  });
+
+  it('Phase B: en_attribute always shows the contrastive PARTNER, and every attribute has picto + audio', () => {
+    const byWord = new Map(EN_ATTRS.map((a) => [a.word, a]));
+    for (let seed = 1; seed <= 40; seed++) {
+      const item = buildItem('en_attribute', seed);
+      const c = item.choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_attribute' });
+      expect(c.options).toHaveLength(3);
+      expect(c.options.every((o) => o.render === 'picto')).toBe(true);
+      const target = byWord.get(String(item.answer))!;
+      const partner = EN_ATTRS.find((a) => a.pair === target.pair && a.word !== target.word)!;
+      expect(c.options.map((o) => String(o.value))).toContain(partner.word); // the contrast is always on screen
+    }
+    for (const a of EN_ATTRS) expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${a.picto}.svg`)), `picto ${a.picto}.svg`).toBe(true);
+    for (const w of EN_ATTR_WORDS) expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `attr audio ${w}.mp3`).toBe(true);
   });
 
   it('is offered to every child (receptive tier ungated), incl. the youngest', () => {

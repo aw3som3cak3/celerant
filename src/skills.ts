@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1153,6 +1153,22 @@ const tierEnglish: Skill[] = [
           prompt: { show: "listen", code: "en_color", word: target.word },
           question: "Vad hör du?",
           options: options.map((c): ChoiceOption => ({ value: c.word, render: "swatch", color: c.color })),
+        },
+      };
+    },
+  }),
+  // ── Phase B (increment 2) · ATTRIBUTES — hear an attribute → tap the pictogram. Contrastive pairs
+  // (the partner is always shown), SVG pictos, no letters. Parallel receptive branch after colours.
+  S({
+    code: "en_attribute", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_color"],
+    generate: (r) => {
+      const { target, options } = enAttrItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.word }, steps: [target.word],
+        choice: {
+          prompt: { show: "listen", code: "en_attribute", word: target.word },
+          question: "Vad hör du?",
+          options: options.map((a): ChoiceOption => ({ value: a.word, render: "picto", kind: a.picto })),
         },
       };
     },

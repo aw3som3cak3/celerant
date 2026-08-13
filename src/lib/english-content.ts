@@ -157,6 +157,30 @@ export function enVerbItem(r: NounRng): { target: EnVerb; options: EnVerb[] } {
   return { target, options: shuffle(r, [target, ...distractors]) };
 }
 
+// ── Phase B (increment 2): ATTRIBUTES — hear an attribute → tap the pictogram (SVG, render:'picto').
+// Taught in CONTRASTIVE PAIRS (`pair`): the partner is always an option, so a RELATIVE attribute (big
+// only means "big" next to "small") always has its contrast on screen — the DI discrimination move.
+// Self-evident icons (arrows, faces, sun/snowflake) carry the rest. Programming-adjacent: up/down.
+export type EnAttr = { word: string; picto: string; pair: string };
+export const EN_ATTRS: readonly EnAttr[] = [
+  { word: 'big', picto: 'big', pair: 'size' },
+  { word: 'small', picto: 'small', pair: 'size' },
+  { word: 'up', picto: 'up', pair: 'dir' },
+  { word: 'down', picto: 'down', pair: 'dir' },
+  { word: 'happy', picto: 'happy', pair: 'mood' },
+  { word: 'sad', picto: 'sad', pair: 'mood' },
+  { word: 'hot', picto: 'hot', pair: 'temp' },
+  { word: 'cold', picto: 'cold', pair: 'temp' },
+];
+export const EN_ATTR_WORDS: readonly string[] = EN_ATTRS.map((a) => a.word);
+
+export function enAttrItem(r: NounRng): { target: EnAttr; options: EnAttr[] } {
+  const target = r.pick(EN_ATTRS);
+  const partner = EN_ATTRS.find((a) => a.pair === target.pair && a.word !== target.word)!; // the contrast, always shown
+  const other = r.pick(EN_ATTRS.filter((a) => a.pair !== target.pair));
+  return { target, options: shuffle(r, [target, partner, other]) };
+}
+
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).
 export const ENGLISH_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('');
 

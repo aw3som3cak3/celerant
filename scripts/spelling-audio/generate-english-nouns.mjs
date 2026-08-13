@@ -24,6 +24,8 @@ const WORDS = [
   'run', 'jump', 'sit', 'sleep', 'eat', 'stop', 'open', 'look',
   // Phase C -ing forms (EN_VERB_ING_WORDS)
   'running', 'jumping', 'sitting', 'sleeping', 'eating', 'stopping', 'opening', 'looking',
+  // Phase B attributes (EN_ATTR_WORDS)
+  'big', 'small', 'up', 'down', 'happy', 'sad', 'hot', 'cold',
 ];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
