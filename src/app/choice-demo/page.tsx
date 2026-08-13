@@ -36,6 +36,36 @@ const ITEMS: Demo[] = [
     options: [4, 5, 6, 7].map((n) => ({ value: n, render: 'group' as const, kind: 'star' })),
     answer: 6,
   },
+  // English sentence mode — one item of each shape, so the surface can be eyeballed on a tablet
+  // without climbing fifteen rungs to reach the tier. Same three ChoiceStage paths the real rungs
+  // use: a Swedish meaning + two whole English sentences, a verb-phrase cloze, a one-word cloze.
+  {
+    prompt: { show: 'sentence', text: 'Idag äter jag ett äpple.', lang: 'sv' },
+    question: 'Vilken mening är rätt på engelska?',
+    options: [
+      { value: 'Today eat I an apple.', render: 'word' as const },
+      { value: 'Today I eat an apple.', render: 'word' as const },
+    ],
+    answer: 'Today I eat an apple.',
+  },
+  {
+    prompt: { show: 'sentence', text: 'Look! The dog ___.', lang: 'en' },
+    question: 'Vad passar i luckan?',
+    options: [
+      { value: 'is running', render: 'word' as const },
+      { value: 'runs', render: 'word' as const },
+    ],
+    answer: 'is running',
+  },
+  {
+    prompt: { show: 'sentence', text: 'My sister is good ___ football.', lang: 'en' },
+    question: 'Vilket ord passar i luckan?',
+    options: [
+      { value: 'on', render: 'word' as const },
+      { value: 'at', render: 'word' as const },
+    ],
+    answer: 'at',
+  },
 ];
 
 export default function ChoiceDemo() {
