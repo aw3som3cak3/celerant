@@ -27,7 +27,7 @@ const key = (c: { kind: string; word: string }) => `${c.kind}:${c.word}`;
 type Filter = 'kvar' | 'alla' | 'flaggade';
 
 function Picture({ c }: { c: Clip }) {
-  if (c.kind === 'picto') return <img className="choice-pic" src={`/pictos/${c.picto}.svg`} alt="" width={110} height={110} />;
+  if (c.kind === 'picto') return <img className="choice-pic" src={`/pictos/${c.picto}.png`} alt="" width={110} height={110} />;
   if (c.kind === 'swatch') return <span style={{ display: 'block', width: 110, height: 110, borderRadius: 16, background: c.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />;
   return <img className="choice-pic" src={`/emoji/${c.emoji}.png`} alt="" width={110} height={110} />;
 }
@@ -140,6 +140,10 @@ export default function GranskaBilderPage() {
           <div className="granska-progress">{Math.min(pos + 1, queue.length)} / {queue.length}</div>
         </div>
       )}
+      <p className="granska-hint" style={{ marginTop: '2rem', fontSize: '0.8rem' }}>
+        Verb- och motsatsbilder från <a href="https://arasaac.org" target="_blank" rel="noreferrer">ARASAAC</a>{' '}
+        (Sergio Palao, CC BY-NC-SA). Substantivbilder är emoji.
+      </p>
     </div>
   );
 }

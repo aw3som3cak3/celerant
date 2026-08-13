@@ -71,7 +71,7 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
       expect(c.options.map((o) => String(o.value))).toContain(String(buildItem('en_verb_action', seed).answer));
     }
     for (const v of EN_VERBS) {
-      expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${v.picto}.svg`)), `picto ${v.picto}.svg`).toBe(true);
+      expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${v.picto}.png`)), `picto ${v.picto}.png`).toBe(true);
     }
     for (const w of EN_VERB_WORDS) {
       expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `verb audio ${w}.mp3`).toBe(true);
@@ -105,7 +105,7 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
       const partner = EN_ATTRS.find((a) => a.pair === target.pair && a.word !== target.word)!;
       expect(c.options.map((o) => String(o.value))).toContain(partner.word); // the contrast is always on screen
     }
-    for (const a of EN_ATTRS) expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${a.picto}.svg`)), `picto ${a.picto}.svg`).toBe(true);
+    for (const a of EN_ATTRS) expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${a.picto}.png`)), `picto ${a.picto}.png`).toBe(true);
     for (const w of EN_ATTR_WORDS) expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `attr audio ${w}.mp3`).toBe(true);
   });
 

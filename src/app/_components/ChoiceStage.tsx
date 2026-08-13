@@ -225,7 +225,7 @@ export function ChoiceStage({
             ) : o.render === 'picto' ? (
               // English Phase B/C: tap the SVG pictogram (verbs/attributes the emoji photo-set lacks).
               <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
-                <img className="choice-pic" src={`/pictos/${o.kind}.svg`} alt="" draggable={false} />
+                <img className="choice-pic" src={`/pictos/${o.kind}.png`} alt="" draggable={false} />
               </button>
             ) : o.render === 'sizednoun' ? (
               // Two-word recombination ("big cat"): the noun emoji, shown big or small.
@@ -235,7 +235,7 @@ export function ChoiceStage({
             ) : o.render === 'nounverb' ? (
               // SVO frame ("the dog is running"): agent emoji + action pictogram — bind BOTH.
               <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
-                <span className="nounverb"><img src={`/emoji/${o.noun}.png`} alt="" draggable={false} /><img src={`/pictos/${o.verb}.svg`} alt="" draggable={false} /></span>
+                <span className="nounverb"><img src={`/emoji/${o.noun}.png`} alt="" draggable={false} /><img src={`/pictos/${o.verb}.png`} alt="" draggable={false} /></span>
               </button>
             ) : o.render === 'word' ? (
               // English print bridge (Phase D): tap the printed word you heard.

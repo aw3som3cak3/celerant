@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" stroke="#37374a" stroke-width="8" stroke-linecap="round" stroke-linejoin="round">
-  <g stroke="#ef7d1a" stroke-width="6" opacity="0.85"><path d="M6 40h16"/><path d="M4 54h20"/><path d="M8 68h14"/></g>
-  <circle cx="62" cy="24" r="9" fill="#37374a" stroke="none"/>
-  <path d="M60 34 L52 58"/>
-  <path d="M56 42 L72 36"/>
-  <path d="M56 44 L42 50"/>
-  <path d="M52 58 L66 68 L64 84"/>
-  <path d="M52 58 L40 72 L48 84"/>
-</svg>

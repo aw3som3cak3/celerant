@@ -1,0 +1,19 @@
+English on-ramp pictograms are from ARASAAC (https://arasaac.org), author Sergio Palao,
+licensed CC BY-NC-SA 4.0. Property of the Government of Aragón (Spain). word → pictogram id:
+
+run     6465  (run)
+jump    39052  (jump, leap, hop)
+sit     6611  (sit, sit down)
+sleep   6479  (sleep)
+eat     6456  (eat)
+stop    7196  (stop)
+open    24825  (open, open up, unfold)
+look    6564  (see, look, look at, watch, observe)
+big     4658  (large, greater, greater than, big)
+small   4716  (small, smaller, tiny, little, littler)
+up      5388  (up, upward, upwards)
+down    37428  (climb down by the pool ladder, get in swimming pool, get in water)
+happy   35533  (happy, cheerful)
+sad     35545  (sad, depressed, unhappy)
+hot     2300  (hot)
+cold    4652  (cold)
