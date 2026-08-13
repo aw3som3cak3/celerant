@@ -324,6 +324,14 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     mark('bridge_english_print_v1');
   }
 
+  // Seed the English SENTENCE-MODE rungs (en_sv_order, en_do_question, en_do_negation, en_continuous)
+  // into every existing player's ability cache — same reason as every bridge above: without a seeded
+  // row the selector reads θ 0 (out of band) and never serves the new tier. Replay-all, runs once.
+  if (!done('bridge_english_sentence_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_english_sentence_v1');
+  }
+
   // Backfill the question log from EXISTING wrong/idk attempts (one-off). Forward logging only
   // captures new answers, but every past miss still carries its seed in item_json, so the question
   // is deterministically rebuildable — populate the diagnostic immediately instead of from empty.

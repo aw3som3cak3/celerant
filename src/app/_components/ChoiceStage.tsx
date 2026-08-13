@@ -141,6 +141,15 @@ export function ChoiceStage({
         ) : prompt.show === 'word' ? (
           // English print bridge (Phase D): read the printed word, then pick the picture.
           <div className="printed-word">{prompt.word}</div>
+        ) : prompt.show === 'sentence' ? (
+          // English sentence-mode: a printed SENTENCE. A 'sv' sentence carries the meaning (the
+          // options are the candidate English renderings); an 'en' sentence is the cloze frame, whose
+          // `___` renders as a visible gap the option fills.
+          <div className={`sentence-prompt ${prompt.lang}`}>
+            {prompt.text.split('___').flatMap((part, i, arr) =>
+              i < arr.length - 1 ? [part, <span key={i} className="sentence-blank" aria-label="lucka" />] : [part],
+            )}
+          </div>
         ) : prompt.show === 'group' ? (
           <div className="ground-prompt">
             <Objects kind={prompt.kind} n={prompt.a} />
@@ -186,7 +195,9 @@ export function ChoiceStage({
           )}
         </div>
       ) : (
-        <div className={`ground-options ${options[0]?.render ?? 'numeral'}`}>
+        // A sentence prompt implies phrase-length options: stack them one per row so two whole
+        // candidate sentences stay readable (and tappable) on a tablet instead of squeezing side-by-side.
+        <div className={`ground-options ${options[0]?.render ?? 'numeral'}${prompt.show === 'sentence' ? ' stacked' : ''}`}>
           {options.map((o, i) =>
             o.render === 'numeral' ? (
               <button key={i} className="ground-option" onClick={() => pick(o.value)} disabled={disabled} type="button">

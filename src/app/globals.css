@@ -203,6 +203,15 @@ input {
 .ground-options.word { display: flex; gap: 1rem; flex-wrap: wrap; justify-content: center; }
 .word-option { font-size: 1.5rem; font-weight: 600; padding: 0.2rem 0.6rem; }
 .ground-options.letter .ground-numeral { text-transform: lowercase; }
+/* English sentence-mode: a printed SENTENCE as the prompt, two whole candidate renderings below.
+   A Swedish prompt (.sv) is the MEANING — set apart (softer, italic) so the child reads it as
+   "this is what it means", not as something to copy; an English cloze (.en) is set as plain text
+   with a visible gap. Options stack one per row: two sentences never fit side-by-side on a tablet. */
+.sentence-prompt { font-size: 1.6rem; line-height: 1.45; font-weight: 600; text-align: center; margin: 0.4rem auto; max-width: 22ch; }
+.sentence-prompt.sv { font-style: italic; font-weight: 500; color: var(--ink-soft); }
+.sentence-blank { display: inline-block; width: 4.2ch; border-bottom: 3px solid var(--accent); margin: 0 0.15em; vertical-align: baseline; }
+.ground-options.word.stacked { flex-direction: column; align-items: stretch; gap: 0.7rem; max-width: 30rem; margin: 0 auto; }
+.ground-options.word.stacked .word-option { font-size: 1.3rem; line-height: 1.35; font-weight: 600; }
 
 /* Ear-vetting harness (test family only) — tap a word to hear it. */
 .granska { max-width: 640px; margin: 0 auto; padding: 1.2rem 1rem 3rem; color: var(--ink); }

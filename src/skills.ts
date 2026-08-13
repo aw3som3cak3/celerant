@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem, enTwoWordItem, enFrameItem, enWordItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem, enTwoWordItem, enFrameItem, enWordItem, enSentenceItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1078,6 +1078,26 @@ const READING_READY = "spelling_t1c";
 // the easy-win floor and the ladder climbs, for every learner regardless of Swedish grade. The
 // -ed RULE (holdout = generalization) is split from the irregular-past LEXICAL node (closed set),
 // tagged via `kind` before content (A3). See src/lib/english-content.ts.
+// Every sentence rung has the SAME shape, so one builder serves all of them: the printed sentence
+// as the choice prompt, the Swedish instruction as the question, and the two whole candidate
+// strings as tappable words (render:'word' — value IS the string, graded case-insensitively by the
+// existing word path, so no new grader). `prompt` carries the sentence as well, so the reveal
+// screen and the question log show the question the child actually saw; `steps` is the COMPLETED
+// correct sentence — the teaching after a miss.
+const sentenceItem = (r: Rng, code: string): Item => {
+  const it = enSentenceItem(r, code);
+  return {
+    prompt: it.text,
+    answer: { kind: "word", text: it.answer },
+    steps: [it.solution],
+    choice: {
+      prompt: { show: "sentence", text: it.text, lang: it.lang },
+      question: it.question,
+      options: it.options.map((v): ChoiceOption => ({ value: v, render: "word" })),
+    },
+  };
+};
+
 const tierEnglish: Skill[] = [
   // ── Phase A · RECEPTIVE vocabulary (docs/english-onramp-spec.md) — first contact, NO letters.
   // Hear an English word → tap its PICTURE (the same listen+picture rung as Swedish spelling_t0). The
@@ -1287,6 +1307,40 @@ const tierEnglish: Skill[] = [
   S({
     code: "en_past_irregular", subject: "english", family: "en_irreg", year: 2, mode: "component", kind: "lexical", requires: ["en_ed_regular"],
     generate: (r) => { const w = r.pick(EN_PAST_IRREGULAR.practice); return { prompt: "", answer: { kind: "word", text: w }, steps: [w] }; },
+  }),
+  // ── SENTENCE MODE · the L1-Swedish interference slice (docs/english-sentence-mode-spec.md).
+  // The top of the ramp. Below this, English is vocabulary and comprehension — the EASY half for a
+  // Swedish speaker. Here it is the sentence grammar where Swedish actively misleads, drilled one
+  // seam at a time as a MINIMAL PAIR: the Swedish sentence gives the meaning (or an English cloze
+  // gives the frame) and the two options are the English form against the transferred Swedish rule.
+  // All recognition (format:'choice') ⇒ each crosses on ACCURACY (12 first-try @ 90%), no fluency
+  // coupling, no sprint. All READING-gated (crossRequires READING_READY) — they are read, not heard —
+  // and anchored above en_past_irregular so the child arrives having produced English words first.
+  // Ordered by INTERFERENCE severity, not frequency: word order → do-support → aspect.
+  S({
+    // S1 · V2/inversion: "Idag äter jag ett äpple" → "Today I eat an apple", NOT "Today eat I…".
+    code: "en_sv_order", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
+    requires: ["en_past_irregular"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_sv_order"),
+  }),
+  S({
+    // S2 · do-support in questions: "Talar du engelska?" → "Do you speak English?", NOT "Speak you…".
+    code: "en_do_question", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
+    requires: ["en_sv_order"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_do_question"),
+  }),
+  S({
+    // S3 · do-support in negation: "Jag gillar inte katter" → "I don't like cats", NOT "I like not…".
+    code: "en_do_negation", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
+    requires: ["en_do_question"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_do_negation"),
+  }),
+  S({
+    // S4 · continuous vs simple: Swedish has one present tense, English two. The CUE decides —
+    // "Look! / now" ⇒ is -ing, "every day" ⇒ simple. Taught in BOTH directions (a discrimination).
+    code: "en_continuous", subject: "english", family: "en_sentence", year: 2, mode: "component", format: "choice", kind: "rule",
+    requires: ["en_do_negation"], crossRequires: [READING_READY],
+    generate: (r) => sentenceItem(r, "en_continuous"),
   }),
 ];
 

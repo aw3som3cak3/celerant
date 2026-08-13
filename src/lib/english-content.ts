@@ -285,3 +285,238 @@ export const EN_KIND: Record<string, 'rule' | 'lexical'> = {
 export function englishAudio(word: string): { kind: 'file'; url: string } | { kind: 'tts'; lang: string } {
   return { kind: 'file', url: `/audio/english/${encodeURIComponent(word)}.mp3` };
 }
+
+// ═══ SENTENCE MODE · the L1-Swedish INTERFERENCE slice ══════════════════════════════════════════
+// docs/english-sentence-mode-spec.md. The top of the ramp: not vocabulary (Swedish and English
+// share too much for that to be hard) but the SENTENCE GRAMMAR where Swedish actively misleads —
+// the "Swenglish" errors that survive years of exposure precisely because the Swedish rule is
+// automatic. Each rung isolates ONE interference seam and shows it as a MINIMAL PAIR: the Swedish
+// pull against the English form, nothing else on screen (the Direct Instruction discrimination
+// move). Two options exactly, so a wrong tap IS the interference error — the question log then
+// reads as a diagnosis, not just a miss.
+//
+// Structural invariants, mirroring EN_ED_REGULAR:
+//  • RULE nodes with a DISJOINT holdout — practice and holdout share no sentence, because their
+//    CONSTITUENTS (adverbials/subjects/verbs/predicates) are disjoint sets. Sentences are composed
+//    combinatorially, so the served item space is far larger than the 12-attempt accuracy window:
+//    a crossing cannot be a memorised list, only the rule.
+//  • Recognition (format:'choice') ⇒ crosses on ACCURACY (recog_shadow), no fluency coupling.
+//  • ONE answer per item by construction (spec §2.5): the options are the correct form and the L1
+//    lure, graded through the existing case-insensitive word path. No answer-set grader.
+//
+// NOTE: these pools are deliberately NOT registered in EN_POOLS. A code in SPELLING_POOLS is
+// routed by buildItem to the word-dictation branch (seed → word, letter pad); a sentence rung must
+// fall through to generateCanon so its `choice` spec is built. Keep them separate.
+
+// One authored item: the sentence shown, which tongue it is in, the correct English, and the lure
+// (the same meaning rendered with the Swedish rule transferred). `text` may carry a `___` cloze gap.
+export type EnSentenceSpec = { text: string; lang: 'sv' | 'en'; answer: string; lure: string };
+export type EnSentencePool = { question: string; practice: readonly EnSentenceSpec[]; holdout: readonly EnSentenceSpec[] };
+
+const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+const j = (...parts: (string | undefined)[]): string => parts.filter((p) => p && p.length).join(' ');
+
+// ── S1 · V2 / no inversion after a fronted adverbial ────────────────────────────────────────────
+// Swedish is a verb-second language: front an adverbial and the subject moves BEHIND the verb
+// ("Idag äter jag…"). English does not invert ("Today I eat…"). Transferred, it yields the single
+// most persistent Swedish-English error. The Swedish sentence carries the meaning; the two options
+// are the English word orders. Composed adverbial × clause.
+type EnAdverbial = { sv: string; en: string };
+type EnOrderClause = { svVerb: string; svSubj: string; svRest?: string; enSubj: string; enVerb: string; enRest?: string };
+const orderSpecs = (advs: readonly EnAdverbial[], clauses: readonly EnOrderClause[]): EnSentenceSpec[] =>
+  advs.flatMap((a) =>
+    clauses.map((c) => ({
+      text: `${cap(j(a.sv, c.svVerb, c.svSubj, c.svRest))}.`,
+      lang: 'sv' as const,
+      answer: `${cap(j(a.en, c.enSubj, c.enVerb, c.enRest))}.`, // English: adverbial, then SUBJECT, then verb
+      lure: `${cap(j(a.en, c.enVerb, c.enSubj, c.enRest))}.`, // the Swedish V2 order, transferred
+    })),
+  );
+
+const ORDER_ADVS_PRACTICE: readonly EnAdverbial[] = [
+  { sv: 'idag', en: 'today' }, { sv: 'imorgon', en: 'tomorrow' }, { sv: 'sedan', en: 'then' },
+  { sv: 'ibland', en: 'sometimes' }, { sv: 'varje dag', en: 'every day' },
+];
+const ORDER_CLAUSES_PRACTICE: readonly EnOrderClause[] = [
+  { svVerb: 'äter', svSubj: 'jag', svRest: 'ett äpple', enSubj: 'I', enVerb: 'eat', enRest: 'an apple' },
+  { svVerb: 'springer', svSubj: 'hunden', enSubj: 'the dog', enVerb: 'runs' },
+  { svVerb: 'sover', svSubj: 'katten', enSubj: 'the cat', enVerb: 'sleeps' },
+  { svVerb: 'leker', svSubj: 'vi', enSubj: 'we', enVerb: 'play' },
+  { svVerb: 'hoppar', svSubj: 'fågeln', enSubj: 'the bird', enVerb: 'jumps' },
+  { svVerb: 'läser', svSubj: 'jag', svRest: 'en bok', enSubj: 'I', enVerb: 'read', enRest: 'a book' },
+  { svVerb: 'ser', svSubj: 'jag', svRest: 'en stjärna', enSubj: 'I', enVerb: 'see', enRest: 'a star' },
+  { svVerb: 'dricker', svSubj: 'vi', svRest: 'mjölk', enSubj: 'we', enVerb: 'drink', enRest: 'milk' },
+];
+// HOLDOUT: different adverbials AND different clauses ⇒ no sentence can coincide with practice.
+const ORDER_ADVS_HOLDOUT: readonly EnAdverbial[] = [
+  { sv: 'på måndag', en: 'on Monday' }, { sv: 'på morgonen', en: 'in the morning' },
+  { sv: 'efter skolan', en: 'after school' }, { sv: 'hemma', en: 'at home' }, { sv: 'på lördag', en: 'on Saturday' },
+];
+const ORDER_CLAUSES_HOLDOUT: readonly EnOrderClause[] = [
+  { svVerb: 'öppnar', svSubj: 'jag', svRest: 'dörren', enSubj: 'I', enVerb: 'open', enRest: 'the door' },
+  { svVerb: 'simmar', svSubj: 'fisken', enSubj: 'the fish', enVerb: 'swims' },
+  { svVerb: 'köper', svSubj: 'vi', svRest: 'glass', enSubj: 'we', enVerb: 'buy', enRest: 'ice cream' },
+  { svVerb: 'tittar', svSubj: 'jag', svRest: 'på en film', enSubj: 'I', enVerb: 'watch', enRest: 'a film' },
+  { svVerb: 'bakar', svSubj: 'mamma', svRest: 'en kaka', enSubj: 'mum', enVerb: 'bakes', enRest: 'a cake' },
+];
+
+// ── S2 · do-support in QUESTIONS ────────────────────────────────────────────────────────────────
+// Swedish makes a question by inverting the verb and subject and adds nothing ("Talar du
+// engelska?"). English needs the dummy DO ("Do you speak English?"); transferred, the learner
+// produces "Speak you English?". Subjects are kept non-3rd-person so the seam is do-support ALONE
+// (does/-s agreement is a different seam and would blur this one).
+type EnSubject = { sv: string; en: string };
+type EnPredicate = { svVerb: string; svRest?: string; enVerb: string; enRest?: string };
+const questionSpecs = (subjs: readonly EnSubject[], preds: readonly EnPredicate[]): EnSentenceSpec[] =>
+  subjs.flatMap((s) =>
+    preds.map((p) => ({
+      text: `${cap(j(p.svVerb, s.sv, p.svRest))}?`,
+      lang: 'sv' as const,
+      answer: `${cap(j('do', s.en, p.enVerb, p.enRest))}?`,
+      lure: `${cap(j(p.enVerb, s.en, p.enRest))}?`, // Swedish inversion, no DO
+    })),
+  );
+
+const Q_SUBJ_PRACTICE: readonly EnSubject[] = [{ sv: 'du', en: 'you' }, { sv: 'vi', en: 'we' }, { sv: 'de', en: 'they' }];
+const Q_PRED_PRACTICE: readonly EnPredicate[] = [
+  { svVerb: 'talar', svRest: 'engelska', enVerb: 'speak', enRest: 'English' },
+  { svVerb: 'gillar', svRest: 'katter', enVerb: 'like', enRest: 'cats' },
+  { svVerb: 'äter', svRest: 'äpplen', enVerb: 'eat', enRest: 'apples' },
+  { svVerb: 'ser', svRest: 'hunden', enVerb: 'see', enRest: 'the dog' },
+  { svVerb: 'kommer', svRest: 'imorgon', enVerb: 'come', enRest: 'tomorrow' },
+  { svVerb: 'behöver', svRest: 'hjälp', enVerb: 'need', enRest: 'help' },
+];
+const Q_SUBJ_HOLDOUT: readonly EnSubject[] = [{ sv: 'barnen', en: 'the children' }, { sv: 'dina kompisar', en: 'your friends' }];
+const Q_PRED_HOLDOUT: readonly EnPredicate[] = [
+  { svVerb: 'läser', svRest: 'böcker', enVerb: 'read', enRest: 'books' },
+  { svVerb: 'spelar', svRest: 'fotboll', enVerb: 'play', enRest: 'football' },
+  { svVerb: 'dricker', svRest: 'mjölk', enVerb: 'drink', enRest: 'milk' },
+  { svVerb: 'känner', svRest: 'min syster', enVerb: 'know', enRest: 'my sister' },
+];
+
+// ── S3 · do-support in NEGATION ─────────────────────────────────────────────────────────────────
+// Swedish negates by putting *inte* AFTER the verb ("Jag gillar inte katter"). English needs DO +
+// n't BEFORE it ("I don't like cats"); transferred, the learner produces "I like not cats". Same
+// non-3rd-person restriction as S2, so the contrast is don't-vs-not and nothing else.
+const negationSpecs = (subjs: readonly EnSubject[], preds: readonly EnPredicate[]): EnSentenceSpec[] =>
+  subjs.flatMap((s) =>
+    preds.map((p) => ({
+      text: `${cap(j(s.sv, p.svVerb, 'inte', p.svRest))}.`,
+      lang: 'sv' as const,
+      answer: `${cap(j(s.en, "don't", p.enVerb, p.enRest))}.`,
+      lure: `${cap(j(s.en, p.enVerb, 'not', p.enRest))}.`, // *inte* after the verb, transferred
+    })),
+  );
+
+const N_SUBJ_PRACTICE: readonly EnSubject[] = [{ sv: 'jag', en: 'I' }, { sv: 'vi', en: 'we' }, { sv: 'de', en: 'they' }];
+const N_PRED_PRACTICE: readonly EnPredicate[] = [
+  { svVerb: 'gillar', svRest: 'katter', enVerb: 'like', enRest: 'cats' },
+  { svVerb: 'äter', svRest: 'kött', enVerb: 'eat', enRest: 'meat' },
+  { svVerb: 'ser', svRest: 'hunden', enVerb: 'see', enRest: 'the dog' },
+  { svVerb: 'förstår', enVerb: 'understand' },
+  { svVerb: 'vet', enVerb: 'know' },
+  { svVerb: 'har', svRest: 'tid', enVerb: 'have', enRest: 'time' },
+];
+const N_SUBJ_HOLDOUT: readonly EnSubject[] = [{ sv: 'barnen', en: 'the children' }, { sv: 'mina kompisar', en: 'my friends' }];
+const N_PRED_HOLDOUT: readonly EnPredicate[] = [
+  { svVerb: 'dricker', svRest: 'kaffe', enVerb: 'drink', enRest: 'coffee' },
+  { svVerb: 'hör', svRest: 'musiken', enVerb: 'hear', enRest: 'the music' },
+  { svVerb: 'läser', svRest: 'tidningen', enVerb: 'read', enRest: 'the newspaper' },
+  { svVerb: 'behöver', svRest: 'hjälp', enVerb: 'need', enRest: 'help' },
+];
+
+// ── S4 · continuous vs simple aspect ────────────────────────────────────────────────────────────
+// Swedish has no continuous: "Titta, det regnar!" is the same present tense as "Det regnar varje
+// dag". English splits them, and the CUE decides ("now"/"Look!" ⇒ is -ing; "every day" ⇒ simple).
+// So this rung is a CLOZE, in English: the gap hides the verb, both options carry the SAME verb,
+// and only the form differs — the seam is aspect alone. Both directions are taught (a cue that
+// forces the simple form is served too), because the skill is the DISCRIMINATION, not one form.
+// The -ing forms are the ones already met receptively in en_verb_ing.
+type EnAspectSubject = { en: string; be: 'is' | 'am' | 'are'; third: boolean };
+type EnAspectVerb = { base: string; ing: string; s: string };
+type EnAspectCue = { en: string; cont: boolean; lead?: boolean }; // lead ⇒ the cue opens the sentence
+const aspectSpecs = (subjs: readonly EnAspectSubject[], verbs: readonly EnAspectVerb[], cues: readonly EnAspectCue[]): EnSentenceSpec[] =>
+  subjs.flatMap((s) =>
+    verbs.flatMap((v) =>
+      cues.map((c) => {
+        const continuous = `${s.be} ${v.ing}`;
+        const simple = s.third ? v.s : v.base;
+        return {
+          text: c.lead ? `${c.en} ${cap(s.en)} ___.` : `${cap(s.en)} ___ ${c.en}.`,
+          lang: 'en' as const,
+          answer: c.cont ? continuous : simple,
+          lure: c.cont ? simple : continuous, // the Swedish default is the simple form for BOTH
+        };
+      }),
+    ),
+  );
+
+const ASPECT_SUBJ_PRACTICE: readonly EnAspectSubject[] = [
+  { en: 'the dog', be: 'is', third: true }, { en: 'the cat', be: 'is', third: true },
+  { en: 'I', be: 'am', third: false }, { en: 'we', be: 'are', third: false },
+];
+const ASPECT_VERBS_PRACTICE: readonly EnAspectVerb[] = [
+  { base: 'run', ing: 'running', s: 'runs' }, { base: 'sleep', ing: 'sleeping', s: 'sleeps' },
+  { base: 'play', ing: 'playing', s: 'plays' }, { base: 'jump', ing: 'jumping', s: 'jumps' },
+  { base: 'eat', ing: 'eating', s: 'eats' },
+];
+const ASPECT_SUBJ_HOLDOUT: readonly EnAspectSubject[] = [
+  { en: 'the bird', be: 'is', third: true }, { en: 'my sister', be: 'is', third: true },
+  { en: 'the children', be: 'are', third: false }, { en: 'they', be: 'are', third: false },
+];
+const ASPECT_VERBS_HOLDOUT: readonly EnAspectVerb[] = [
+  { base: 'sit', ing: 'sitting', s: 'sits' }, { base: 'work', ing: 'working', s: 'works' },
+  { base: 'read', ing: 'reading', s: 'reads' }, { base: 'swim', ing: 'swimming', s: 'swims' },
+  { base: 'wait', ing: 'waiting', s: 'waits' },
+];
+// The cue set is SHARED between practice and holdout on purpose: the cue IS the rule's trigger, so
+// the generalization axis is the unseen subject/verb, not an unseen cue. Disjoint subjects AND
+// verbs already make the two sentence sets disjoint.
+const ASPECT_CUES: readonly EnAspectCue[] = [
+  { en: 'Look!', cont: true, lead: true }, { en: 'now', cont: true }, { en: 'right now', cont: true },
+  { en: 'every day', cont: false }, { en: 'on Mondays', cont: false },
+];
+
+// The seam pools, keyed by skill code. Each `question` is the Swedish instruction shown above the
+// options (display strings live with the content, like the maths `steps` — no i18n in the generator).
+export const EN_SENTENCE_POOLS: Record<string, EnSentencePool> = {
+  en_sv_order: {
+    question: 'Vilken mening är rätt på engelska?',
+    practice: orderSpecs(ORDER_ADVS_PRACTICE, ORDER_CLAUSES_PRACTICE),
+    holdout: orderSpecs(ORDER_ADVS_HOLDOUT, ORDER_CLAUSES_HOLDOUT),
+  },
+  en_do_question: {
+    question: 'Vilken fråga är rätt på engelska?',
+    practice: questionSpecs(Q_SUBJ_PRACTICE, Q_PRED_PRACTICE),
+    holdout: questionSpecs(Q_SUBJ_HOLDOUT, Q_PRED_HOLDOUT),
+  },
+  en_do_negation: {
+    question: 'Vilken mening är rätt på engelska?',
+    practice: negationSpecs(N_SUBJ_PRACTICE, N_PRED_PRACTICE),
+    holdout: negationSpecs(N_SUBJ_HOLDOUT, N_PRED_HOLDOUT),
+  },
+  en_continuous: {
+    question: 'Vad passar i luckan?',
+    practice: aspectSpecs(ASPECT_SUBJ_PRACTICE, ASPECT_VERBS_PRACTICE, ASPECT_CUES),
+    holdout: aspectSpecs(ASPECT_SUBJ_HOLDOUT, ASPECT_VERBS_HOLDOUT, ASPECT_CUES),
+  },
+};
+
+// One generator for every sentence rung: seed-pick a PRACTICE item, seed-shuffle its two options so
+// the correct one isn't always in the same place, and hand back everything the Item needs.
+// `solution` is the completed sentence — the reveal step, i.e. the teaching after a miss.
+export function enSentenceItem(
+  r: NounRng,
+  code: string,
+): { text: string; lang: 'sv' | 'en'; question: string; answer: string; solution: string; options: string[] } {
+  const pool = EN_SENTENCE_POOLS[code];
+  const spec = r.pick(pool.practice);
+  return {
+    text: spec.text,
+    lang: spec.lang,
+    question: pool.question,
+    answer: spec.answer,
+    solution: spec.text.includes('___') ? spec.text.replace('___', spec.answer) : spec.answer,
+    options: shuffle(r, [spec.answer, spec.lure]),
+  };
+}
