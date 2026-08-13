@@ -1,13 +1,15 @@
 # English sentence-mode interference slice — build spec
 
-Status: **increments 1–2 BUILT and deployed (2026-08-13); increment 3 deferred — see "Decisions
-RESOLVED" at the bottom.** All eight seams ship as recognition rungs.
+Status: **COMPLETE — increments 1–2 built and deployed (2026-08-13); the tile production increment
+is DROPPED, not deferred (Erik's call as spec author; see the bottom).** All eight seams ship as
+recognition rungs, and the slice is recognition-only by decision, not by omission.
 Original status: design proposed, self-contained for a fresh agent. This is the top of the English
 ramp: L1-Swedish → L2-English **sentence-level grammatical interference** — the "Swenglish" errors
 (V2 word order, do-support, continuous aspect, prepositions, is/get/become, make/do, false friends).
 It is **production/discrimination at the sentence level**, reading-and-writing gated, and it is the
 one genuinely separate project above the receptive on-ramp. It reuses the existing engine almost
-entirely; the only new surfaces are a **sentence prompt** and a **word-tile input**, both small.
+entirely; the only new surface AS BUILT is a **sentence prompt** (the word-tile input discussed in
+§2.4 was dropped — see the bottom).
 
 Read this top-to-bottom before touching code. Part 1 is the context you need; Part 2 is the design;
 Part 3 is the build.
@@ -74,7 +76,7 @@ a client clock (`performance.now()`, render→capture interval), and a **constra
 `letters` prop (an array of glyph strings — the child taps to append to `value`; used by the Swedish
 letter pad and the t15 tile pad). It auto-submits when `value` reaches `item.answerLength`, else the
 child taps ✓. Capture contract: `onCapture({idemKey, code, seed, given, intervalMs, idk})`. **You
-will add a `tiles` variant here** (word tiles instead of letter glyphs) for the ordering rungs (§2.4).
+will add a `tiles` variant here** (word tiles instead of letter glyphs) for the ordering rungs (§2.4). **[DROPPED — see the bottom; the slice is recognition-only.]**
 
 **The format dispatch** is in `src/app/practice/page.tsx` (~line 350): `const choiceItem =
 buildItem(item.code, item.seed).choice;` then `choiceItem ? <ChoiceStage…/> : <InputStage…/>`. A
@@ -212,7 +214,7 @@ rung (cheap, crosses on accuracy) first; add a production rung only where active
    *production* surface for S1 (and optionally S2/S3). It's a `format:'numpad'`, NON_SPRINTABLE
    production rung → crosses via the burst/fluency path like `en_ed_regular`, OR keep S1 as
    recognition-only (choice) for v1 and add tiles in a later increment. **Recommended v1: choice
-   only; add tiles as increment 2.**
+   only; add tiles as increment 2.** **[DROPPED — see the bottom; the slice is recognition-only.]**
 
 ## 2.5 The grader decision — LOCKED: ONE ANSWER, by construction
 The parked open question was "one-answer vs answer-set per item type." **Decision: every item in this
@@ -268,7 +270,8 @@ en_false_friend  (S8: false friends)                        LEXICAL requires en_
 1. **`ChoicePromptData` += `{ show:'sentence'; text: string }`** in `src/lib/choice.ts`; render branch
    in `ChoiceStage.tsx` (show the sentence; a `___` in `text` marks the blank). CSS: a `.sentence-prompt`
    rule (large readable text, the blank visually distinct).
-2. **(increment 2) InputStage `tiles?: string[]` prop** — render word-tile buttons (seed-shuffled by
+2. **(increment 2) InputStage `tiles?: string[]` prop** **[DROPPED — see the bottom; the slice is recognition-only.]**
+   — render word-tile buttons (seed-shuffled by
    the generator; the generator provides them), tapping appends `tile + ' '` to `value`; ✓ submits;
    backspace removes the last tile/word. Grade the trimmed joined string. Wire in `practice/page.tsx`
    analogous to the `letters` spread. The `render:'word'` option already exists for choice items.
@@ -302,7 +305,7 @@ so audio is not required for v1.
 - Cross-gate: each rung `crossRequires` contains `READING_READY`; `en_sv_order.requires` contains
   `en_past_irregular`.
 - The interference is present: for S1, the L1-order lure is among the options and is NOT the answer.
-- (increment 2) tile rung: the tiles contain exactly the answer's words (+ any declared distractors).
+- (increment 2) tile rung: the tiles contain exactly the answer's words (+ any declared distractors). **[DROPPED — see the bottom; the slice is recognition-only.]**
 
 ## 3.6 Deploy loop
 `npm test` → `npx tsc --noEmit` → `npm run build`, all green, then commit + push (CI deploys). Keep
@@ -313,7 +316,7 @@ pass with a literate kid (sushi, åk4) is the acceptance test — she is the one
 1. **The `sentence` prompt kind + S1–S4 recognition rungs** (V2 order, do-support ×2, continuous) —
    the syntactic core, all `format:'choice'`, accuracy-crossed. Smallest, highest value.
 2. **S5 prepositions** (the collocation set) + **S6–S8 lexical contrasts**.
-3. **(increment) tile production surface** + production rungs for S1 (and optionally S2/S3).
+3. ~~**(increment) tile production surface** + production rungs for S1 (and optionally S2/S3).~~ **[DROPPED — see the bottom; the slice is recognition-only.]**
 4. **(later) audio reinforcement**, and any answer-set generalization IF a future item type needs it
    (out of scope for now).
 
@@ -349,8 +352,22 @@ pass with a literate kid (sushi, åk4) is the acceptance test — she is the one
 - **Pools are NOT registered in `EN_POOLS`.** A code in `SPELLING_POOLS` is routed by `buildItem` to
   the word-dictation branch (seed → word, letter pad) and would never build its `choice` spec.
 
-## Decision DEFERRED — the tile production rungs (increment 3)
-NOT built, and it is not just a UI increment: **a tile rung has no honest fluency aim.** A production
+## Decision DROPPED — the tile production rungs (increment 3)
+**The slice is recognition-only, and complete.** Not deferred, not a TODO: this is the shipped shape.
+Erik's call as spec author, on three grounds:
+1. **The recognition rungs already achieve the goal.** They cross on ACCURACY (no aim needed), and
+   discriminating the correct English form against the Swedish pull IS the interference drill.
+   Recognition-at-fluency is a legitimate endpoint, not a waypoint to production.
+2. **Tiles would cost an aim-model change for marginal gain** (see below). A tiles/min aim is a
+   deliberate, A11-sensitive change to `aimForSkill` — a separate, scoped project to be specced on
+   purpose, never smuggled into a content increment.
+3. **It sidesteps the pool trap entirely.** Recognition rungs never touch `SPELLING_POOLS`, so the
+   `sprintBatch`/word-dictation routing hazard never applies at all.
+
+If genuine sentence PRODUCTION is ever wanted, it starts with a "tiles/min aim" design document, not
+with an `InputStage` prop. The reason, recorded so the next reader doesn't rediscover it:
+
+**A tile rung has no honest fluency aim.** A production
 (`format:'numpad'`) rung crosses on SPEED against `letterAimFor`, which budgets motor time as
 LETTERS typed. For "Today I eat an apple." at åk4 (`defaultLetterCeiling(4)` = 22 letters/min) that
 is 60/(46.4 + 2) ≈ **1.2 items/min** — while tapping five word-tiles takes well under ten seconds,
@@ -358,10 +375,8 @@ i.e. ~6× the aim. The gate would be a rubber stamp on the first clean run. Two 
 `sprintBatch` draws non-maths sprint words from `SPELLING_POOLS[code]`, which these pools must stay
 out of (above), so a tile rung would be flagged `sprintable` yet never actually sprint unless it is
 added to `NON_SPRINTABLE` or given a new word-source branch.
-Building it therefore means either mis-measuring it or touching the aim model — **an A11 boundary
-call for Erik**, not a content increment. The recognition rungs already give each seam as a clean
-discrimination; production is the natural next thing to want once a tablet pass shows the
-recognitions are solid.
+Building it therefore means either mis-measuring it or touching the aim model — which is why it is a
+separate project rather than the next increment of this one.
 
 ## Engine boundary / STOP-FLAG
 Selector, θ, gate, ledger, reward stay untouched and subject-blind (A11). You add: content (skills/
