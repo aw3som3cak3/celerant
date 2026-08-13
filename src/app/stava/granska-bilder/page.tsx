@@ -38,7 +38,13 @@ type Filter = 'kvar' | 'alla' | 'flaggade';
 function Picture({ c }: { c: Clip }) {
   if (c.kind === 'picto') return <img className="choice-pic" src={`/pictos/${c.picto}.png`} alt="" width={110} height={110} />;
   if (c.kind === 'swatch') return <span style={{ display: 'block', width: 110, height: 110, borderRadius: 16, background: c.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />;
-  if (c.kind === 'sizednoun') return <span className="sizednoun"><img src={`/emoji/${c.emoji}.png`} alt="" style={{ width: c.big ? 104 : 46, height: c.big ? 104 : 46 }} /></span>;
+  if (c.kind === 'sizednoun') return (
+    <span className="sizednoun">
+      {[52, 38, 26].map((sz, k) => (
+        <img key={k} src={`/emoji/${c.emoji}.png`} alt="" className={(c.big ? k === 0 : k === 2) ? 'size-on' : 'size-off'} style={{ width: sz, height: sz }} />
+      ))}
+    </span>
+  );
   if (c.kind === 'nounverb') return <span className="nounverb"><img src={`/emoji/${c.noun}.png`} alt="" /><img src={`/pictos/${c.verb}.png`} alt="" /></span>;
   return <img className="choice-pic" src={`/emoji/${c.emoji}.png`} alt="" width={110} height={110} />;
 }

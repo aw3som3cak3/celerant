@@ -81,9 +81,14 @@ export type Skill = {
   // every generated item is already generalization; Swedish spelling carries it via pool shape).
   kind?: "rule" | "lexical";
   requires: string[];
-  // CROSS-SUBJECT prerequisites (A11-aware): codes in ANOTHER subject that must be passed before this
-  // unlocks — the reading gate (English spelling / maths-with-words needs reading, earned in Swedish).
-  // The selector/θ stay subject-blind; this only gates UNLOCK, via the global passedSkills predicate.
+  // CROSS-SUBJECT prerequisites (A11-aware). DESIGN PRINCIPLE (Erik): the graphs are NOT silos — a
+  // skill that presupposes a capability earned in ANOTHER subject MUST gate on it here, so a node
+  // stays closed until the child catches up elsewhere. The canonical case: reading — a non-reader
+  // must not get a WORDED maths problem or English spelling; both open when she can read simple words
+  // (READING_READY = spelling_t1c, earned in Swedish). Whenever you author a skill needing reading (a
+  // text instruction), a specific number sense, etc., ADD it here — it's the default, not an
+  // afterthought. Checked in computeUnlocked via crossPassedPredicate (practice.ts); selector/θ stay
+  // subject-blind (this only gates UNLOCK). See docs + the cross-subject-gating design note.
   crossRequires?: string[];
   generate(r: Rng): Item;
 };

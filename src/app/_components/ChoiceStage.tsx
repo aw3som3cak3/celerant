@@ -232,9 +232,16 @@ export function ChoiceStage({
                 <img className="choice-pic" src={`/pictos/${o.kind}.png`} alt="" draggable={false} />
               </button>
             ) : o.render === 'sizednoun' ? (
-              // Two-word recombination ("big cat"): the noun emoji, shown big or small.
+              // Two-word recombination ("big cat"): show the SIZE SCALE — three copies (large, medium,
+              // small) with the target size circled and the others greyed. A lone scaled emoji is
+              // ambiguous (nothing to compare to); the scale-with-highlight makes "big"/"small" read.
               <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
-                <span className="sizednoun"><img src={`/emoji/${o.kind}.png`} alt="" draggable={false} style={{ width: o.big ? 104 : 46, height: o.big ? 104 : 46 }} /></span>
+                <span className="sizednoun">
+                  {[52, 38, 26].map((sz, k) => (
+                    <img key={k} src={`/emoji/${o.kind}.png`} alt="" draggable={false}
+                      className={(o.big ? k === 0 : k === 2) ? 'size-on' : 'size-off'} style={{ width: sz, height: sz }} />
+                  ))}
+                </span>
               </button>
             ) : o.render === 'nounverb' ? (
               // SVO frame ("the dog is running"): agent emoji + action pictogram — bind BOTH.
