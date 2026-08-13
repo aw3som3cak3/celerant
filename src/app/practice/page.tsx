@@ -334,6 +334,14 @@ function Practice() {
       {icon && <div className="whoami" title={t('practice.you')}><EmojiIcon iconKey={icon} /></div>}
       <SessionBar completed={completed} target={target} />
 
+      {/* Language cue: which tongue is THIS question in? A flag for the word subjects (a pre-reader
+          can't read "English") — English (en_) shows 🇬🇧, Swedish spelling (spelling_) shows 🇸🇪; maths
+          is language-neutral and shows none. Orients the child in a mixed Öva that switches per item. */}
+      {(item.code.startsWith('en_') || item.code.startsWith('spelling_')) && (
+        <img className="lang-flag" src={`/flags/${item.code.startsWith('en_') ? 'gb' : 'se'}.svg`}
+          alt={item.code.startsWith('en_') ? 'Engelska' : 'Svenska'} width={40} height={26} />
+      )}
+
       <div className="novelty fade">{item.novel && phase === 'answer' ? t('practice.somethingNew') : ''}</div>
 
       {phase === 'revealed' ? (
