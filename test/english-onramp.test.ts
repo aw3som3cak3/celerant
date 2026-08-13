@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { buildItem } from '@/lib/item';
-import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, EN_VERB_ING_WORDS, EN_ATTRS, EN_ATTR_WORDS, enNounItem, englishReady } from '@/lib/english-content';
+import { EN_NOUNS, EN_NOUN_WORDS, EN_COLOR_WORDS, EN_VERBS, EN_VERB_WORDS, EN_VERB_ING_WORDS, EN_ATTRS, EN_ATTR_WORDS, EN_TWOWORD_PHRASES, EN_FRAME_PHRASES, enNounItem, englishReady } from '@/lib/english-content';
 import { SKILLS } from '@/skills';
 
 const RECOG = ['en_noun_cognate', 'en_noun_core', 'en_noun_category', 'en_noun_minpair'];
@@ -107,6 +107,35 @@ describe('English on-ramp — Phase A (receptive: hear → tap picture)', () => 
     }
     for (const a of EN_ATTRS) expect(existsSync(path.join(process.cwd(), 'public', 'pictos', `${a.picto}.svg`)), `picto ${a.picto}.svg`).toBe(true);
     for (const w of EN_ATTR_WORDS) expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${w}.mp3`)), `attr audio ${w}.mp3`).toBe(true);
+  });
+
+  it('Phase B: en_two_word recombines size+noun (same noun other size always shown), with phrase audio', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const item = buildItem('en_two_word', seed);
+      const c = item.choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_two_word' });
+      expect(c.options).toHaveLength(3);
+      expect(c.options.every((o) => o.render === 'sizednoun')).toBe(true);
+      const ans = String(item.answer); // e.g. "big cat"
+      expect(c.options.map((o) => String(o.value))).toContain(ans);
+      const [size, noun] = ans.split(' ');
+      const otherSize = size === 'big' ? 'small' : 'big';
+      expect(c.options.map((o) => String(o.value))).toContain(`${otherSize} ${noun}`); // the size contrast is present
+    }
+    for (const p of EN_TWOWORD_PHRASES) expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${p}.mp3`)), `phrase ${p}`).toBe(true);
+  });
+
+  it('Phase C: en_frame_svo binds agent+action (distractors flip each), with sentence audio', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const item = buildItem('en_frame_svo', seed);
+      const c = item.choice!;
+      expect(c.prompt).toMatchObject({ show: 'listen', code: 'en_frame_svo' });
+      expect(c.options).toHaveLength(3);
+      expect(c.options.every((o) => o.render === 'nounverb' && typeof (o as { noun?: string }).noun === 'string')).toBe(true);
+      expect(String(item.answer)).toMatch(/^the \w+ is \w+ing$/);
+      expect(c.options.map((o) => String(o.value))).toContain(String(item.answer));
+    }
+    for (const p of EN_FRAME_PHRASES) expect(existsSync(path.join(process.cwd(), 'public', 'audio', 'english', `${p}.mp3`)), `frame ${p}`).toBe(true);
   });
 
   it('is offered to every child (receptive tier ungated), incl. the youngest', () => {

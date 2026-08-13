@@ -26,6 +26,8 @@ const EXACT: Record<string, string> = {
   en_attribute: 'engelska: lyssna & peka (motsatser)',
   en_verb_action: 'engelska: lyssna & peka (verb)',
   en_verb_ing: 'engelska: lyssna & peka (-ing)',
+  en_two_word: 'engelska: lyssna & peka (två ord)',
+  en_frame_svo: 'engelska: lyssna & peka (mening)',
   en_ed_regular: 'engelska: -ed (dåtid)',
   en_past_irregular: 'engelska: oregelbunden dåtid',
   dec_read_tenths: 'tiondelar som decimal',

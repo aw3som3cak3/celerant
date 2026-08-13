@@ -18,7 +18,7 @@
 
 import type { ChoiceSpec, ChoiceOption } from "./lib/choice";
 import { T2_WORDS, T3_WORDS, T1_5_WORDS, RECOG_WORDS, SPELLING_LETTERS, SPELLING_VOWELS, TRANSPARENT_WORDS } from "./lib/spelling-content";
-import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem } from "./lib/english-content";
+import { EN_ED_REGULAR, EN_PAST_IRREGULAR, enNounItem, enColorItem, enVerbItem, enAttrItem, enTwoWordItem, enFrameItem } from "./lib/english-content";
 
 export type Rng = {
   int(a: number, b: number): number; // inclusive
@@ -1202,6 +1202,38 @@ const tierEnglish: Skill[] = [
           prompt: { show: "listen", code: "en_verb_ing", word: target.ing },
           question: "Vad hör du?",
           options: options.map((v): ChoiceOption => ({ value: v.ing, render: "picto", kind: v.picto })),
+        },
+      };
+    },
+  }),
+  // ── Phase B (increment 3) · TWO-WORD recombination — hear "big cat" → tap the big cat (the noun
+  // emoji scaled). First generative composite (attribute+noun). requires en_attribute.
+  S({
+    code: "en_two_word", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_attribute"],
+    generate: (r) => {
+      const { target, options } = enTwoWordItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.phrase }, steps: [target.phrase],
+        choice: {
+          prompt: { show: "listen", code: "en_two_word", word: target.phrase },
+          question: "Vad hör du?",
+          options: options.map((o): ChoiceOption => ({ value: o.phrase, render: "sizednoun", kind: o.emoji, big: o.big })),
+        },
+      };
+    },
+  }),
+  // ── Phase C (increment 3) · SVO FRAMES — hear "the dog is running" → tap the agent+action. Generative
+  // comprehension of a clause (bind noun+verb). requires en_verb_ing.
+  S({
+    code: "en_frame_svo", subject: "english", family: "en_hear", year: 0, mode: "component", format: "choice", requires: ["en_verb_ing"],
+    generate: (r) => {
+      const { target, options } = enFrameItem(r);
+      return {
+        prompt: "", answer: { kind: "word", text: target.phrase }, steps: [target.phrase],
+        choice: {
+          prompt: { show: "listen", code: "en_frame_svo", word: target.phrase },
+          question: "Vad hör du?",
+          options: options.map((o): ChoiceOption => ({ value: o.phrase, render: "nounverb", noun: o.noun, verb: o.verb })),
         },
       };
     },

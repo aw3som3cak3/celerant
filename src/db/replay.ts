@@ -312,6 +312,12 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     mark('bridge_english_attr_v1');
   }
 
+  // Seed the recombination + frame rungs (en_two_word, en_frame_svo).
+  if (!done('bridge_english_combo_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_english_combo_v1');
+  }
+
   // Backfill the question log from EXISTING wrong/idk attempts (one-off). Forward logging only
   // captures new answers, but every past miss still carries its seed in item_json, so the question
   // is deterministically rebuildable — populate the diagnostic immediately instead of from empty.

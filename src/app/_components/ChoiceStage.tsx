@@ -213,6 +213,16 @@ export function ChoiceStage({
               <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <img className="choice-pic" src={`/pictos/${o.kind}.svg`} alt="" draggable={false} />
               </button>
+            ) : o.render === 'sizednoun' ? (
+              // Two-word recombination ("big cat"): the noun emoji, shown big or small.
+              <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <span className="sizednoun"><img src={`/emoji/${o.kind}.png`} alt="" draggable={false} style={{ width: o.big ? 104 : 46, height: o.big ? 104 : 46 }} /></span>
+              </button>
+            ) : o.render === 'nounverb' ? (
+              // SVO frame ("the dog is running"): agent emoji + action pictogram — bind BOTH.
+              <button key={i} className="ground-option picture" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <span className="nounverb"><img src={`/emoji/${o.noun}.png`} alt="" draggable={false} /><img src={`/pictos/${o.verb}.svg`} alt="" draggable={false} /></span>
+              </button>
             ) : null,
           )}
         </div>

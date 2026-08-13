@@ -181,6 +181,49 @@ export function enAttrItem(r: NounRng): { target: EnAttr; options: EnAttr[] } {
   return { target, options: shuffle(r, [target, partner, other]) };
 }
 
+// ── Phase B (increment 3): TWO-WORD recombination — hear "big cat" → tap the big cat. The first
+// GENERATIVE composite: bind a known attribute (size) to a known noun. Rendered by SCALING the noun
+// emoji (render:'sizednoun') — no new asset. Distractors flip the size (same noun) and the noun, so
+// the child must get BOTH right. (Colour+noun would need colour-tinted art; size composes for free.)
+const TWOWORD_NOUNS = [
+  { word: 'cat', emoji: 'cat' }, { word: 'dog', emoji: 'dog' }, { word: 'fish', emoji: 'fish' },
+  { word: 'star', emoji: 'star' }, { word: 'apple', emoji: 'apple' }, { word: 'house', emoji: 'house' },
+] as const;
+export type EnTwoWord = { phrase: string; emoji: string; big: boolean };
+const twoWord = (n: { word: string; emoji: string }, big: boolean): EnTwoWord => ({ phrase: `${big ? 'big' : 'small'} ${n.word}`, emoji: n.emoji, big });
+export function enTwoWordItem(r: NounRng): { target: EnTwoWord; options: EnTwoWord[] } {
+  const noun = r.pick(TWOWORD_NOUNS);
+  const big = r.int(0, 1) === 0;
+  const target = twoWord(noun, big);
+  const partner = twoWord(noun, !big); // same noun, the OTHER size
+  const other = twoWord(r.pick(TWOWORD_NOUNS.filter((n) => n.word !== noun.word)), r.int(0, 1) === 0);
+  return { target, options: shuffle(r, [target, partner, other]) };
+}
+export const EN_TWOWORD_PHRASES: readonly string[] = TWOWORD_NOUNS.flatMap((n) => [`big ${n.word}`, `small ${n.word}`]);
+
+// ── Phase C (increment 3): SVO FRAMES — hear "the dog is running" → tap the agent+action. Generative
+// comprehension of a whole clause: the option shows the noun emoji + the verb pictogram (render:
+// 'nounverb'); distractors flip the verb (same agent) and the agent (same verb), so binding BOTH is
+// required. Reuses the noun emoji + verb pictos — no new asset.
+const FRAME_NOUNS = [
+  { word: 'dog', emoji: 'dog' }, { word: 'cat', emoji: 'cat' }, { word: 'fish', emoji: 'fish' },
+  { word: 'bird', emoji: 'bird' }, { word: 'cow', emoji: 'cow' },
+] as const;
+const FRAME_VERBS = [
+  { picto: 'run', ing: 'running' }, { picto: 'jump', ing: 'jumping' }, { picto: 'eat', ing: 'eating' }, { picto: 'sleep', ing: 'sleeping' },
+] as const;
+export type EnFrame = { phrase: string; noun: string; verb: string };
+const frame = (n: { word: string; emoji: string }, v: { picto: string; ing: string }): EnFrame => ({ phrase: `the ${n.word} is ${v.ing}`, noun: n.emoji, verb: v.picto });
+export function enFrameItem(r: NounRng): { target: EnFrame; options: EnFrame[] } {
+  const n = r.pick(FRAME_NOUNS);
+  const v = r.pick(FRAME_VERBS);
+  const target = frame(n, v);
+  const diffVerb = frame(n, r.pick(FRAME_VERBS.filter((x) => x.picto !== v.picto))); // same agent, other action
+  const diffNoun = frame(r.pick(FRAME_NOUNS.filter((x) => x.word !== n.word)), v); // other agent, same action
+  return { target, options: shuffle(r, [target, diffVerb, diffNoun]) };
+}
+export const EN_FRAME_PHRASES: readonly string[] = FRAME_NOUNS.flatMap((n) => FRAME_VERBS.map((v) => `the ${n.word} is ${v.ing}`));
+
 // The English letter pad: a–z only (no å ä ö; canonical is lower-case, A16).
 export const ENGLISH_LETTERS: readonly string[] = 'abcdefghijklmnopqrstuvwxyz'.split('');
 
