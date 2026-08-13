@@ -10,17 +10,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
 import { EN_VERBS, EN_COLORS, EN_NOUNS, EN_ATTRS } from '@/lib/english-content';
 
-type Kind = 'picto' | 'swatch' | 'noun';
-type Clip = { kind: Kind; word: string; picto?: string; color?: string; emoji?: string };
+type Kind = 'picto' | 'swatch' | 'noun' | 'sizednoun' | 'nounverb';
+type Clip = { kind: Kind; word: string; picto?: string; color?: string; emoji?: string; big?: boolean; noun?: string; verb?: string };
 type Verdict = 'ok' | 'bad';
 
-const KIND_LABEL: Record<Kind, string> = { picto: 'Verb (SVG)', swatch: 'Färg', noun: 'Substantiv (emoji)' };
+const KIND_LABEL: Record<Kind, string> = { picto: 'Verb / motsats', swatch: 'Färg', noun: 'Substantiv (emoji)', sizednoun: 'Två ord (stor/liten)', nounverb: 'Mening (djur + verb)' };
 
 const CLIPS: Clip[] = [
   ...EN_VERBS.map((v): Clip => ({ kind: 'picto', word: v.word, picto: v.picto })),
   ...EN_ATTRS.map((a): Clip => ({ kind: 'picto', word: a.word, picto: a.picto })),
   ...EN_COLORS.map((c): Clip => ({ kind: 'swatch', word: c.word, color: c.color })),
   ...EN_NOUNS.map((n): Clip => ({ kind: 'noun', word: n.word, emoji: n.emoji })),
+  // Composite-render SAMPLES — the actual layouts a child taps, so the scaling ("big cat" vs "small
+  // cat") and the agent+action pairing ("the dog is running") get vetted, not just the parts.
+  { kind: 'sizednoun', word: 'big cat', emoji: 'cat', big: true },
+  { kind: 'sizednoun', word: 'small cat', emoji: 'cat', big: false },
+  { kind: 'sizednoun', word: 'big house', emoji: 'house', big: true },
+  { kind: 'sizednoun', word: 'small house', emoji: 'house', big: false },
+  { kind: 'nounverb', word: 'the dog is running', noun: 'dog', verb: 'run' },
+  { kind: 'nounverb', word: 'the cat is sleeping', noun: 'cat', verb: 'sleep' },
+  { kind: 'nounverb', word: 'the bird is eating', noun: 'bird', verb: 'eat' },
 ];
 
 const key = (c: { kind: string; word: string }) => `${c.kind}:${c.word}`;
@@ -29,6 +38,8 @@ type Filter = 'kvar' | 'alla' | 'flaggade';
 function Picture({ c }: { c: Clip }) {
   if (c.kind === 'picto') return <img className="choice-pic" src={`/pictos/${c.picto}.png`} alt="" width={110} height={110} />;
   if (c.kind === 'swatch') return <span style={{ display: 'block', width: 110, height: 110, borderRadius: 16, background: c.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />;
+  if (c.kind === 'sizednoun') return <span className="sizednoun"><img src={`/emoji/${c.emoji}.png`} alt="" style={{ width: c.big ? 104 : 46, height: c.big ? 104 : 46 }} /></span>;
+  if (c.kind === 'nounverb') return <span className="nounverb"><img src={`/emoji/${c.noun}.png`} alt="" /><img src={`/pictos/${c.verb}.png`} alt="" /></span>;
   return <img className="choice-pic" src={`/emoji/${c.emoji}.png`} alt="" width={110} height={110} />;
 }
 
