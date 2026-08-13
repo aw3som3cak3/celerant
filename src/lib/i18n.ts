@@ -192,6 +192,8 @@ const sv: Dict = {
   'room.selected': 'vald',
   'room.furniture': 'Möbler',
   'room.familyGoal': 'Familjemålet',
+  'room.whoChooses': 'Vem väljer det här?',
+  'room.cancel': 'Avbryt',
   'reward.countsToward': 'Det här passet räknas mot',
 
   'shelf.title': 'Korten',
@@ -410,6 +412,8 @@ const en: Dict = {
   'room.selected': 'selected',
   'room.furniture': 'Furniture',
   'room.familyGoal': 'Family goal',
+  'room.whoChooses': 'Who is choosing this?',
+  'room.cancel': 'Cancel',
   'reward.countsToward': 'This session counts toward',
 
   'shelf.title': 'Cards',

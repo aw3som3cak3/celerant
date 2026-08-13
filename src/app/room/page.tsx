@@ -6,6 +6,7 @@ import { getJSON, postJSON } from '@/lib/client';
 import { CATS, PROPS, ROSTER_BY_ID, type Target } from '@/reward/roster';
 import { useI18n } from '../_components/LocaleProvider';
 import { Emoji } from '../_components/Emoji';
+import { EmojiIcon } from '../_components/Icon';
 
 type RewardData = { progress: Record<string, number>; unlockedCats: string[]; unlockedProps: string[]; sharedTarget: Target; familyGoalOpen: boolean; familyGoalLabel: string | null; liveFish: number };
 
@@ -75,6 +76,12 @@ function Room() {
   const sp = useSearchParams();
   const p = sp.get('p') ?? '';
   const [data, setData] = useState<RewardData | null>(null);
+  // The shared room (entered without ?p=) doesn't know who's tapping, so a target pick
+  // must ask "vem väljer?" and write THAT child's personal target — never the family-wide
+  // default (which is what let one kid's pick collect for everyone). Loaded lazily on the
+  // first pick. With a ?p= (the done-screen entry) we already know the child and skip this.
+  const [players, setPlayers] = useState<{ id: string; icon: string }[]>([]);
+  const [pendingTarget, setPendingTarget] = useState<Target | null>(null);
   const [wanderers, setWanderers] = useState<Wanderer[]>([]);
   const [petting, setPetting] = useState<string | null>(null);
   const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([]);
@@ -176,11 +183,24 @@ function Room() {
     setTimeout(() => setHearts((hs) => hs.filter((h) => h.id !== hid)), 900);
   }
 
-  // Set THIS child's personal default (Model A) when we know who's here (?p=); without a
-  // player it falls back to the family-wide default.
-  async function setSharedTarget(target: Target) {
-    const r = await postJSON<{ reward?: RewardData }>('/api/reward/shared-target', p ? { target, p } : { target });
+  // Write a target as THIS child's personal default (player_target) — always for a known
+  // child, never the family-wide row. That is the fix: a kid can only steer their own goal.
+  async function applyTarget(target: Target, forPlayer: string) {
+    const r = await postJSON<{ reward?: RewardData }>('/api/reward/shared-target', { target, p: forPlayer });
     if (r.reward) setData(r.reward);
+  }
+  // The pick action. With ?p= we know the child → set it directly. In the shared room we
+  // don't → load the family's kids and ask "vem väljer?" (auto-pick a single-child family).
+  async function chooseTarget(target: Target) {
+    if (p) return applyTarget(target, p);
+    let list = players;
+    if (!list.length) {
+      const me = await getJSON<{ players?: { id: string; icon: string }[] }>('/api/me');
+      list = me.players ?? [];
+      setPlayers(list);
+    }
+    if (list.length === 1) return applyTarget(target, list[0].id);
+    setPendingTarget(target);
   }
 
   if (!data) return <div className="room-wrap"><p className="room-loading">…</p></div>;
@@ -284,7 +304,7 @@ function Room() {
               <span className="target-name">{cat.name[locale]}</span>
               <span className="target-meter"><span style={{ width: `${Math.min(100, (n / cat.cost) * 100)}%` }} /></span>
               <span className="target-count">{done ? '✓' : `${n}/${cat.cost}`}</span>
-              {!done && !isShared && <button className="idk" onClick={() => setSharedTarget({ kind: 'cat', id: cat.id })}>{t('room.collectThis')}</button>}
+              {!done && !isShared && <button className="idk" onClick={() => chooseTarget({ kind: 'cat', id: cat.id })}>{t('room.collectThis')}</button>}
               {isShared && <span className="pill-selected">{t('room.selected')}</span>}
             </div>
           );
@@ -297,7 +317,7 @@ function Room() {
             <span className="target-name">{data.familyGoalLabel ?? t('room.familyGoal')}</span>
             <span className="target-count">{data.progress['family'] ?? 0}</span>
             {shared.kind !== 'family' ? (
-              <button className="idk" onClick={() => setSharedTarget({ kind: 'family', id: 'family' })}>{t('room.collectThis')}</button>
+              <button className="idk" onClick={() => chooseTarget({ kind: 'family', id: 'family' })}>{t('room.collectThis')}</button>
             ) : (
               <span className="pill-selected">{t('room.selected')}</span>
             )}
@@ -318,7 +338,7 @@ function Room() {
               <span className="target-name">{pr.name[locale]}</span>
               <span className="target-meter"><span style={{ width: `${Math.min(100, (n / pr.cost) * 100)}%` }} /></span>
               <span className="target-count">{consumable ? `🐟 ×${data.liveFish}` : done ? '✓' : `${n}/${pr.cost}`}</span>
-              {!done && !isShared && <button className="idk" onClick={() => setSharedTarget({ kind: 'prop', id: pr.id })}>{t('room.collectThis')}</button>}
+              {!done && !isShared && <button className="idk" onClick={() => chooseTarget({ kind: 'prop', id: pr.id })}>{t('room.collectThis')}</button>}
               {isShared && <span className="pill-selected">{t('room.selected')}</span>}
             </div>
           );
@@ -329,6 +349,29 @@ function Room() {
         {p && <a className="room-btn" href={`/practice?p=${p}`}>{t('shelf.practise')}</a>}
         <a className="room-btn" href="/"><Emoji e="🏠" /> {t('common.home')}</a>
       </div>
+
+      {/* "Vem väljer?" — in the shared room a pick must name its child so it sets THAT kid's
+          personal target, never the family-wide default. */}
+      {pendingTarget && (
+        <div className="room-chooser-overlay" onClick={() => setPendingTarget(null)}>
+          <div className="room-chooser" onClick={(e) => e.stopPropagation()}>
+            <p className="room-chooser-q">{t('room.whoChooses')}</p>
+            <div className="room-chooser-kids">
+              {players.map((pl) => (
+                <button
+                  key={pl.id}
+                  type="button"
+                  className="room-chooser-kid"
+                  onClick={async () => { const target = pendingTarget; setPendingTarget(null); await applyTarget(target, pl.id); }}
+                >
+                  <EmojiIcon iconKey={pl.icon} />
+                </button>
+              ))}
+            </div>
+            <button type="button" className="idk" onClick={() => setPendingTarget(null)}>{t('room.cancel')}</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

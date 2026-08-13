@@ -1317,6 +1317,25 @@ table.plain-table th {
 .cat-carrier .cat-pill { position: static; transform: none; display: inline-block; margin-bottom: 2px; }
 .room-nav { display: flex; gap: 0.6rem; justify-content: center; margin-top: 1.2rem; }
 
+/* "Vem väljer?" chooser — a kid names themselves so a target pick sets THEIR own default. */
+.room-chooser-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55); padding: 1.5rem;
+}
+.room-chooser {
+  background: var(--bg); color: var(--ink);
+  border-radius: 20px; padding: 1.4rem 1.6rem; max-width: 92vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35); text-align: center;
+}
+.room-chooser-q { font-size: 1.2rem; margin: 0 0 1rem; }
+.room-chooser-kids { display: flex; flex-wrap: wrap; gap: 0.8rem; justify-content: center; margin-bottom: 1rem; }
+.room-chooser-kid {
+  border: 2px solid var(--line); border-radius: 16px; background: transparent;
+  padding: 0.5rem; cursor: pointer; line-height: 0;
+}
+.room-chooser-kid:hover { border-color: var(--accent); }
+
 /* end-of-session allocation on the practice done screen */
 .alloc-box {
   margin: 1.2rem auto 0;
