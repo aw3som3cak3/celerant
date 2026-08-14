@@ -221,6 +221,19 @@ input {
 .granska h2 { margin: 1.4rem 0 0.6rem; font-size: 1.05rem; color: var(--ink); }
 .granska-count { font-weight: 400; color: var(--ink-soft); font-size: 0.9rem; }
 .granska-hint { color: var(--ink-soft); margin: 0 0 0.6rem; }
+/* The granska hub — one row per vet surface. */
+.granska-hub { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+.granska-hub-row {
+  display: flex; align-items: center; gap: 0.8rem;
+  padding: 0.9rem 1.1rem; border: 2px solid var(--line); border-radius: 14px;
+  background: #fff; color: var(--ink); text-decoration: none;
+}
+.granska-hub-row:hover { border-color: var(--accent); }
+.granska-hub-row.done { opacity: 0.55; }
+.granska-hub-icon { font-size: 1.3rem; line-height: 1; }
+.granska-hub-label { flex: 1; font-size: 1rem; }
+.granska-hub-status { font-size: 0.9rem; color: var(--ink-soft); white-space: nowrap; }
+.granska-hub-status.kvar { color: var(--accent); font-weight: 600; }
 .granska-grid { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 .granska-chip {
   display: inline-flex; align-items: center; gap: 0.4rem;

@@ -8,34 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getJSON, postJSON } from '@/lib/client';
-import { EN_VERBS, EN_COLORS, EN_NOUNS, EN_ATTRS } from '@/lib/english-content';
+import { IMAGE_CLIPS as CLIPS, imageKey as key, type ImageClip, type ImageKind } from '@/lib/granska-clips';
 
-type Kind = 'picto' | 'swatch' | 'noun' | 'sizednoun' | 'nounverb';
-type Clip = { kind: Kind; word: string; picto?: string; color?: string; emoji?: string; big?: boolean; noun?: string; verb?: string };
 type Verdict = 'ok' | 'bad';
 
-const KIND_LABEL: Record<Kind, string> = { picto: 'Verb / motsats', swatch: 'Färg', noun: 'Substantiv (emoji)', sizednoun: 'Två ord (stor/liten)', nounverb: 'Mening (djur + verb)' };
+const KIND_LABEL: Record<ImageKind, string> = { picto: 'Verb / motsats', swatch: 'Färg', noun: 'Substantiv (emoji)', sizednoun: 'Två ord (stor/liten)', nounverb: 'Mening (djur + verb)' };
 
-const CLIPS: Clip[] = [
-  ...EN_VERBS.map((v): Clip => ({ kind: 'picto', word: v.word, picto: v.picto })),
-  ...EN_ATTRS.map((a): Clip => ({ kind: 'picto', word: a.word, picto: a.picto })),
-  ...EN_COLORS.map((c): Clip => ({ kind: 'swatch', word: c.word, color: c.color })),
-  ...EN_NOUNS.map((n): Clip => ({ kind: 'noun', word: n.word, emoji: n.emoji })),
-  // Composite-render SAMPLES — the actual layouts a child taps, so the scaling ("big cat" vs "small
-  // cat") and the agent+action pairing ("the dog is running") get vetted, not just the parts.
-  { kind: 'sizednoun', word: 'big cat', emoji: 'cat', big: true },
-  { kind: 'sizednoun', word: 'small cat', emoji: 'cat', big: false },
-  { kind: 'sizednoun', word: 'big house', emoji: 'house', big: true },
-  { kind: 'sizednoun', word: 'small house', emoji: 'house', big: false },
-  { kind: 'nounverb', word: 'the dog is running', noun: 'dog', verb: 'run' },
-  { kind: 'nounverb', word: 'the cat is sleeping', noun: 'cat', verb: 'sleep' },
-  { kind: 'nounverb', word: 'the bird is eating', noun: 'bird', verb: 'eat' },
-];
-
-const key = (c: { kind: string; word: string }) => `${c.kind}:${c.word}`;
 type Filter = 'kvar' | 'alla' | 'flaggade';
 
-function Picture({ c }: { c: Clip }) {
+function Picture({ c }: { c: ImageClip }) {
   if (c.kind === 'picto') return <img className="choice-pic" src={`/pictos/${c.picto}.png`} alt="" width={110} height={110} />;
   if (c.kind === 'swatch') return <span style={{ display: 'block', width: 110, height: 110, borderRadius: 16, background: c.color, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.12)' }} aria-hidden />;
   if (c.kind === 'sizednoun') return (
@@ -118,7 +99,7 @@ export default function GranskaBilderPage() {
       <p className="granska-hint">
         Titta på varje bild och avgör om den <em>tydligt</em> visar sitt engelska ord (t.ex. att «run»
         inte ser ut som «jump»). Flagga det som inte funkar — de görs om. Ordet visas (det är
-        granskning). Omdömet sparas direkt. <a href="/stava/granska">→ Granska ljud</a>
+        granskning). Omdömet sparas direkt. <a href="/stava/granska">← Tillbaka till Granska</a>
       </p>
 
       <div className="granska-stats">

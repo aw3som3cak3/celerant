@@ -251,7 +251,7 @@ function Players({ me }: { me: Me }) {
             remains on the home screen, for the test family. */}
         {me.spellingReview && !editing && (
           <button className="linkbtn" onClick={() => (location.href = '/stava/granska')}>
-            <Emoji e="🔍" /> Granska orden (lyssna)
+            <Emoji e="🔍" /> Granska
           </button>
         )}
 
