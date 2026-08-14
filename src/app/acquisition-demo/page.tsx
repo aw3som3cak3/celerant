@@ -39,6 +39,9 @@ const CASES: Demo[] = [
   { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
   { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
   // ── WORD SUBJECTS (letter pad + play button) ──
+  // segment-and-spell · Swedish phonics (spelling_t2): hear the word → sound boxes → write
+  { code: 'spelling_t2', seed: 0, strategy: 'sv_segment', level: L_FULL, label: 'stavning: ljuda ordet (b·i·l)' },
+  { code: 'spelling_t2', seed: 2, strategy: 'sv_segment', level: L_PARTIAL, label: 'stavning: ljudrutor' },
   // rule-application-fade · Swedish doubling (spelling_t3): hear the word → kort/lång → dubbla
   { code: 'spelling_t3', seed: 2, strategy: 'sv_double', level: L_FULL, label: 'stavning: dubbelteckning (vitt)' },
   { code: 'spelling_t3', seed: 2, strategy: 'sv_double', level: L_CUED, label: 'stavning: dubbelteckning, bara tips' },

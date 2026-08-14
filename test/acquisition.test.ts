@@ -1286,3 +1286,90 @@ describe('word subjects — English -ed trigger + engine', () => {
     expect(repo.acquisitionLevel(pid, 'en_ed_regular')).toBeNull(); // graduated
   });
 });
+
+// ── WORD SUBJECT · Swedish phonics (spelling_t2) — SEGMENT-AND-SPELL (procedure walk) ────────
+// A non-branching rule: the teaching IS the segmentation. Transparent words (letters == sounds),
+// so the cue shows the word broken into its sounds and fades.
+
+const AK2_SP = 2; // seedGradeFor(2) = 1: spelling_t1c (recognition, seedFluent at grade≥1) is the
+// reading input she owns; spelling_t2 (yr2) is being learned.
+
+describe('word subjects — Swedish phonics (segment-and-spell) content', () => {
+  it('registers a rule derivation on spelling_t2 with a reads-letters input veto', () => {
+    expect(hasDerivation('spelling_t2')).toBe(true);
+    expect(pickDerivation('spelling_t2', () => true)?.id).toBe('sv_segment');
+    expect(pickDerivation('spelling_t2', (c) => c !== 'spelling_t1c')).toBeNull(); // must read letters first
+  });
+
+  it('the cue segments the word into sounds, then boxes, then a tip — over the pool', () => {
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 60; seed++) {
+      const word = buildItem('spelling_t2', seed).answer;
+      if (seen.has(word) || word.length < 2) continue;
+      seen.add(word);
+      const sc = buildWordScaffold('spelling_t2', seed, 'sv_segment');
+      expect(sc, `word ${word}`).not.toBeNull();
+      expect(sc!.answer).toBe(word); // produced target IS the real word
+      expect(sc!.isRule).toBe(true);
+      expect(sc!.substeps).toHaveLength(0); // a procedure — the fade is the cue, no discrimination tap
+      const seg = sc!.cueAt(L_FULL)!;
+      expect(seg.replace(/·/g, '')).toBe(word); // L0 is the word segmented by middots
+      expect(seg.split('·')).toHaveLength(word.length); // one sound per letter (transparent)
+      const boxes = sc!.cueAt(L_PARTIAL)!;
+      expect((boxes.match(/_/g) || []).length).toBe(word.length); // L1 one box per sound
+      expect(boxes).not.toContain(word[0]); // letters hidden — she recalls each sound
+      expect(sc!.cueAt(L_CUED)).toBe('dela upp ordet i ljud'); // L2 the segment tip
+    }
+    expect(seen.size).toBeGreaterThan(20);
+  });
+});
+
+describe('word subjects — Swedish phonics trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function spellt2Learner(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'spellt2', AK2_SP, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'spelling')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'spelling_t2', (t += 1000));
+    return pid;
+  }
+
+  it('the t2 gap ignites with sv_segment; vetoes if she cannot read letters yet', () => {
+    const pid = spellt2Learner(fam);
+    const base = buildStates(pid, AK2_SP, 'spelling');
+    expect(acquisitionPlans(pid, base).get('spelling_t2')).toMatchObject({ level: L_FULL, strategy: 'sv_segment' });
+    // Knock out the reading input → drop lower (teach recognition first), never scaffold spelling.
+    const notReading = base.map((s) =>
+      s.code === 'spelling_t1c' ? ({ ...s, seedFluent: false, recogFluent: false } as SelState) : s,
+    );
+    expect(acquisitionPlans(pid, notReading).has('spelling_t2')).toBe(false);
+  });
+
+  it('a scaffolded t2 attempt is warmup-class (θ up, no rate) and graduates', () => {
+    const pid = spellt2Learner(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
+    const player = { id: pid, school_year: AK2_SP, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'spelling_t2', seed, buildItem('spelling_t2', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('spelling_t2')!.theta;
+    repo.startAcquisition(pid, 'spelling_t2', 'sv_segment', NOW);
+    let at = NOW + 200_000;
+    answerWith(0, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'spelling_t2') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('spelling_t2')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'spelling_t2')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
+    expect(repo.acquisitionLevel(pid, 'spelling_t2')).toBeNull(); // graduated
+  });
+});

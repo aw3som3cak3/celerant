@@ -70,7 +70,8 @@ export type StrategyId =
   // ── word subjects (rule-application-fade + cue-fade) ──
   | 'sv_double' // spelling_t3 doubling: hear short vowel → double the consonant
   | 'en_irregular_cue' // en_past_irregular: cue-fade whole → gapped → first-letter → dictation
-  | 'en_ed_rule'; // en_ed_regular: 3-way branching rule (double / drop-e / add)
+  | 'en_ed_rule' // en_ed_regular: 3-way branching rule (double / drop-e / add)
+  | 'sv_segment'; // spelling_t2: segment-and-spell (b·i·l → boxes → tip)
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -576,6 +577,22 @@ export const WORD_DERIVATIONS: WordDerivation[] = [
       return { substeps, cueAt: (lvl) => (lvl <= L_FULL ? marked : lvl === L_PARTIAL ? gapped : ED_TIP[c.rule]) };
     },
   },
+  {
+    // SLICE B · Swedish phonics (spelling_t2) — a segment-and-spell PROCEDURE walk (no fork). The
+    // teaching IS the segmentation, which a struggling speller can't yet do. T2 words are transparent
+    // (letters == sounds), so the cue shows the word broken into its sounds and fades: L0 the word
+    // segmented (b·i·l — copy while SEEING each sound), L1 sound boxes (_ _ _ — recall each), L2 a
+    // segment tip, L3 bare dictation. No discrimination sub-step — modelling the segmentation is the
+    // support. Input veto: she reads letters (the recognition ladder crossed, spelling_t1c).
+    id: 'sv_segment', code: 'spelling_t2', kind: 'rule', inputs: ['spelling_t1c'],
+    build: (item) => {
+      const w = item.answer;
+      if (w.length < 2) return null;
+      const segmented = w.split('').join('·'); // b·i·l — each sound visible
+      const boxes = w.split('').map(() => '_').join(' '); // _ _ _ — one box per sound
+      return { substeps: [], cueAt: (lvl) => (lvl <= L_FULL ? segmented : lvl === L_PARTIAL ? boxes : 'dela upp ordet i ljud') };
+    },
+  },
 ];
 
 export const WORD_BY_CODE = new Map<string, WordDerivation[]>();
@@ -719,6 +736,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     sv_double: `kort vokal → dubbla konsonanten`,
     en_irregular_cue: `minns ordet`,
     en_ed_rule: `vilken regel för -ed?`,
+    sv_segment: `dela upp ordet i ljud`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -748,6 +766,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     sv_double: `short vowel → double the consonant`,
     en_irregular_cue: `remember the word`,
     en_ed_rule: `which -ed rule?`,
+    sv_segment: `break the word into sounds`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -787,6 +806,7 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   sv_double: 'Dubbelteckning: hör du en KORT vokal så dubblas konsonanten (vitt), en LÅNG vokal enkeltecknas (vit). Säg ordet långsamt tillsammans och lyssna på vokalen.',
   en_irregular_cue: 'Oregelbundna verb i dåtid måste läras utantill (go→went, inte "goed"). Titta på ordet, täck det, skriv det — några gånger tillsammans.',
   en_ed_rule: 'Regelbunden dåtid (-ed) böjs på tre sätt: dubbla konsonanten (hop→hopped), ta bort tyst e (like→liked), eller bara lägg till -ed (jump→jumped). Titta på grundordet och avgör vilken regel.',
+  sv_segment: 'Ljuda ordet: säg det långsamt och dela upp i ljud (b·i·l), skriv ett ljud i taget. Att höra ljuden i ordning är själva knepet — öva att dra ut ordet tillsammans.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────
