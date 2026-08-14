@@ -50,7 +50,10 @@ export type StrategyId =
   | 'x10_plus_x2'
   // ── bridging-through-10 (the second derivational domain, same faded-scaffold shape) ──
   | 'make_ten_add' // 8 + 5 → 8 + 2 = 10, + 3 = 13
-  | 'make_ten_sub'; // 14 − 6 → 14 − 4 = 10, − 2 = 8
+  | 'make_ten_sub' // 14 − 6 → 14 − 4 = 10, − 2 = 8
+  // ── generic rule domains (division / 2-digit / negatives / decimals / fractions) ──
+  | 'div_inverse_mult' // 56 / 8 → 8 × ? = 56 → 7   (shared by every div_table_t)
+  | 'mf_inverse_div'; // 7 × □ = 63 → 63 / 7 → 9
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -196,19 +199,80 @@ for (const d of ADDITIVE_DERIVATIONS) {
   ADDITIVE_BY_CODE.set(d.code, list);
 }
 
-// Does this skill have a derivation at all? (Multiplication tables OR bridging-through-10.)
+// ── GENERIC RULE DERIVATIONS (division, 2-digit place value, negatives, decimals, fractions) ──
+//
+// A THIRD structure, deliberately separate from DERIVATIONS (multiplication) and
+// ADDITIVE_DERIVATIONS (bridging) so both earlier slices stay byte-for-byte untouched. Where those
+// two carry domain-specific shapes (a table `b`; an operator `op` + two operands), the remaining
+// maths domains each parse a differently-shaped prompt, so each derivation OWNS its parse: `build`
+// reads the built item and returns the L0 walk + the L1 partial, or null when the item doesn't fit
+// (the same "fall back to the bare item, child never stuck" contract as buildAdditiveScaffold).
+//
+// One strategy id may be SHARED across many codes (e.g. every div_table_t is `div_inverse_mult`):
+// buildScaffold disambiguates by (code, strategy), and hintFor/STRATEGY_COPY need only ONE entry
+// per id. `pivot` is the single number the L2 hint speaks about (a divisor, a rounded subtrahend);
+// it is meaningless for sign-rule strategies, which pass 0 and render a pivot-free hint.
+export type RuleScaffoldParts = { substeps: SubStep[]; partial: string; pivot: number };
+export type RuleDerivation = {
+  id: StrategyId;
+  code: string;
+  inputs: string[];
+  build: (item: { prompt: string; answer: string }) => RuleScaffoldParts | null;
+};
+
+// ── DIVISION · inverse-multiplication (spec gap-map domain 1) ───────────────────────────────
+// A division fact is a multiplication fact the child already owns, read backwards: 56 / 8 → "8
+// times what is 56?" → 7. The single sub-step reframes ÷ into the × she is fluent on; the fade
+// then peels the × frame away until she reads the bare ÷. `div_mixed` has no single-table inverse,
+// so it is NOT trained (its own tables are). Every div_table_t shares the one strategy id.
+const divInverse = (t: number): RuleDerivation => ({
+  id: 'div_inverse_mult', code: `div_table_${t}`, inputs: [`mult_table_${t}`],
+  build: (item) => {
+    const m = item.prompt.match(/^\s*(\d+)\s*\/\s*(\d+)\s*=/);
+    if (!m || Number(m[2]) !== t) return null;
+    const dividend = Number(m[1]);
+    // The missing-factor form she answers with her × fluency; its answer IS the quotient.
+    return { substeps: [{ prompt: `${t} × □ = ${dividend}`, answer: item.answer }], partial: `${t} × □ = ${dividend}`, pivot: t };
+  },
+});
+
+export const RULE_DERIVATIONS: RuleDerivation[] = [
+  ...[2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12].map(divInverse),
+  {
+    // The missing FACTOR is division read backwards, the mirror of div_table: 7 × □ = 63 → "63
+    // shared into 7" → 9. By the time this skill is reached division is fluent (it requires
+    // div_mixed), so the reframe lands on a fact she owns.
+    id: 'mf_inverse_div', code: 'missing_factor', inputs: ['div_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\D+(\d+)/); // "a × □ = product" → a, product
+      if (!m) return null;
+      const a = Number(m[1]), product = Number(m[2]);
+      return { substeps: [{ prompt: `${product} / ${a} =`, answer: item.answer }], partial: `${product} / ${a} =`, pivot: a };
+    },
+  },
+];
+
+export const RULE_BY_CODE = new Map<string, RuleDerivation[]>();
+for (const d of RULE_DERIVATIONS) {
+  const list = RULE_BY_CODE.get(d.code) ?? [];
+  list.push(d);
+  RULE_BY_CODE.set(d.code, list);
+}
+
+// Does this skill have a derivation at all? (Multiplication, bridging-through-10, or a rule domain.)
 export function hasDerivation(code: string): boolean {
-  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code);
+  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code) || RULE_BY_CODE.has(code);
 }
 
 // The shallowest derivation whose inputs are ALL fluent for this child, or null. `isFluent` is
 // the caller's readiness predicate (componentFluent on the selector state) — this module never
 // touches player state. Returning null is the readiness VETO: do NOT scaffold; let the graph
-// drop lower and serve the missing input instead (invariant 3). Multiplication and additive
-// derivations both expose `id` + `inputs`, so the trigger reads either through one signature.
-export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | null {
+// drop lower and serve the missing input instead (invariant 3). Every derivation kind exposes
+// `id` + `inputs`, so the trigger reads all three through one signature.
+export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | RuleDerivation | null {
   for (const d of DERIVATIONS_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   for (const d of ADDITIVE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
+  for (const d of RULE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   return null;
 }
 
@@ -231,6 +295,17 @@ export function buildScaffold(code: string, seed: number, strategy: StrategyId):
   // alone doesn't determine them) and decompose via make-ten.
   const add = ADDITIVE_BY_STRATEGY.get(strategy);
   if (add) return buildAdditiveScaffold(item, add, strategy);
+  // Generic rule domains: look up by CODE (a strategy id may be shared across codes), then the
+  // derivation that owns this strategy parses its own prompt.
+  const rule = RULE_BY_CODE.get(code);
+  if (rule) {
+    const d = rule.find((x) => x.id === strategy);
+    if (!d) return null;
+    const parts = d.build(item);
+    // Grade-identical guard: the walk MUST culminate in the item's own answer (invariant 1).
+    if (!parts || parts.substeps[parts.substeps.length - 1].answer !== item.answer) return null;
+    return { strategy, t: 0, b: parts.pivot, target: item.prompt, answer: item.answer, substeps: parts.substeps, partial: parts.partial };
+  }
   const d = BY_STRATEGY.get(strategy);
   if (!d || `mult_table_${d.table}` !== code) return null;
   const answer = Number(item.answer);
@@ -269,6 +344,9 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     // Bridging: b is the pivot filled to/from ten. Name the make-ten step, never the answer.
     make_ten_add: `${b} + ${10 - b} = 10, sen resten`,
     make_ten_sub: `${b} − ${b - 10} = 10, sen resten`,
+    // Division: b is the divisor. Point back to the × table she owns, never the quotient.
+    div_inverse_mult: `tänk baklänges: ${b} × ? = talet`,
+    mf_inverse_div: `dela istället: talet / ${b}`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -282,6 +360,8 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     x10_plus_x2: `10 × ${b} plus 2 × ${b}`,
     make_ten_add: `${b} + ${10 - b} = 10, then the rest`,
     make_ten_sub: `${b} − ${b - 10} = 10, then the rest`,
+    div_inverse_mult: `think ×: ${b} × ? = the number`,
+    mf_inverse_div: `divide instead: the number / ${b}`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -305,6 +385,8 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   x10_plus_x2: 'Tolvans tabell är tian plus tvåan: 10 × 7 = 70, 2 × 7 = 14, och 70 + 14 = 84.',
   make_ten_add: 'Tiokamrat-strategin: fyll upp till tio först. 8 + 5 → 8 + 2 = 10, och 3 kvar → 13. Öva 3–4 stycken tillsammans med en tioram eller fingrarna.',
   make_ten_sub: 'Tiokamrat-strategin baklänges: gå ner till tio först. 14 − 6 → 14 − 4 = 10, och 2 kvar → 8. Öva 3–4 stycken tillsammans.',
+  div_inverse_mult: 'Division är multiplikation baklänges: 56 / 8 → tänk "8 gånger vad blir 56?" → 7. Öva 3–4 stycken tillsammans med gångertabellen bredvid.',
+  mf_inverse_div: 'Saknad faktor är en division: 7 × □ = 63 → tänk "63 delat med 7" → 9.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

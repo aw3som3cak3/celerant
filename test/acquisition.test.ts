@@ -524,3 +524,135 @@ describe('bridging-through-10 — the trigger and the engine', () => {
     expect(acquisitionPlans(pid, buildStates(pid, AK2, 'maths')).has('add_cross_10')).toBe(false);
   });
 });
+
+// ── DOMAIN · DIVISION (inverse-multiplication) ──────────────────────────────────────────────
+// A division fact reframed as the multiplication fact she owns: 56 / 8 → "8 × ? = 56" → 7.
+
+const AK5 = 5; // seedGradeFor(5) = 4: every ×-table seeds fluent; div_table_7/8/9 (year 5) do not.
+
+describe('division — the derivation content', () => {
+  it('registers an inverse-mult derivation for every table + missing_factor, not the union node', () => {
+    for (const t of [2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12]) expect(hasDerivation(`div_table_${t}`)).toBe(true);
+    expect(hasDerivation('missing_factor')).toBe(true);
+    expect(hasDerivation('div_mixed')).toBe(false); // a union node has no single-table inverse
+  });
+
+  it('decomposes the ACTUAL division into its × fact, never changing the quotient', () => {
+    for (const t of [3, 7, 8, 12]) {
+      for (let seed = 1; seed < 30; seed++) {
+        const item = buildItem(`div_table_${t}`, seed);
+        const sc = buildScaffold(`div_table_${t}`, seed, 'div_inverse_mult')!;
+        expect(sc.target).toBe(item.prompt);
+        expect(sc.answer).toBe(item.answer); // grading unchanged
+        expect(sc.substeps).toHaveLength(1);
+        const dividend = Number(item.prompt.match(/^(\d+)/)![1]);
+        expect(sc.substeps[0].prompt).toBe(`${t} × □ = ${dividend}`);
+        expect(sc.substeps[0].answer).toBe(item.answer); // she builds the quotient with her × fluency
+        expect(sc.partial).toBe(`${t} × □ = ${dividend}`);
+      }
+    }
+  });
+
+  it('missing_factor reframes to a division she owns, answer unchanged', () => {
+    for (let seed = 1; seed < 40; seed++) {
+      const item = buildItem('missing_factor', seed);
+      const sc = buildScaffold('missing_factor', seed, 'mf_inverse_div')!;
+      expect(sc.answer).toBe(item.answer);
+      expect(sc.substeps[0].prompt).toMatch(/^\d+ \/ \d+ =$/);
+      expect(sc.substeps[0].answer).toBe(item.answer);
+    }
+  });
+
+  it('picks inverse-mult when the table is fluent, vetoes when it is not (invariant 3)', () => {
+    expect(pickDerivation('div_table_8', () => true)?.id).toBe('div_inverse_mult');
+    expect(pickDerivation('div_table_8', (c) => c !== 'mult_table_8')).toBeNull();
+    expect(pickDerivation('missing_factor', () => true)?.id).toBe('mf_inverse_div');
+    expect(pickDerivation('missing_factor', (c) => c !== 'div_mixed')).toBeNull();
+  });
+
+  it('a division hint points at the × table, in both locales, never the quotient', () => {
+    for (const loc of ['sv', 'en']) {
+      const h = hintFor('div_inverse_mult', 8, loc);
+      expect(h).toContain('8');
+      expect(h).toContain('×');
+    }
+  });
+});
+
+describe('division — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // åk5: fluent on the ×-tables (seed) but failing the year-5 division facts — exactly who the
+  // inverse-mult reframe is for. No attempts on the ×-tables, so they stay steady/fluent.
+  function divver(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'divver', AK5, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'div_table_8', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'div_table_7', (t += 1000));
+    return pid;
+  }
+
+  it('both division gaps ignite with inverse-mult; the fluent ×-tables do not', () => {
+    const pid = divver(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK5, 'maths'));
+    expect(plans.get('div_table_8')).toMatchObject({ level: L_FULL, strategy: 'div_inverse_mult' });
+    expect(plans.get('div_table_7')).toMatchObject({ level: L_FULL, strategy: 'div_inverse_mult' });
+    expect(plans.has('mult_table_8')).toBe(false); // no derivation (it IS the input)
+  });
+
+  it('does NOT fire when the × table it inverts is not fluent — the graph drops lower', () => {
+    const pid = divver(fam);
+    const states = buildStates(pid, AK5, 'maths').map((s) =>
+      s.code === 'mult_table_8'
+        ? ({ ...s, seedFluent: false, earnedFluent: false, rate: { source: 'measured', value: 0.1 } } as SelState)
+        : s,
+    );
+    expect(acquisitionPlans(pid, states).has('div_table_8')).toBe(false);
+  });
+
+  it('is served the reframe, warmup-class (θ up, no rate), and graduates', () => {
+    const pid = divver(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK5, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'div_table_8', seed, buildItem('div_table_8', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    // It is actually served as a scaffold on the real engine.
+    let at = NOW + 100_000;
+    const served: string[] = [];
+    let item = issueNext(pid, AK5, at, { sessionId: sid, remaining: 10 });
+    for (let i = 0; i < 14; i++) {
+      served.push(item.acq ? `${item.code}@L${item.acq.level}` : item.code);
+      at += 5000;
+      const r = sessionAnswer(player, sid, item.code, item.seed, buildItem(item.code, item.seed).answer, false, 1, false, 2000, `idem-${item.code}-${at}-${Math.random()}`, null, at);
+      if (r.status === 'retry' || !r.next) break;
+      item = r.next;
+    }
+    expect(served.some((s) => s === 'div_table_8@L0' || s === 'div_table_7@L0')).toBe(true);
+
+    // Warmup-class + graduation on a fresh forced arc (own family — the fixture icon is fixed).
+    const fam2 = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+    const pid2 = divver(fam2);
+    const sid2 = repo.createSessionRun(pid2, 10, NOW, 'maths');
+    const p2 = { id: pid2, school_year: AK5, stretch: 0 };
+    const before = repo.abilities(pid2).get('div_table_8')!.theta;
+    repo.startAcquisition(pid2, 'div_table_8', 'div_inverse_mult', NOW);
+    let at2 = NOW + 200_000;
+    sessionAnswer(p2, sid2, 'div_table_8', 4242, buildItem('div_table_8', 4242).answer, false, 1, false, 2000, `d-${at2}`, null, at2);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid2, 'div_table_8') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid2).get('div_table_8')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid2, 'div_table_8')).toBeNull();
+    for (let i = 0; i < 8; i++) { at2 += 5000; sessionAnswer(p2, sid2, 'div_table_8', 5000 + i, buildItem('div_table_8', 5000 + i).answer, false, 1, false, 2000, `d2-${at2}-${i}`, null, at2); }
+    expect(repo.acquisitionLevel(pid2, 'div_table_8')).toBeNull(); // graduated
+  });
+});

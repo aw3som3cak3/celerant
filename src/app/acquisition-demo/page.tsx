@@ -25,6 +25,9 @@ const CASES: Demo[] = [
   { code: 'add_cross_10', seed: 3, strategy: 'make_ten_add', level: L_FULL, label: 'tiokamrat: 8 + 5 via 10' },
   { code: 'sub_cross_10', seed: 6, strategy: 'make_ten_sub', level: L_FULL, label: 'tiokamrat baklänges: 14 − 6 via 10' },
   { code: 'add_cross_10', seed: 8, strategy: 'make_ten_add', level: L_CUED, label: 'tiokamrat, bara ett tips' },
+  // division via inverse multiplication (56 / 8 → 8 × ? = 56)
+  { code: 'div_table_8', seed: 5, strategy: 'div_inverse_mult', level: L_FULL, label: 'division baklänges: / 8 via 8 ×' },
+  { code: 'div_table_7', seed: 2, strategy: 'div_inverse_mult', level: L_CUED, label: 'division, bara ett tips' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
