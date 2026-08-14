@@ -1834,3 +1834,15 @@ table.plain-table th {
 .answer-slot.filled { border-bottom-color: var(--accent, #4a7); }
 .answer-slot.active { border-bottom-color: var(--accent, #4a7); background: var(--surface-2, rgba(74, 170, 119, 0.1)); border-radius: 6px 6px 0 0; }
 .answer-overflow { align-self: center; font-size: 1.9rem; font-weight: 700; color: var(--danger, #c44); text-transform: uppercase; }
+
+/* Modelling — fair-share scene: each actor with its share, plus a leftover pile (unequal or
+   impossible shares are visible at a glance). And the budget scene: the goods + a money outcome. */
+.model-share { display: flex; flex-direction: column; align-items: center; gap: 0.8rem; width: 100%; }
+.model-share-actors { display: flex; flex-wrap: wrap; gap: 0.9rem; justify-content: center; }
+.model-share-card { display: flex; flex-direction: column; align-items: center; gap: 0.25rem; }
+.model-share-treats { display: flex; flex-wrap: wrap; gap: 2px; max-width: 70px; justify-content: center; align-items: center; }
+.model-treat { width: 18px; height: 18px; }
+.model-leftover { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; justify-content: center; font-size: 0.95rem; color: #6b5b4a; }
+.model-budget { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.model-goods { display: flex; gap: 1rem; }
+.model-budget-outcome { font-size: 1.4rem; font-weight: 800; margin: 0; color: #3a2f28; }
