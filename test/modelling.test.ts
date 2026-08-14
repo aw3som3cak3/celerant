@@ -4,103 +4,126 @@ import {
   evalStep,
   evaluateModel,
   validate,
-  sensiblePizzas,
   quantities,
+  qval,
+  withValues,
+  sensibleResult,
   pizzaProblem,
+  fairShareProblem,
+  budgetProblem,
+  SCENARIOS,
   type Model,
-  type ModellingProblem,
+  type Openness,
 } from '@/lib/modelling';
 
-// The pizza intended model: guests × slicesEach, then ÷ slicesPerPizza.
-const INTENDED: Model = { row1: { aId: 'guests', bId: 'slicesEach', op: '×' }, row2: { bId: 'slicesPerPizza', op: '÷' } };
-
-// A fixed problem for arithmetic assertions: 8 guests, 2 slices each, 8 per pizza → 16 slices → 2.
-const P: ModellingProblem = {
-  scenario: 'pizza', openness: 1, title: '', gather: false, assume: false,
-  guests: 8, slicesEach: 2, slicesPerPizza: 8, assumeRange: { min: 1, max: 4 },
-  guestKind: 'turtle', intended: INTENDED,
-};
-
-describe('evalStep — the calculator does the arithmetic, division rounds UP (whole pizzas)', () => {
+describe('evalStep — the calculator, with scenario-specific division', () => {
   it('the four operations', () => {
     expect(evalStep(8, 2, '×').value).toBe(16);
-    expect(evalStep(16, 8, '÷').value).toBe(2);
     expect(evalStep(6, 2, '+').value).toBe(8);
     expect(evalStep(6, 2, '−').value).toBe(4);
   });
-  it('division that does not divide evenly rounds up and flags it (cannot buy half a pizza)', () => {
-    expect(evalStep(12, 8, '÷')).toEqual({ value: 2, rounded: true });
-    expect(evalStep(16, 8, '÷')).toEqual({ value: 2, rounded: false });
+  it("ceil division orders whole units and flags rounding (can't buy half a pizza)", () => {
+    expect(evalStep(16, 8, '÷', 'ceil')).toEqual({ value: 2, remainder: 0, rounded: false });
+    expect(evalStep(12, 8, '÷', 'ceil')).toEqual({ value: 2, remainder: 0, rounded: true });
+  });
+  it('floor division shares fairly and keeps the remainder', () => {
+    expect(evalStep(14, 4, '÷', 'floor')).toEqual({ value: 3, remainder: 2, rounded: false });
+    expect(evalStep(12, 4, '÷', 'floor')).toEqual({ value: 3, remainder: 0, rounded: false });
   });
   it('divide by zero is 0, never NaN', () => {
     expect(evalStep(5, 0, '÷').value).toBe(0);
   });
 });
 
-describe('evaluateModel — chains the two rows into a final result', () => {
-  it('the intended model orders exactly enough pizzas', () => {
-    const e = evaluateModel(P, INTENDED);
-    expect(e.row1.value).toBe(16);
-    expect(e.result).toBe(2);
+describe('PIZZA — multiply then divide, the situation is the answer key', () => {
+  const P = pizzaProblem(makeRng(3), 1);
+  it('the intended model orders exactly enough', () => {
+    expect(validate(P, evaluateModel(P, P.intended)).verdict).toBe('good');
   });
-  it('multiplying where you should divide buries the room (the 576-style absurdity)', () => {
-    const buried: Model = { row1: { aId: 'guests', bId: 'slicesEach', op: '×' }, row2: { bId: 'slicesPerPizza', op: '×' } };
-    expect(evaluateModel(P, buried).result).toBe(128);
-  });
-});
-
-describe('validate — the SITUATION is the answer key, not a canonical number', () => {
-  it('the sensible order makes sense', () => {
-    expect(validate(P, 2).verdict).toBe('good');
-    expect(sensiblePizzas(P)).toBe(2);
-  });
-  it('too few pizzas → empty plates', () => {
-    expect(validate(P, 1).verdict).toBe('few');
-    expect(validate(P, 0).verdict).toBe('few');
-  });
-  it('a wild over-order is caught as absurd', () => {
-    expect(validate(P, 128).verdict).toBe('absurd');
-  });
-  it('a little over is "many", not absurd', () => {
-    expect(validate(P, 3).verdict).toBe('many');
-  });
-  it('accepts an assumed slices-each that differs from the authored default (open grading)', () => {
-    // The child assumed 3 slices each → 24 slices → 3 pizzas is sensible for THAT assumption.
-    expect(validate(P, 3, 3).verdict).toBe('good');
-    expect(validate(P, 1, 3).verdict).toBe('few');
+  it('multiplying where you should divide buries the room (absurd)', () => {
+    const buried: Model = { rows: [{ aId: 'guests', bId: 'slicesEach', op: '×' }, { bId: 'slicesPerPizza', op: '×' }] };
+    expect(validate(P, evaluateModel(P, buried)).verdict).toBe('absurd');
   });
 });
 
-describe('pizzaProblem — authored openness ladder, deterministic from the seed', () => {
-  it('is reproducible from a seed', () => {
-    const a = pizzaProblem(makeRng(1234), 1);
-    const b = pizzaProblem(makeRng(1234), 1);
-    expect(a).toEqual(b);
+describe('FAIR SHARE — divide with a remainder', () => {
+  // 14 cookies among 4 animals → 3 each, 2 left over.
+  const P = withValues(fairShareProblem(makeRng(1), 1), { total: 14, sharers: 4 });
+  const share: Model = { rows: [{ aId: 'total', bId: 'sharers', op: '÷' }] };
+  it('dividing gives a fair share and names the leftover', () => {
+    const ev = evaluateModel(P, share);
+    expect(ev.result).toBe(3);
+    expect(ev.remainder).toBe(2);
+    const j = validate(P, ev);
+    expect(j.verdict).toBe('good');
+    expect(j.message).toContain('2 blir över');
   });
-  it('L1 has no distractor and is not gathered/assumed', () => {
-    const p = pizzaProblem(makeRng(7), 1);
-    expect(p.distractor).toBeUndefined();
-    expect(p.gather).toBe(false);
-    expect(p.assume).toBe(false);
-    expect(quantities(p)).toHaveLength(3);
+  it('multiplying gives more than exist — caught as absurd', () => {
+    const bad: Model = { rows: [{ aId: 'total', bId: 'sharers', op: '×' }] };
+    expect(validate(P, evaluateModel(P, bad)).verdict).toBe('absurd');
   });
-  it('L2 carries exactly one irrelevant quantity to ignore', () => {
-    const p = pizzaProblem(makeRng(7), 2);
-    expect(p.distractor?.relevant).toBe(false);
-    expect(quantities(p).filter((q) => !q.relevant)).toHaveLength(1);
+  it('an even division reports nothing left over', () => {
+    const Q = withValues(fairShareProblem(makeRng(1), 1), { total: 12, sharers: 4 });
+    expect(validate(Q, evaluateModel(Q, share)).message).toContain('inget blir över');
   });
-  it('L3 gathers the guests and assumes the slices-each', () => {
-    const p = pizzaProblem(makeRng(7), 3);
-    expect(p.gather).toBe(true);
-    expect(p.assume).toBe(true);
+});
+
+describe('BUDGET — add the costs, then compare to the budget', () => {
+  // tårta 20 + ballonger 10 = 30, wallet 40 → 10 kr left.
+  const P = withValues(budgetProblem(makeRng(1), 1), { costCake: 20, costBalloons: 10, budget: 40 });
+  const plan: Model = { rows: [{ aId: 'costCake', bId: 'costBalloons', op: '+' }, { bId: 'budget', op: '−' }] };
+  it('when the costs fit, the money is enough with change', () => {
+    const j = validate(P, evaluateModel(P, plan));
+    expect(j.verdict).toBe('good');
+    expect(j.message).toContain('10 kr blir kvar');
   });
-  it('every authored problem has an intended model that makes sense in its own scene', () => {
-    for (const lvl of [1, 2, 3] as const) {
-      for (let s = 1; s < 60; s++) {
-        const p = pizzaProblem(makeRng(s * 97 + lvl), lvl);
-        const e = evaluateModel(p, p.intended);
-        expect(validate(p, e.result).verdict).toBe('good');
+  it('when the wallet is too small, it does not suffice', () => {
+    const Q = withValues(P, { budget: 25 });
+    const j = validate(Q, evaluateModel(Q, plan));
+    expect(j.verdict).toBe('few');
+    expect(j.message).toContain('saknas 5 kr');
+  });
+  it('multiplying the costs is caught as absurd', () => {
+    const bad: Model = { rows: [{ aId: 'costCake', bId: 'costBalloons', op: '×' }, { bId: 'budget', op: '−' }] };
+    expect(validate(P, evaluateModel(P, bad)).verdict).toBe('absurd');
+  });
+});
+
+describe('every scenario — the authored openness ladder holds, deterministic from the seed', () => {
+  for (const s of SCENARIOS) {
+    it(`${s.id}: reproducible, and the intended model always makes sense in its own scene`, () => {
+      expect(s.build(makeRng(42), 1)).toEqual(s.build(makeRng(42), 1));
+      for (const lvl of [1, 2, 3] as Openness[]) {
+        for (let n = 1; n < 60; n++) {
+          const p = s.build(makeRng(n * 131 + lvl), lvl);
+          expect(validate(p, evaluateModel(p, p.intended)).verdict).toBe('good');
+          expect(Number.isFinite(sensibleResult(p))).toBe(true); // budget's sensible result is a signed "change"
+        }
       }
-    }
+    });
+    it(`${s.id}: L1 has no distractor; L2 has exactly one; L3 gathers or assumes`, () => {
+      const l1 = s.build(makeRng(7), 1);
+      expect(quantities(l1).every((q) => q.relevant)).toBe(true);
+      const l2 = s.build(makeRng(7), 2);
+      expect(quantities(l2).filter((q) => !q.relevant)).toHaveLength(1);
+      const l3 = s.build(makeRng(7), 3);
+      expect(l3.gather != null || l3.assume != null).toBe(true);
+    });
+  }
+});
+
+describe('withValues / qval — baking in what the child gathered or assumed', () => {
+  it('overrides a quantity value without mutating the original', () => {
+    const p = pizzaProblem(makeRng(9), 3);
+    const before = qval(p, 'guests');
+    const q = withValues(p, { guests: 99 });
+    expect(qval(q, 'guests')).toBe(99);
+    expect(qval(p, 'guests')).toBe(before);
+  });
+  it('an assumed slices-each that differs from the default still validates against the scene', () => {
+    // Child assumes 4 slices each → the sensible order rises accordingly; a model matching it makes sense.
+    const p = withValues(pizzaProblem(makeRng(2), 3), { guests: 6, slicesEach: 4, slicesPerPizza: 8 });
+    const plan: Model = { rows: [{ aId: 'guests', bId: 'slicesEach', op: '×' }, { bId: 'slicesPerPizza', op: '÷' }] };
+    expect(validate(p, evaluateModel(p, plan)).verdict).toBe('good'); // 24 slices → 3 pizzas
   });
 });
