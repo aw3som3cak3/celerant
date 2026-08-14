@@ -36,6 +36,10 @@ const CASES: Demo[] = [
   { code: 'neg_sub_neg', seed: 4, strategy: 'neg_minus_minus', level: L_FULL, label: 'minus minus blir plus' },
   { code: 'neg_mult_neg_neg', seed: 6, strategy: 'neg_mult_same_sign', level: L_FULL, label: 'lika tecken: (−4)×(−6)' },
   { code: 'neg_div', seed: 3, strategy: 'neg_div_signs', level: L_FULL, label: 'olika tecken, division' },
+  // decimals (add tenths as whole counts) + trainable fractions
+  { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
+  { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
+  { code: 'frac_equivalent', seed: 4, strategy: 'frac_equiv_scale', level: L_CUED, label: 'liknämnigt, bara ett tips' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level

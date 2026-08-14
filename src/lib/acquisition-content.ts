@@ -60,7 +60,11 @@ export type StrategyId =
   | 'split_sub_2d_borrow' // 52 − 27 → 52−30=22, +3 = 25 (compensation)
   | 'neg_minus_minus' // −3 − (−5) → −3 + 5
   | 'neg_mult_same_sign' // (−4) × (−6) → 4 × 6 (same signs → +)
-  | 'neg_div_signs'; // −48 / 6 → 48 / 6, then negate
+  | 'neg_div_signs' // −48 / 6 → 48 / 6, then negate
+  | 'dec_add_tenths' // 2,7 + 1,8 → 27 + 18 tenths → 4,5 (shared no-carry/carry)
+  | 'frac_of_qty' // 3/4 of 8 → 8/4, ×3
+  | 'frac_equiv_scale' // 2/5 = □/15 → 15/5, ×2
+  | 'frac_add_same'; // 2/8 + 3/8 → (2+3)/8
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -259,6 +263,9 @@ const tensOf = (n: number) => Math.floor(n / 10) * 10;
 const intOf = (s: string) => Number(s.replace(/−/g, '-'));
 // Render a signed integer the way skills.ts does (U+2212 for the negative), for scaffold prompts.
 const sgn = (n: number) => (n < 0 ? `−${Math.abs(n)}` : `${n}`);
+const gcd2 = (a: number, b: number): number => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
+// Format a tenths-COUNT as the canonical decimal string (matches answerToString(dec(t,1))): 45 → "4,5".
+const fmtTenths = (t: number) => (t % 10 === 0 ? String(t / 10) : `${Math.floor(t / 10)},${t % 10}`);
 
 export const RULE_DERIVATIONS: RuleDerivation[] = [
   ...[2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12].map(divInverse),
@@ -361,6 +368,59 @@ export const RULE_DERIVATIONS: RuleDerivation[] = [
       const q = Math.abs(num) / Math.abs(den);
       if (!Number.isInteger(q)) return null;
       return { substeps: [{ prompt: `${Math.abs(num)} / ${Math.abs(den)} =`, answer: String(q) }, MINUS(0, q)], partial: `−(${Math.abs(num)} / ${Math.abs(den)}) =`, pivot: 0 };
+    },
+  },
+  // ── DECIMALS · read the tenths, add like whole numbers, place the comma (spec gap-map domain 4) ──
+  // A tenths sum is a whole-number sum of tenth-COUNTS: 2,7 + 1,8 → 27 tenths + 18 tenths = 45
+  // tenths → 4,5. One method covers no-carry (0,3+0,5) and carry (2,7+1,8); each code declares
+  // the add its counts need (single-digit vs 2-digit-carry). dec_times_whole is NOT here: its
+  // ×-core is frequently multi-digit (a written procedure, not a fluent fact) — see the report.
+  ...(['dec_add_same', 'dec_add_carry'] as const).map((code): RuleDerivation => ({
+    id: 'dec_add_tenths', code, inputs: code === 'dec_add_same' ? ['add_within_10', 'dec_read_tenths'] : ['add_2d_carry', 'dec_read_tenths'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+),(\d+)\s*\+\s*(\d+),(\d+)\s*=/);
+      if (!m) return null;
+      const ta = Number(m[1]) * 10 + Number(m[2]), tb = Number(m[3]) * 10 + Number(m[4]), total = ta + tb;
+      return {
+        substeps: [{ prompt: `${ta} + ${tb} =`, answer: String(total) }, { prompt: `${total} tiondelar =`, answer: fmtTenths(total) }],
+        partial: `${item.prompt} ${total} tiondelar =`, pivot: 0,
+      };
+    },
+  })),
+  // ── FRACTIONS · the three trainable ones (integer + same-denominator answers) ────────────────
+  {
+    // "n/d of q": divide by the denominator, multiply by the numerator — exactly the item's own
+    // two steps, each a fact she owns.
+    id: 'frac_of_qty', code: 'frac_of_quantity', inputs: ['div_mixed', 'mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s+av\s+(\d+)/);
+      if (!m || Number(m[3]) % Number(m[2]) !== 0) return null;
+      const n = Number(m[1]), d = Number(m[2]), q = Number(m[3]), part = q / d;
+      return { substeps: [{ prompt: `${q} / ${d} =`, answer: String(part) }, { prompt: `${part} × ${n} =`, answer: String(part * n) }], partial: `${part} × ${n} =`, pivot: 0 };
+    },
+  },
+  {
+    // Equivalent fraction: how many times bigger is the new denominator, then scale the numerator.
+    id: 'frac_equiv_scale', code: 'frac_equivalent', inputs: ['div_mixed', 'mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s*=\s*□\/(\d+)/);
+      if (!m || Number(m[3]) % Number(m[2]) !== 0) return null;
+      const n = Number(m[1]), d = Number(m[2]), newD = Number(m[3]), k = newD / d;
+      return { substeps: [{ prompt: `${newD} / ${d} =`, answer: String(k) }, { prompt: `${n} × ${k} =`, answer: String(n * k) }], partial: `${n} × ${k} =`, pivot: 0 };
+    },
+  },
+  {
+    // Same denominator: add the numerators, keep the denominator. The result is graded BY VALUE
+    // (grade.ts reduces rationals), so a reducing sum is fine — the child may type 4/6 or 2/3 and
+    // the internal check reconstructs answerToString(frac(a+b,d)) so the walk never teaches a wrong
+    // fraction. The numerator add is the one non-trivial fact (add_within_10).
+    id: 'frac_add_same', code: 'frac_add_same_denom', inputs: ['add_within_10'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s*\+\s*(\d+)\/(\d+)\s*=/);
+      if (!m || m[2] !== m[4]) return null;
+      const a = Number(m[1]), d = Number(m[2]), b = Number(m[3]), g = gcd2(a + b, d), rn = (a + b) / g, rd = d / g;
+      if ((rd === 1 ? String(rn) : `${rn}/${rd}`) !== item.answer) return null; // reconstruct the canonical answer
+      return { substeps: [{ prompt: `${a} + ${b} =`, answer: String(a + b) }, { prompt: `(${a} + ${b})/${d} =`, answer: item.answer }], partial: `(${a} + ${b})/${d} =`, pivot: 0 };
     },
   },
 ];
@@ -469,6 +529,11 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     neg_minus_minus: `minus och minus blir plus`,
     neg_mult_same_sign: `lika tecken blir plus`,
     neg_div_signs: `olika tecken blir minus`,
+    // Decimals + fractions: pivot-free method reminders.
+    dec_add_tenths: `räkna tiondelarna, sätt kommat sen`,
+    frac_of_qty: `dela med nämnaren, gånger täljaren`,
+    frac_equiv_scale: `hur många gånger större är nämnaren?`,
+    frac_add_same: `samma nämnare — addera täljarna`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -491,6 +556,10 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     neg_minus_minus: `minus and minus make plus`,
     neg_mult_same_sign: `same signs make plus`,
     neg_div_signs: `different signs make minus`,
+    dec_add_tenths: `add the tenths, place the comma after`,
+    frac_of_qty: `divide by the bottom, times the top`,
+    frac_equiv_scale: `how many times bigger is the bottom?`,
+    frac_add_same: `same bottom — add the tops`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -523,6 +592,10 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   neg_minus_minus: 'Minus och minus blir plus: −3 − (−5) → −3 + 5 = 2. Skriv om det till en plus-uppgift.',
   neg_mult_same_sign: 'Lika tecken blir plus: (−4) × (−6) → 4 × 6 = 24. Räkna talen utan tecken, sätt sedan plus.',
   neg_div_signs: 'Olika tecken blir minus: −48 / 6 → 48 / 6 = 8, och sedan minus → −8.',
+  dec_add_tenths: 'Tal i tiondelar adderas som vanliga tal: 2,7 + 1,8 → 27 tiondelar + 18 tiondelar = 45 tiondelar → 4,5.',
+  frac_of_qty: 'Del av antal: 3/4 av 8 → dela med nämnaren (8 / 4 = 2), gånger täljaren (2 × 3 = 6).',
+  frac_equiv_scale: 'Liknämnigt: 2/5 = □/15 → nämnaren blev 3 gånger större (15 / 5 = 3), så täljaren också: 2 × 3 = 6.',
+  frac_add_same: 'Samma nämnare: addera täljarna, behåll nämnaren: 2/8 + 3/8 → (2 + 3)/8 = 5/8.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

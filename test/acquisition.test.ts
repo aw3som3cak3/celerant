@@ -863,3 +863,120 @@ describe('negatives — the trigger and the engine', () => {
     expect(repo.acquisitionLevel(pid, 'neg_mult_neg_neg')).toBeNull(); // graduated
   });
 });
+
+// ── DOMAIN · DECIMALS (add tenths as whole counts, place the comma) + FRACTIONS ─────────────
+// dec_times_whole is deliberately absent — its ×-core is often multi-digit (see the report).
+
+const AK6 = 6; // seedGradeFor(6) = 5: dec_read_tenths, add_2d_carry, div_mixed, mult_mixed fluent.
+
+describe('decimals + fractions — the derivation content', () => {
+  const cases = [
+    { code: 'dec_add_same', strat: 'dec_add_tenths' as StrategyId },
+    { code: 'dec_add_carry', strat: 'dec_add_tenths' as StrategyId },
+    { code: 'frac_of_quantity', strat: 'frac_of_qty' as StrategyId },
+    { code: 'frac_equivalent', strat: 'frac_equiv_scale' as StrategyId },
+    { code: 'frac_add_same_denom', strat: 'frac_add_same' as StrategyId },
+  ];
+
+  it('registers a derivation for the two decimal adds and the three trainable fractions', () => {
+    for (const c of cases) expect(hasDerivation(c.code)).toBe(true);
+    expect(hasDerivation('dec_times_whole')).toBe(false); // multi-digit ×-core → reported, not built
+  });
+
+  it('every scaffold parses + decomposes the ACTUAL item and lands on its answer (all five)', () => {
+    for (const c of cases) {
+      for (let seed = 1; seed < 60; seed++) {
+        const item = buildItem(c.code, seed);
+        const sc = buildScaffold(c.code, seed, c.strat);
+        expect(sc, `${c.code} seed ${seed}`).not.toBeNull(); // parse + internal reconstruct hold over every instance
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer);
+        for (const s of sc!.substeps) expect(s.prompt.endsWith('=')).toBe(true);
+      }
+    }
+  });
+
+  it('decimal add makes the tenths a whole-number sum, then reads it back with the comma', () => {
+    const sc = buildScaffold('dec_add_carry', 3, 'dec_add_tenths')!;
+    expect(sc.substeps).toHaveLength(2);
+    expect(sc.substeps[0].prompt).toMatch(/^\d+ \+ \d+ =$/); // the tenth-counts, added as wholes
+    expect(sc.substeps[1].prompt).toContain('tiondelar');
+  });
+
+  it('same-denominator add is graded by VALUE, so a reducing sum still scaffolds', () => {
+    // find a reducing instance (e.g. 2/8 + 2/8 = 4/8 = 1/2) and confirm the walk lands on the
+    // reduced canonical answer, never the unreduced fraction.
+    let sawReducing = false;
+    for (let seed = 1; seed < 200 && !sawReducing; seed++) {
+      const item = buildItem('frac_add_same_denom', seed);
+      if (!item.answer.includes('/')) continue;
+      const sc = buildScaffold('frac_add_same_denom', seed, 'frac_add_same');
+      if (!sc) continue;
+      const denom = Number(item.prompt.match(/\/(\d+)/)![1]);
+      const ansDenom = Number(item.answer.split('/')[1]);
+      if (ansDenom !== denom) { sawReducing = true; expect(sc.substeps[sc.substeps.length - 1].answer).toBe(item.answer); }
+    }
+    expect(sawReducing).toBe(true);
+  });
+
+  it('picks each derivation and vetoes on a missing input (invariant 3)', () => {
+    expect(pickDerivation('dec_add_carry', () => true)?.id).toBe('dec_add_tenths');
+    expect(pickDerivation('dec_add_carry', (c) => c !== 'add_2d_carry')).toBeNull();
+    expect(pickDerivation('dec_add_same', (c) => c !== 'dec_read_tenths')).toBeNull();
+    expect(pickDerivation('frac_of_quantity', (c) => c !== 'div_mixed')).toBeNull();
+    expect(pickDerivation('frac_equivalent', (c) => c !== 'mult_mixed')).toBeNull();
+    expect(pickDerivation('frac_add_same_denom', (c) => c !== 'add_within_10')).toBeNull();
+  });
+});
+
+describe('decimals + fractions — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function decFrac(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'decfrac', AK6, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'dec_add_same', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'dec_add_carry', (t += 1000));
+    for (let i = 0; i < 4; i++) miss(pid, 'frac_of_quantity', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'frac_equivalent', (t += 1000));
+    return pid;
+  }
+
+  it('the decimal and fraction gaps ignite with their methods', () => {
+    const pid = decFrac(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK6, 'maths'));
+    expect(plans.get('dec_add_same')).toMatchObject({ level: L_FULL, strategy: 'dec_add_tenths' });
+    expect(plans.get('dec_add_carry')).toMatchObject({ level: L_FULL, strategy: 'dec_add_tenths' });
+    expect(plans.get('frac_of_quantity')).toMatchObject({ level: L_FULL, strategy: 'frac_of_qty' });
+    expect(plans.get('frac_equivalent')).toMatchObject({ level: L_FULL, strategy: 'frac_equiv_scale' });
+  });
+
+  it('frac_of_quantity is served, warmup-class, and graduates', () => {
+    const pid = decFrac(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK6, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'frac_of_quantity', seed, buildItem('frac_of_quantity', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('frac_of_quantity')!.theta;
+    repo.startAcquisition(pid, 'frac_of_quantity', 'frac_of_qty', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'frac_of_quantity') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('frac_of_quantity')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'frac_of_quantity')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'frac_of_quantity')).toBeNull(); // graduated
+  });
+});
