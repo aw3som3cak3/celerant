@@ -63,6 +63,7 @@ export function InputStage({
   promptOverride,
   promptNode,
   letters,
+  slots,
 }: {
   mode: 'session' | 'sprint';
   item: StageItem | null;
@@ -85,6 +86,11 @@ export function InputStage({
   // distractors, incl. å ä ö) instead of the numpad. The same clock, capture and
   // auto-submit path; completion counts letters, not digits. Absent ⇒ numpad, unchanged.
   letters?: readonly string[];
+  // Present ⇒ render the answer area as N full-length SLOTS (one per letter of the WHOLE word),
+  // filling as she types, instead of the running value string. Used by word acquisition so a
+  // faded/gapped hint can never be misread as a fill-in-the-blank: the slots make it unmistakable
+  // she produces the whole word at every fade level. Absent ⇒ the ordinary value display.
+  slots?: number;
 }) {
   const [value, setValue] = useState('');
   const valueRef = useRef(''); // authoritative current value (avoids stale-closure on fast taps)
@@ -223,10 +229,22 @@ export function InputStage({
   return (
     <div className="input-stage">
       <div className="prompt">{promptNode ?? renderPrompt(prompt)}</div>
+      {slots && slots > 0 ? (
+        // Full-length slots — one per letter of the WHOLE word — so a faded hint above can never
+        // read as fill-in-the-blank. The slots fill left-to-right as she types; the next is active.
+        // Overflow (typed past the word length) trails after, so nothing is hidden.
+        <div className="answer-slots" aria-live="polite" aria-label="ditt svar">
+          {Array.from({ length: slots }, (_, i) => (
+            <span key={i} className={`answer-slot${value[i] ? ' filled' : ''}${i === value.length && value.length < slots ? ' active' : ''}`}>{value[i] ?? ''}</span>
+          ))}
+          {value.length > slots && <span className="answer-overflow">{value.slice(slots)}</span>}
+        </div>
+      ) : (
       <div className="answer-display" aria-live="polite">
         {item?.family === 'linear' && <span className="answer-x">x =</span>}
         <span className="answer-value">{value || ' '}</span>
       </div>
+      )}
       <div className={isLetter ? 'numpad letterpad' : 'numpad'} role="group" aria-label={isLetter ? 'bokstavsknappar' : 'sifferknappar'}>
         {keys.map((k, i) =>
           k == null ? (

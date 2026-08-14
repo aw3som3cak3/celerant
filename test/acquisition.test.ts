@@ -1134,6 +1134,20 @@ describe('word subjects — English irregular past (cue-fade) content', () => {
       expect(sc!.cueAt(L_CUED)!.startsWith(w[0])).toBe(true);
     }
   });
+
+  it('produces the WHOLE word at every fade level — the gapped cue is a hint, never a fill-template', () => {
+    // Regression: a gapped cue "V_T" must not read as fill-in-the-blank (press "i"); she recalls
+    // the whole word, the cue only thins. The graded answer is the whole word at EVERY level, and
+    // the gapped cue is a DISTINCT string (a hint), never equal to the answer or a single letter.
+    const word = buildItem('en_past_irregular', 0).answer; // 'went'
+    const sc = buildWordScaffold('en_past_irregular', 0, 'en_irregular_cue')!;
+    for (const lvl of [L_FULL, L_PARTIAL, L_CUED]) {
+      expect(sc.answer).toBe(word); // the produced answer is always the whole word, not the gap
+      expect(sc.answer.length).toBeGreaterThan(1);
+    }
+    expect(sc.cueAt(L_PARTIAL)).not.toBe(word); // the hint is not the answer
+    expect(sc.cueAt(L_PARTIAL)).toContain('_'); // it is a gapped memory aid
+  });
 });
 
 describe('word subjects — English irregular past trigger + engine', () => {
@@ -1178,5 +1192,198 @@ describe('word subjects — English irregular past trigger + engine', () => {
     expect(repo.cleanPracticeRate(pid, 'en_past_irregular')).toBeNull();
     for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
     expect(repo.acquisitionLevel(pid, 'en_past_irregular')).toBeNull(); // graduated, monotonic
+  });
+});
+
+// ── WORD SUBJECT · English -ed (en_ed_regular) — the BRANCHING RULE-APPLICATION-FADE ─────────
+// Unlike Swedish doubling (one procedure), -ed forks three ways, so the L0 discrimination is a real
+// 3-way ChoiceStage with drop-e as the built-in NON-EXAMPLE.
+
+const ED_DOUBLING = new Set([
+  'stopped', 'planned', 'grabbed', 'dropped', 'clapped', 'hugged',
+  'nodded', 'patted', 'shopped', 'begged', 'jogged', 'slipped',
+]);
+
+describe('word subjects — English -ed (branching rule) content', () => {
+  it('registers a rule derivation on en_ed_regular with a read-the-base input veto', () => {
+    expect(hasDerivation('en_ed_regular')).toBe(true);
+    expect(pickDerivation('en_ed_regular', () => true)?.id).toBe('en_ed_rule');
+    expect(pickDerivation('en_ed_regular', (c) => c !== 'en_word_picture')).toBeNull(); // must read the base
+  });
+
+  it('the L0 walk is a 3-way rule choice (double/drop-e/add) and classifies every pool word', () => {
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 90; seed++) {
+      const word = buildItem('en_ed_regular', seed).answer;
+      if (seen.has(word)) continue;
+      seen.add(word);
+      const sc = buildWordScaffold('en_ed_regular', seed, 'en_ed_rule');
+      expect(sc, `word ${word}`).not.toBeNull();
+      expect(sc!.answer).toBe(word); // the produced target IS the real -ed form — grading unchanged
+      expect(sc!.isRule).toBe(true);
+      expect(sc!.substeps).toHaveLength(1);
+      const sub = sc!.substeps[0];
+      expect(sub.kind).toBe('choice');
+      if (sub.kind === 'choice') {
+        expect(sub.prompt).toEqual({ show: 'word', word: expect.any(String) }); // reads the printed BASE
+        const labels = sub.options.map((o) => o.value);
+        expect(labels).toEqual(['dubbla', 'ta bort e', 'lägg till -ed']); // the 3 rules, always
+        expect(labels).toContain('ta bort e'); // drop-e is the built-in NON-EXAMPLE
+        // The correct rule for this pool is double or add; drop-e is never the answer (no silent-e words).
+        expect(sub.answer).toBe(ED_DOUBLING.has(word) ? 'dubbla' : 'lägg till -ed');
+        expect(sub.answer).not.toBe('ta bort e');
+      }
+    }
+    expect(seen.size).toBeGreaterThan(30); // covered the whole practice+holdout pool
+  });
+
+  it('the base is the un-inflected verb; the cue marks the -ed suffix then fades to the tip', () => {
+    // 'stopped' → base 'stop', doubling. 'jumped' → base 'jump', just add. Find their seeds.
+    const stopSeed = [...Array(90).keys()].find((s) => buildItem('en_ed_regular', s).answer === 'stopped')!;
+    const jumpSeed = [...Array(90).keys()].find((s) => buildItem('en_ed_regular', s).answer === 'jumped')!;
+    const stop = buildWordScaffold('en_ed_regular', stopSeed, 'en_ed_rule')!;
+    const jump = buildWordScaffold('en_ed_regular', jumpSeed, 'en_ed_rule')!;
+    expect((stop.substeps[0] as { prompt: { word: string } }).prompt.word).toBe('stop'); // hopp→hop style reduction
+    expect((jump.substeps[0] as { prompt: { word: string } }).prompt.word).toBe('jump');
+    expect(stop.cueAt(L_FULL)).toBe('stopp·ed'); // suffix marked, doubling visible
+    expect(stop.cueAt(L_PARTIAL)).toBe('stopp__'); // stem shown, ending recalled
+    expect(stop.cueAt(L_CUED)).toContain('dubbla'); // L2 = the rule tip
+    expect(jump.cueAt(L_FULL)).toBe('jump·ed');
+  });
+});
+
+describe('word subjects — English -ed trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function edLearner(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'edlearner', AK_EN, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'english')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'en_ed_regular', (t += 1000));
+    return pid;
+  }
+
+  it('ignites only when she can read the base (en_word_picture fluent), else vetoes', () => {
+    const pid = edLearner(fam);
+    const base = buildStates(pid, AK_EN, 'english');
+    // Default: en_word_picture is NOT yet crossed (English seeds at grade 0) → the rule vetoes.
+    expect(acquisitionPlans(pid, base).has('en_ed_regular')).toBe(false);
+    // Grant the reading bridge → the branching rule ignites.
+    const ready = base.map((s) => (s.code === 'en_word_picture' ? ({ ...s, recogFluent: true } as SelState) : s));
+    expect(acquisitionPlans(pid, ready).get('en_ed_regular')).toMatchObject({ level: L_FULL, strategy: 'en_ed_rule' });
+  });
+
+  it('a scaffolded -ed attempt is warmup-class (θ up, no rate) and graduates', () => {
+    const pid = edLearner(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'english');
+    const player = { id: pid, school_year: AK_EN, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'en_ed_regular', seed, buildItem('en_ed_regular', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('en_ed_regular')!.theta;
+    repo.startAcquisition(pid, 'en_ed_regular', 'en_ed_rule', NOW);
+    let at = NOW + 200_000;
+    answerWith(0, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'en_ed_regular') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('en_ed_regular')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'en_ed_regular')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
+    expect(repo.acquisitionLevel(pid, 'en_ed_regular')).toBeNull(); // graduated
+  });
+});
+
+// ── WORD SUBJECT · Swedish phonics (spelling_t2) — SEGMENT-AND-SPELL (procedure walk) ────────
+// A non-branching rule: the teaching IS the segmentation. Transparent words (letters == sounds),
+// so the cue shows the word broken into its sounds and fades.
+
+const AK2_SP = 2; // seedGradeFor(2) = 1: spelling_t1c (recognition, seedFluent at grade≥1) is the
+// reading input she owns; spelling_t2 (yr2) is being learned.
+
+describe('word subjects — Swedish phonics (segment-and-spell) content', () => {
+  it('registers a rule derivation on spelling_t2 with a reads-letters input veto', () => {
+    expect(hasDerivation('spelling_t2')).toBe(true);
+    expect(pickDerivation('spelling_t2', () => true)?.id).toBe('sv_segment');
+    expect(pickDerivation('spelling_t2', (c) => c !== 'spelling_t1c')).toBeNull(); // must read letters first
+  });
+
+  it('the cue segments the word into sounds, then boxes, then a tip — over the pool', () => {
+    const seen = new Set<string>();
+    for (let seed = 0; seed < 60; seed++) {
+      const word = buildItem('spelling_t2', seed).answer;
+      if (seen.has(word) || word.length < 2) continue;
+      seen.add(word);
+      const sc = buildWordScaffold('spelling_t2', seed, 'sv_segment');
+      expect(sc, `word ${word}`).not.toBeNull();
+      expect(sc!.answer).toBe(word); // produced target IS the real word
+      expect(sc!.isRule).toBe(true);
+      expect(sc!.substeps).toHaveLength(0); // a procedure — the fade is the cue, no discrimination tap
+      const seg = sc!.cueAt(L_FULL)!;
+      expect(seg.replace(/·/g, '')).toBe(word); // L0 is the word segmented by middots
+      expect(seg.split('·')).toHaveLength(word.length); // one sound per letter (transparent)
+      const boxes = sc!.cueAt(L_PARTIAL)!;
+      expect((boxes.match(/_/g) || []).length).toBe(word.length); // L1 one box per sound
+      expect(boxes).not.toContain(word[0]); // letters hidden — she recalls each sound
+      expect(sc!.cueAt(L_CUED)).toBe('dela upp ordet i ljud'); // L2 the segment tip
+    }
+    expect(seen.size).toBeGreaterThan(20);
+  });
+});
+
+describe('word subjects — Swedish phonics trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function spellt2Learner(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'spellt2', AK2_SP, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'spelling')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'spelling_t2', (t += 1000));
+    return pid;
+  }
+
+  it('the t2 gap ignites with sv_segment; vetoes if she cannot read letters yet', () => {
+    const pid = spellt2Learner(fam);
+    const base = buildStates(pid, AK2_SP, 'spelling');
+    expect(acquisitionPlans(pid, base).get('spelling_t2')).toMatchObject({ level: L_FULL, strategy: 'sv_segment' });
+    // Knock out the reading input → drop lower (teach recognition first), never scaffold spelling.
+    const notReading = base.map((s) =>
+      s.code === 'spelling_t1c' ? ({ ...s, seedFluent: false, recogFluent: false } as SelState) : s,
+    );
+    expect(acquisitionPlans(pid, notReading).has('spelling_t2')).toBe(false);
+  });
+
+  it('a scaffolded t2 attempt is warmup-class (θ up, no rate) and graduates', () => {
+    const pid = spellt2Learner(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
+    const player = { id: pid, school_year: AK2_SP, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'spelling_t2', seed, buildItem('spelling_t2', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('spelling_t2')!.theta;
+    repo.startAcquisition(pid, 'spelling_t2', 'sv_segment', NOW);
+    let at = NOW + 200_000;
+    answerWith(0, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'spelling_t2') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('spelling_t2')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'spelling_t2')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
+    expect(repo.acquisitionLevel(pid, 'spelling_t2')).toBeNull(); // graduated
   });
 });

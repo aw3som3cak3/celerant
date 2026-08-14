@@ -69,7 +69,9 @@ export type StrategyId =
   | 'frac_add_same' // 2/8 + 3/8 → (2+3)/8
   // ── word subjects (rule-application-fade + cue-fade) ──
   | 'sv_double' // spelling_t3 doubling: hear short vowel → double the consonant
-  | 'en_irregular_cue'; // en_past_irregular: cue-fade whole → gapped → first-letter → dictation
+  | 'en_irregular_cue' // en_past_irregular: cue-fade whole → gapped → first-letter → dictation
+  | 'en_ed_rule' // en_ed_regular: 3-way branching rule (double / drop-e / add)
+  | 'sv_segment'; // spelling_t2: segment-and-spell (b·i·l → boxes → tip)
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -491,6 +493,30 @@ function t3Doubling(word: string): { isShort: boolean; gap: string } | null {
   return { isShort, gap };
 }
 
+// English -ed: classify a regular past form into its base + which joining rule made it. The pool
+// is doubling + just-add (no drop-e words), and reversing -ed from the form alone is ambiguous
+// (called/added END in a double yet are just-add), so the doubling forms are listed explicitly and
+// everything else is just-add. drop-e is handled (base + 'e') for future words but never fires on
+// the current pool — where it is the built-in NON-EXAMPLE of the 3-way discrimination. A test
+// asserts every en_ed_regular word classifies and rebuilds to itself.
+const EN_ED_DOUBLING = new Set([
+  'stopped', 'planned', 'grabbed', 'dropped', 'clapped', 'hugged',
+  'nodded', 'patted', 'shopped', 'begged', 'jogged', 'slipped',
+]);
+type EdRule = 'double' | 'drop_e' | 'add';
+function edClassify(form: string): { base: string; rule: EdRule } | null {
+  if (!form.endsWith('ed') || form.length < 4) return null;
+  const stem = form.slice(0, -2); // form without "ed"
+  if (EN_ED_DOUBLING.has(form)) return { base: stem.slice(0, -1), rule: 'double' }; // hopp → hop
+  return { base: stem, rule: 'add' }; // jump, call, add — the base is the stem
+}
+const ED_LABEL: Record<EdRule, string> = { double: 'dubbla', drop_e: 'ta bort e', add: 'lägg till -ed' };
+const ED_TIP: Record<EdRule, string> = {
+  double: 'kort vokal + en konsonant → dubbla',
+  drop_e: 'slutar på tyst e → ta bort e',
+  add: 'lägg bara till -ed',
+};
+
 export const WORD_DERIVATIONS: WordDerivation[] = [
   {
     // SLICE 1 · Swedish doubling (spelling_t3) — a rule-application procedure walk. She owns basic
@@ -525,6 +551,46 @@ export const WORD_DERIVATIONS: WordDerivation[] = [
       const interior = w[0] + '_'.repeat(w.length - 2) + w[w.length - 1];
       const firstOnly = w[0] + '_'.repeat(w.length - 1);
       return { substeps: [], cueAt: (lvl) => (lvl <= L_FULL ? w : lvl === L_PARTIAL ? interior : firstOnly) };
+    },
+  },
+  {
+    // SLICE A · English -ed (en_ed_regular) — the BRANCHING rule (Direct Instruction). Unlike Swedish
+    // doubling (one procedure), -ed forks three ways, so the L0 walk is a real 3-way discrimination:
+    // read the base → which rule makes the past? double (hop→hopped) / drop-e (like→liked) / just add
+    // (jump→jumped) — with drop-e as the built-in NON-EXAMPLE (never right on this pool; she must
+    // reject it when there's no silent e). Then she produces the -ed form on the letter pad. The cue
+    // fades: L0 the form with the suffix marked (hopp·ed), L1 the stem with -ed blanked, L2 the tip.
+    // Input veto: she can read the base (en_word_picture, the print bridge she must own first).
+    id: 'en_ed_rule', code: 'en_ed_regular', kind: 'rule', inputs: ['en_word_picture'],
+    build: (item) => {
+      const c = edClassify(item.answer);
+      if (!c) return null;
+      const substeps: WordSubStep[] = [{
+        kind: 'choice',
+        prompt: { show: 'word', word: c.base }, // read the printed base
+        question: 'Hur böjs ordet i dåtid?',
+        options: (['double', 'drop_e', 'add'] as EdRule[]).map((r) => ({ value: ED_LABEL[r], render: 'word' })),
+        answer: ED_LABEL[c.rule],
+      }];
+      const marked = item.answer.slice(0, -2) + '·ed'; // hopp·ed / jump·ed — the suffix highlighted
+      const gapped = item.answer.slice(0, -2) + '__'; // hopp__ — stem shown, ending recalled
+      return { substeps, cueAt: (lvl) => (lvl <= L_FULL ? marked : lvl === L_PARTIAL ? gapped : ED_TIP[c.rule]) };
+    },
+  },
+  {
+    // SLICE B · Swedish phonics (spelling_t2) — a segment-and-spell PROCEDURE walk (no fork). The
+    // teaching IS the segmentation, which a struggling speller can't yet do. T2 words are transparent
+    // (letters == sounds), so the cue shows the word broken into its sounds and fades: L0 the word
+    // segmented (b·i·l — copy while SEEING each sound), L1 sound boxes (_ _ _ — recall each), L2 a
+    // segment tip, L3 bare dictation. No discrimination sub-step — modelling the segmentation is the
+    // support. Input veto: she reads letters (the recognition ladder crossed, spelling_t1c).
+    id: 'sv_segment', code: 'spelling_t2', kind: 'rule', inputs: ['spelling_t1c'],
+    build: (item) => {
+      const w = item.answer;
+      if (w.length < 2) return null;
+      const segmented = w.split('').join('·'); // b·i·l — each sound visible
+      const boxes = w.split('').map(() => '_').join(' '); // _ _ _ — one box per sound
+      return { substeps: [], cueAt: (lvl) => (lvl <= L_FULL ? segmented : lvl === L_PARTIAL ? boxes : 'dela upp ordet i ljud') };
     },
   },
 ];
@@ -669,6 +735,8 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     // completeness (AcquisitionStage's word path never calls hintFor).
     sv_double: `kort vokal → dubbla konsonanten`,
     en_irregular_cue: `minns ordet`,
+    en_ed_rule: `vilken regel för -ed?`,
+    sv_segment: `dela upp ordet i ljud`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -697,6 +765,8 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     frac_add_same: `same bottom — add the tops`,
     sv_double: `short vowel → double the consonant`,
     en_irregular_cue: `remember the word`,
+    en_ed_rule: `which -ed rule?`,
+    sv_segment: `break the word into sounds`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -735,6 +805,8 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   frac_add_same: 'Samma nämnare: addera täljarna, behåll nämnaren: 2/8 + 3/8 → (2 + 3)/8 = 5/8.',
   sv_double: 'Dubbelteckning: hör du en KORT vokal så dubblas konsonanten (vitt), en LÅNG vokal enkeltecknas (vit). Säg ordet långsamt tillsammans och lyssna på vokalen.',
   en_irregular_cue: 'Oregelbundna verb i dåtid måste läras utantill (go→went, inte "goed"). Titta på ordet, täck det, skriv det — några gånger tillsammans.',
+  en_ed_rule: 'Regelbunden dåtid (-ed) böjs på tre sätt: dubbla konsonanten (hop→hopped), ta bort tyst e (like→liked), eller bara lägg till -ed (jump→jumped). Titta på grundordet och avgör vilken regel.',
+  sv_segment: 'Ljuda ordet: säg det långsamt och dela upp i ljud (b·i·l), skriv ett ljud i taget. Att höra ljuden i ordning är själva knepet — öva att dra ut ordet tillsammans.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────
