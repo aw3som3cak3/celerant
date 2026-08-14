@@ -1,0 +1,66 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { AcquisitionStage } from '../_components/AcquisitionStage';
+import { buildScaffold, L_FULL, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
+import { useI18n } from '../_components/LocaleProvider';
+import { type Captured } from '../_components/InputStage';
+import { grade } from '@/lib/grade';
+
+// THROWAWAY demo of the scaffolded-acquisition surface (AcquisitionStage), sibling of
+// /choice-demo. Wired to nothing, writes NO data, playerId is a stub — it exists only to
+// eyeball the L0→L2 faded derivation on a real tablet without having to fail a fact in a
+// real session. Try "vet inte" on an L0 sub-step to see the fumble → reveal → carry-on path.
+
+type Demo = { code: string; seed: number; strategy: StrategyId; level: number; label: string };
+
+// One of each level, across a few tables/strategies, so the whole fade is visible in a lap.
+const CASES: Demo[] = [
+  { code: 'mult_table_6', seed: 3, strategy: 'x5_plus_one', level: L_FULL, label: '×6 via 5×b + en b till' },
+  { code: 'mult_table_3', seed: 7, strategy: 'x2_plus_one', level: L_FULL, label: '×3 via 2×b + en b till' },
+  { code: 'mult_table_8', seed: 5, strategy: 'x4_double', level: L_PARTIAL, label: '×8 via dubbla 4×b' },
+  { code: 'mult_table_6', seed: 4, strategy: 'x5_plus_one', level: L_CUED, label: '×6, bara ett tips' },
+  { code: 'mult_table_7', seed: 9, strategy: 'x5_plus_x2', level: L_CUED, label: '×7 via 5×b + 2×b' },
+];
+
+const LEVEL_NAME: Record<number, string> = { [L_FULL]: 'L0 · hela stegen', [L_PARTIAL]: 'L1 · ett steg kvar', [L_CUED]: 'L2 · bara tips' };
+
+export default function AcquisitionDemo() {
+  const { locale } = useI18n();
+  const [idx, setIdx] = useState(0);
+  const [res, setRes] = useState<{ ok: boolean; given: string; ms: number } | null>(null);
+  const c = CASES[idx % CASES.length];
+  const scaffold = useMemo(() => buildScaffold(c.code, c.seed, c.strategy), [c]);
+
+  if (!scaffold) return <div className="stage"><p className="muted">Kunde inte bygga scaffold.</p></div>;
+
+  const item = { code: c.code, seed: c.seed, family: 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
+  const onCapture = (cap: Captured) =>
+    setRes({ ok: !cap.idk && grade(cap.given, scaffold.answer), given: cap.idk ? '(vet inte)' : cap.given, ms: cap.intervalMs });
+
+  return (
+    <div className="stage" style={{ textAlign: 'center' }}>
+      <p className="muted">AcquisitionStage-demo (test, ingen data) — {(idx % CASES.length) + 1} / {CASES.length}</p>
+      <p className="muted"><strong>{LEVEL_NAME[c.level]}</strong> · {c.label} · facit = {scaffold.answer}</p>
+      {res ? (
+        <div className="plain">
+          <div style={{ fontSize: '2.5rem' }}>{res.ok ? '✅' : '🤔'}</div>
+          <h2>{res.ok ? 'Rätt!' : 'Nästan'}</h2>
+          <p className="muted">du skrev “{res.given}” — rätt var “{scaffold.answer}” · {res.ms} ms</p>
+          <button className="primary" onClick={() => { setRes(null); setIdx((i) => i + 1); }} style={{ marginTop: '1rem' }}>Nästa →</button>
+        </div>
+      ) : (
+        <AcquisitionStage
+          key={idx}
+          item={item}
+          level={c.level}
+          strategy={c.strategy}
+          playerId="demo"
+          locale={locale}
+          onCapture={onCapture}
+          showIdk
+        />
+      )}
+    </div>
+  );
+}

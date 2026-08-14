@@ -67,6 +67,12 @@ export function GET(req: NextRequest) {
   //   working on now — a skill the child has practised in the recent window, is
   //     unlocked, and hasn't yet mastered. The current frontier of effort.
   const earnedSet = repo.everMilestonedSkills(playerId);
+  // Recognition rungs (Fler/Färre, the reading ladder, English comprehension) are non-sprintable:
+  // they cross on ACCURACY (the recog_shadow 12@≥90% crossing), never on a measured rate, so they
+  // never appear in everMilestonedSkills and would show as "not mastered" FOREVER even once earned.
+  // Credit that crossing here too, so "mastered" matches what the engine's own gate (componentFluent
+  // → recogFluent) already believes — otherwise a durably-crossed skill reads as unfinished.
+  const recogCrossed = repo.recogCrossedSkills(playerId);
   const recentSet = new Set(repo.recentAttemptSkillCodes(playerId, 30)); // ≈ the last few sessions
 
   const rows: { code: string; year: number; depth: number; theta: number; mode: string; rate: number | null; rateState: string; aim: number | null; touched: boolean; unlocked: boolean; earned: boolean; active: boolean }[] = [];
@@ -80,7 +86,7 @@ export function GET(req: NextRequest) {
     const aim = meta.mode === 'component' ? aimFor(toolRate, seedGrade, ab.skill_code, floor) : null;
     // Mastered (only components carry a fluency aim): earned a diploma, or a measured
     // rate at/above the aim. Working on now: recently practised, unlocked, not mastered.
-    const earned = meta.mode === 'component' && (earnedSet.has(ab.skill_code) || (ab.rate_state === 'measured' && ab.rate != null && aim != null && ab.rate >= aim));
+    const earned = meta.mode === 'component' && (earnedSet.has(ab.skill_code) || recogCrossed.has(ab.skill_code) || (ab.rate_state === 'measured' && ab.rate != null && aim != null && ab.rate >= aim));
     const unlockedNow = unlocked.get(ab.skill_code) ?? false;
     rows.push({
       code: ab.skill_code,
