@@ -17,3 +17,6 @@ next-env.d.ts
 # raw work materials (voice recordings, scratch assets) — never commit; slice outputs
 # land in public/ instead
 /work-materials/
+
+# agent worktrees (transient, not part of the app)
+.claude/worktrees/
