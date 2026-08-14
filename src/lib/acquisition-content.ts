@@ -68,7 +68,8 @@ export type StrategyId =
   | 'frac_equiv_scale' // 2/5 = □/15 → 15/5, ×2
   | 'frac_add_same' // 2/8 + 3/8 → (2+3)/8
   // ── word subjects (rule-application-fade + cue-fade) ──
-  | 'sv_double'; // spelling_t3 doubling: hear short vowel → double the consonant
+  | 'sv_double' // spelling_t3 doubling: hear short vowel → double the consonant
+  | 'en_irregular_cue'; // en_past_irregular: cue-fade whole → gapped → first-letter → dictation
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -511,6 +512,21 @@ export const WORD_DERIVATIONS: WordDerivation[] = [
       return { substeps, cueAt: (lvl) => (lvl <= L_PARTIAL ? d.gap : tip) };
     },
   },
+  {
+    // SLICE 2 · English irregular past (en_past_irregular) — the purest CUE-FADE. Atomic
+    // (inputs:[] → the fluent-input veto auto-passes; an atomic item derives from nothing), and
+    // errorless: L0 shows the whole word to copy, L1 hides the interior (first+last kept), L2 shows
+    // only the first letter + length, L3 is bare dictation. No discrimination walk — the fade IS the
+    // cue. The produced target is always the real word, so grading is byte-unchanged.
+    id: 'en_irregular_cue', code: 'en_past_irregular', kind: 'cuefade', inputs: [],
+    build: (item) => {
+      const w = item.answer;
+      if (w.length < 2) return null;
+      const interior = w[0] + '_'.repeat(w.length - 2) + w[w.length - 1];
+      const firstOnly = w[0] + '_'.repeat(w.length - 1);
+      return { substeps: [], cueAt: (lvl) => (lvl <= L_FULL ? w : lvl === L_PARTIAL ? interior : firstOnly) };
+    },
+  },
 ];
 
 export const WORD_BY_CODE = new Map<string, WordDerivation[]>();
@@ -649,9 +665,10 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     frac_of_qty: `dela med nämnaren, gånger täljaren`,
     frac_equiv_scale: `hur många gånger större är nämnaren?`,
     frac_add_same: `samma nämnare — addera täljarna`,
-    // Word subjects render their L2 cue via cueAt(); this entry exists only for Record
+    // Word subjects render their L2 cue via cueAt(); these entries exist only for Record
     // completeness (AcquisitionStage's word path never calls hintFor).
     sv_double: `kort vokal → dubbla konsonanten`,
+    en_irregular_cue: `minns ordet`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -679,6 +696,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     frac_equiv_scale: `how many times bigger is the bottom?`,
     frac_add_same: `same bottom — add the tops`,
     sv_double: `short vowel → double the consonant`,
+    en_irregular_cue: `remember the word`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -716,6 +734,7 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   frac_equiv_scale: 'Liknämnigt: 2/5 = □/15 → nämnaren blev 3 gånger större (15 / 5 = 3), så täljaren också: 2 × 3 = 6.',
   frac_add_same: 'Samma nämnare: addera täljarna, behåll nämnaren: 2/8 + 3/8 → (2 + 3)/8 = 5/8.',
   sv_double: 'Dubbelteckning: hör du en KORT vokal så dubblas konsonanten (vitt), en LÅNG vokal enkeltecknas (vit). Säg ordet långsamt tillsammans och lyssna på vokalen.',
+  en_irregular_cue: 'Oregelbundna verb i dåtid måste läras utantill (go→went, inte "goed"). Titta på ordet, täck det, skriv det — några gånger tillsammans.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

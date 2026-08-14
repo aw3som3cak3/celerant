@@ -1104,3 +1104,79 @@ describe('word subjects — Swedish doubling trigger + engine', () => {
     expect(repo.acquisitionLevel(pid2, 'spelling_t3')).toBeNull(); // graduated
   });
 });
+
+// ── WORD SUBJECT · English irregular past (en_past_irregular) — CUE-FADE ─────────────────────
+// The purest atomic case: no rule to apply, so the support is the WORD ITSELF, progressively
+// hidden (whole → gapped → first-letter → dictation). inputs:[] ⇒ NO fluent-input veto.
+
+const AK_EN = 4;
+
+describe('word subjects — English irregular past (cue-fade) content', () => {
+  it('registers a cue-fade derivation with NO fluent-input veto (an atomic item derives from nothing)', () => {
+    expect(hasDerivation('en_past_irregular')).toBe(true);
+    // The defining property: even with NOTHING fluent, the veto auto-passes (inputs:[] → every() is true).
+    expect(pickDerivation('en_past_irregular', () => false)?.id).toBe('en_irregular_cue');
+  });
+
+  it('the fade hides the word: whole → interior gapped (first+last) → first-letter, no discrimination walk', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const item = buildItem('en_past_irregular', seed);
+      const w = item.answer;
+      const sc = buildWordScaffold('en_past_irregular', seed, 'en_irregular_cue');
+      expect(sc, `seed ${seed} word ${w}`).not.toBeNull();
+      expect(sc!.answer).toBe(w); // the produced target IS the real word — grading unchanged
+      expect(sc!.isRule).toBe(false);
+      expect(sc!.substeps).toHaveLength(0); // cue-fade has no walk — the fade is entirely the cue
+      expect(sc!.cueAt(L_FULL)).toBe(w); // L0 shows the whole word to copy (errorless)
+      expect(sc!.cueAt(L_PARTIAL)).toBe(w[0] + '_'.repeat(w.length - 2) + w[w.length - 1]); // interior hidden
+      expect(sc!.cueAt(L_CUED)).toBe(w[0] + '_'.repeat(w.length - 1)); // first letter + length only
+      // never asks her to recall an unseen item — the first letter always shows.
+      expect(sc!.cueAt(L_CUED)!.startsWith(w[0])).toBe(true);
+    }
+  });
+});
+
+describe('word subjects — English irregular past trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function enLearner(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'enlearner', AK_EN, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'english')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'en_past_irregular', (t += 1000));
+    return pid;
+  }
+
+  it('any failed atomic word ignites cue-fade (no readiness veto to satisfy)', () => {
+    const pid = enLearner(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK_EN, 'english'));
+    expect(plans.get('en_past_irregular')).toMatchObject({ level: L_FULL, strategy: 'en_irregular_cue' });
+  });
+
+  it('a cue-fade attempt is warmup-class (θ up, no rate) and graduates off the bare rung', () => {
+    const pid = enLearner(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'english');
+    const player = { id: pid, school_year: AK_EN, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'en_past_irregular', seed, buildItem('en_past_irregular', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('en_past_irregular')!.theta;
+    repo.startAcquisition(pid, 'en_past_irregular', 'en_irregular_cue', NOW);
+    let at = NOW + 200_000;
+    answerWith(0, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'en_past_irregular') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1); // warmup-class — the faded latency never reaches the aim
+    expect(repo.abilities(pid).get('en_past_irregular')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'en_past_irregular')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
+    expect(repo.acquisitionLevel(pid, 'en_past_irregular')).toBeNull(); // graduated, monotonic
+  });
+});
