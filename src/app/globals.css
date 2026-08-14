@@ -1707,3 +1707,76 @@ table.plain-table th {
   font-weight: 400;
   letter-spacing: 0;
 }
+
+/* --- Modelling (application tier) — the ModelStage surface. Reuses the ground-* picture-book
+   register (soft scene box, big picture objects) and the numpad-key button look, so it reads as
+   the same app. No timer, no score, no red pen — the SCENE is the feedback. --------------------- */
+.model-stage { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; width: 100%; max-width: 480px; margin: 0 auto; }
+.model-title { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 0.2rem 0; line-height: 1.35; }
+.model-step-hint { font-size: 1.05rem; color: var(--ink-soft); text-align: center; margin: 0; }
+.model-scene {
+  min-height: 180px; width: 100%;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem;
+  background: #fbf6ec; border: 3px solid #3a2f28; border-radius: 16px; padding: 1rem; margin: 0.2rem 0;
+}
+.model-guests { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-width: 320px; }
+.model-guest.tappable { cursor: pointer; opacity: 0.5; transition: opacity 150ms ease, transform 120ms ease; }
+.model-guest.tappable.counted { opacity: 1; transform: scale(1.08); }
+.model-tally { font-size: 1.1rem; margin: 0; }
+.model-tally b { font-size: 1.4rem; }
+
+.model-dial-scene { flex-direction: row; gap: 1.2rem; }
+.model-dial { display: flex; align-items: center; gap: 0.8rem; }
+.model-dial .numpad-key { min-width: 56px; min-height: 56px; font-size: 1.8rem; }
+.model-dial-value { font-size: 2.4rem; font-weight: 800; min-width: 2ch; text-align: center; font-variant-numeric: tabular-nums; }
+.model-dial-unit { font-size: 1.05rem; color: var(--ink-soft); }
+
+/* L2 quantity tray — chips the child chooses among (one is the irrelevant number to leave out). */
+.model-tray { display: flex; flex-wrap: wrap; gap: 0.5rem; justify-content: center; }
+.model-chip {
+  border: 2px solid var(--accent); border-radius: 12px; background: var(--bg); color: var(--ink);
+  padding: 0.5rem 0.8rem; font-size: 1rem;
+}
+.model-chip b { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.model-chip.used { opacity: 0.35; border-color: var(--line); }
+.model-chip:disabled { cursor: default; }
+.model-tray-hint { width: 100%; text-align: center; font-size: 0.9rem; color: var(--ink-soft); margin: 0.2rem 0 0; }
+
+/* The build plan: two combine rows with operand slots and a 4-operation chooser. */
+.model-plan { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; width: 100%; }
+.model-plan-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.5rem; }
+.model-plan-arrow { font-size: 0.95rem; color: var(--ink-soft); }
+.model-slot {
+  min-width: 6.5rem; min-height: 52px; padding: 0.5rem 0.7rem;
+  border: 2px dashed var(--faint); border-radius: 12px; background: var(--bg); color: var(--ink);
+  font-size: 1.05rem; font-weight: 600; font-variant-numeric: tabular-nums;
+}
+.model-slot.filled { border-style: solid; border-color: var(--accent); }
+.model-slot.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(58, 90, 120, 0.18); }
+.model-slot.locked { border-style: solid; border-color: var(--line); }
+.model-slot.result { border: 2px solid var(--line); color: var(--ink-soft); font-style: italic; }
+.model-ops { display: flex; gap: 0.3rem; }
+.model-op { min-width: 46px; min-height: 46px; font-size: 1.4rem; padding: 0; }
+.model-op.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+
+/* The visible calculator — the arithmetic is done FOR the child; she watches. */
+.model-calc { display: flex; flex-direction: column; gap: 0.6rem; font-size: 1.5rem; font-variant-numeric: tabular-nums; min-height: 4rem; }
+.model-calc-row { opacity: 0; transition: opacity 260ms ease; }
+.model-calc-row.show { opacity: 1; }
+.model-roundup { font-size: 0.9rem; color: var(--ink-soft); }
+
+/* The result shown back in the situation. The scene's tint IS the verdict — calm when it makes
+   sense, warm-warning when it does not. Never a green tick or a red cross. */
+.model-pizzas { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; max-width: 340px; align-items: center; }
+.model-pizza { width: 34px; height: 34px; }
+.model-pizza-more { font-size: 1.3rem; font-weight: 800; color: #3a2f28; }
+.model-verdict-good { background: #eef6ec; border-color: #4a9d5b; }
+.model-verdict-many { background: #fbf3e3; }
+.model-verdict-few { background: #fbf0ea; }
+.model-verdict-absurd { background: #f7e9e5; border-color: #c0654a; }
+.model-result-line { font-size: 1.1rem; margin: 0; }
+.model-verdict-msg { font-size: 1.05rem; text-align: center; margin: 0; line-height: 1.4; }
+.model-verdict-msg.v-good { color: #3c7d49; }
+.model-verdict-msg.v-absurd, .model-verdict-msg.v-few { color: #a5512f; }
+.model-ask { font-size: 1.15rem; font-weight: 700; margin: 0.2rem 0; }
+.model-judge { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }

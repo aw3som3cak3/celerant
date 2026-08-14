@@ -13,6 +13,7 @@ import { replay } from '@/db/replay';
 import { buildStates, issueNext, sessionAnswer } from '@/lib/practice';
 import { acquisitionPlans, ignites, settleAcquisitionOnAnswer, stalledAcquisitions } from '@/lib/acquisition';
 import {
+  ADDITIVE_DERIVATIONS,
   DERIVATIONS,
   DERIVATIONS_BY_CODE,
   GRADUATED,
@@ -23,6 +24,8 @@ import {
   applyOutcome,
   buildScaffold,
   foldFade,
+  hasDerivation,
+  hintFor,
   pickDerivation,
 } from '@/lib/acquisition-content';
 import { selectItem, type SelState } from '@/lib/selector';
@@ -363,5 +366,161 @@ describe('scaffolded acquisition — end to end on the real engine', () => {
     for (let i = 0; i < 3; i++) settleAcquisitionOnAnswer(pid, 'mult_table_6', L_FULL, false, 1, false, NOW + i);
     expect(stalledAcquisitions(pid)).toEqual([{ skillCode: 'mult_table_6', strategy: 'x5_plus_one' }]);
     expect(repo.acquisitionLevel(pid, 'mult_table_6')).toBe(L_FULL); // still taught, never punished
+  });
+});
+
+// ── SECOND DOMAIN · bridging-through-10 addition/subtraction ─────────────────────────────────
+// The same faded-scaffold engine on a NEW seam: crossing ten by making ten. These tests prove
+// only the new content + trigger + rendering; the fade schedule / θ rule / ledger flag / selector
+// touch are domain-agnostic (proven above) and were not rebuilt for this slice.
+
+const AK2 = 2; // seedGradeFor(2) = 1, so every year-1 input (add_within_10, missing_addend_10,
+// sub_within_10) seeds FLUENT — a child who owns her within-ten facts but not the bridge.
+
+describe('bridging-through-10 — the derivation content', () => {
+  it('registers a derivation for the two cross-ten seams and nothing else additive', () => {
+    expect(ADDITIVE_DERIVATIONS.map((d) => d.code).sort()).toEqual(['add_cross_10', 'sub_cross_10']);
+    expect(hasDerivation('add_cross_10')).toBe(true);
+    expect(hasDerivation('sub_cross_10')).toBe(true);
+    // The no-bridge seams (within ten) are NOT trained — nothing to make-ten there.
+    expect(hasDerivation('add_within_10')).toBe(false);
+    expect(hasDerivation('sub_within_10')).toBe(false);
+  });
+
+  it('addition make-ten decomposes the ACTUAL item, always lands on 10, never changes the answer', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const item = buildItem('add_cross_10', seed);
+      const sc = buildScaffold('add_cross_10', seed, 'make_ten_add')!;
+      expect(sc.target).toBe(item.prompt);
+      expect(sc.answer).toBe(item.answer); // grading is completely unchanged
+      expect(sc.substeps).toHaveLength(2);
+      expect(sc.substeps[0].answer).toBe('10'); // the make-ten step
+      expect(sc.substeps[0].prompt.endsWith('=')).toBe(true);
+      expect(sc.substeps[1].answer).toBe(item.answer); // she builds the target herself
+      expect(sc.partial.startsWith(item.prompt.replace(/\s*=$/, ''))).toBe(true);
+      expect(sc.partial.includes('10 +')).toBe(true);
+    }
+  });
+
+  it('subtraction make-ten decomposes down to ten and back, answer unchanged', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const item = buildItem('sub_cross_10', seed);
+      const sc = buildScaffold('sub_cross_10', seed, 'make_ten_sub')!;
+      expect(sc.target).toBe(item.prompt);
+      expect(sc.answer).toBe(item.answer);
+      expect(sc.substeps).toHaveLength(2);
+      expect(sc.substeps[0].answer).toBe('10'); // subtract down to ten first
+      expect(sc.substeps[1].answer).toBe(item.answer);
+      // Every sub-step is a real single-digit subtraction the child owns (10 − rem, rem ≥ 1).
+      const rem = Number(sc.substeps[1].prompt.match(/10 − (\d+)/)![1]);
+      expect(rem).toBeGreaterThanOrEqual(1);
+      expect(rem).toBeLessThanOrEqual(9);
+    }
+  });
+
+  it('a hint exists for both bridging strategies, in both locales, and never spoils the answer', () => {
+    for (const strat of ['make_ten_add', 'make_ten_sub'] as const) {
+      for (const loc of ['sv', 'en']) {
+        const h = hintFor(strat, 8, loc);
+        expect(typeof h).toBe('string');
+        expect(h.length).toBeGreaterThan(0);
+        expect(h).toContain('10'); // names the make-ten, the strategy she is walking
+      }
+    }
+  });
+
+  it('picks the make-ten strategy, and vetoes when a within-ten input is missing (invariant 3)', () => {
+    const all = () => true;
+    expect(pickDerivation('add_cross_10', all)?.id).toBe('make_ten_add');
+    expect(pickDerivation('sub_cross_10', all)?.id).toBe('make_ten_sub');
+    // Bond-to-ten not fluent → no scaffold: the graph must drop lower and teach the bond.
+    const noBond = (c: string) => c !== 'missing_addend_10';
+    expect(pickDerivation('add_cross_10', noBond)).toBeNull();
+    expect(pickDerivation('sub_cross_10', noBond)).toBeNull();
+    // The single-digit op the recombination needs counts as an input too.
+    expect(pickDerivation('add_cross_10', (c) => c !== 'add_within_10')).toBeNull();
+    expect(pickDerivation('sub_cross_10', (c) => c !== 'sub_within_10')).toBeNull();
+  });
+});
+
+describe('bridging-through-10 — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // A child who owns her within-ten facts (year-1, seed-fluent at åk2) but keeps failing the
+  // cross-ten bridge — exactly who make-ten is for. No attempts on the inputs, so they stay steady.
+  function bridger(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'bridger', AK2, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'add_cross_10', (t += 1000)); // 0/4 — unlearned bridge
+    for (let i = 0; i < 4; i++) idk(pid, 'sub_cross_10', (t += 1000)); // 0/4, all "vet inte"
+    return pid;
+  }
+
+  it('both cross-ten gaps ignite with the make-ten strategy; the within-ten facts do not', () => {
+    const pid = bridger(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK2, 'maths'));
+    expect(plans.get('add_cross_10')).toMatchObject({ level: L_FULL, strategy: 'make_ten_add' });
+    expect(plans.get('sub_cross_10')).toMatchObject({ level: L_FULL, strategy: 'make_ten_sub' });
+    expect(plans.has('add_within_10')).toBe(false); // no derivation — nothing to bridge
+    expect(plans.has('missing_addend_10')).toBe(false);
+  });
+
+  it('does NOT fire when the bond-to-ten input is not fluent — the graph drops lower', () => {
+    const pid = bridger(fam);
+    const states = buildStates(pid, AK2, 'maths').map((s) =>
+      s.code === 'missing_addend_10'
+        ? ({ ...s, seedFluent: false, earnedFluent: false, rate: { source: 'measured', value: 0.1 } } as SelState)
+        : s,
+    );
+    expect(acquisitionPlans(pid, states).has('add_cross_10')).toBe(false);
+    expect(acquisitionPlans(pid, states).has('sub_cross_10')).toBe(false);
+  });
+
+  it('is SERVED the make-ten scaffold instead of being routed around', () => {
+    const pid = bridger(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK2, stretch: 0 };
+    let at = NOW + 100_000;
+    const served: string[] = [];
+    let item = issueNext(pid, AK2, at, { sessionId: sid, remaining: 10 });
+    for (let i = 0; i < 14; i++) {
+      served.push(item.acq ? `${item.code}@L${item.acq.level}` : item.code);
+      at += 5000;
+      const r = sessionAnswer(player, sid, item.code, item.seed, buildItem(item.code, item.seed).answer, false, 1, false, 2000, `idem-${item.code}-${at}-${Math.random()}`, null, at);
+      if (r.status === 'retry' || !r.next) break;
+      item = r.next;
+    }
+    expect(served.some((s) => s === 'add_cross_10@L0' || s === 'sub_cross_10@L0')).toBe(true);
+  });
+
+  it('a scaffolded make-ten win is warmup-class (θ up, no rate) and graduates off the bare rung', () => {
+    const pid = bridger(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK2, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'add_cross_10', seed, buildItem('add_cross_10', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('add_cross_10')!.theta;
+    repo.startAcquisition(pid, 'add_cross_10', 'make_ten_add', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'add_cross_10') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1); // the flag every rate/aim/sprint query filters on
+    expect(repo.abilities(pid).get('add_cross_10')!.theta).toBeGreaterThan(before); // a scaffold she wins pulls θ up
+    expect(repo.cleanPracticeRate(pid, 'add_cross_10')).toBeNull(); // the fluency number stays honest
+
+    // Seven more clean answers (eight total from L0) walk L0 → L1 → L2 → L3 → graduation.
+    for (let i = 0; i < 7; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'add_cross_10')).toBeNull(); // graduated, acquisition stops firing
+    expect(acquisitionPlans(pid, buildStates(pid, AK2, 'maths')).has('add_cross_10')).toBe(false);
   });
 });
