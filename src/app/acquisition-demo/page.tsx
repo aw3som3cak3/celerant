@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AcquisitionStage } from '../_components/AcquisitionStage';
 import { buildScaffold, L_FULL, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
+import { BY_CODE } from '@/skills';
 import { useI18n } from '../_components/LocaleProvider';
 import { type Captured } from '../_components/InputStage';
 import { grade } from '@/lib/grade';
@@ -25,6 +26,21 @@ const CASES: Demo[] = [
   { code: 'add_cross_10', seed: 3, strategy: 'make_ten_add', level: L_FULL, label: 'tiokamrat: 8 + 5 via 10' },
   { code: 'sub_cross_10', seed: 6, strategy: 'make_ten_sub', level: L_FULL, label: 'tiokamrat baklänges: 14 − 6 via 10' },
   { code: 'add_cross_10', seed: 8, strategy: 'make_ten_add', level: L_CUED, label: 'tiokamrat, bara ett tips' },
+  // division via inverse multiplication (56 / 8 → 8 × ? = 56)
+  { code: 'div_table_8', seed: 5, strategy: 'div_inverse_mult', level: L_FULL, label: 'division baklänges: / 8 via 8 ×' },
+  { code: 'div_table_7', seed: 2, strategy: 'div_inverse_mult', level: L_CUED, label: 'division, bara ett tips' },
+  // 2-digit place value (split into tens + ones; borrow via compensation)
+  { code: 'add_2d_carry', seed: 4, strategy: 'split_add_2d_carry', level: L_FULL, label: 'tvåsiffrig, växling: 47 + 28' },
+  { code: 'sub_2d_borrow', seed: 5, strategy: 'split_sub_2d_borrow', level: L_FULL, label: 'tvåsiffrig, lån: 52 − 27 (runda av)' },
+  { code: 'sub_2d_no_borrow', seed: 3, strategy: 'split_sub_2d', level: L_PARTIAL, label: 'tvåsiffrig minus, sista steget' },
+  // negatives (sign-rule rewrites)
+  { code: 'neg_sub_neg', seed: 4, strategy: 'neg_minus_minus', level: L_FULL, label: 'minus minus blir plus' },
+  { code: 'neg_mult_neg_neg', seed: 6, strategy: 'neg_mult_same_sign', level: L_FULL, label: 'lika tecken: (−4)×(−6)' },
+  { code: 'neg_div', seed: 3, strategy: 'neg_div_signs', level: L_FULL, label: 'olika tecken, division' },
+  // decimals (add tenths as whole counts) + trainable fractions
+  { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
+  { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
+  { code: 'frac_equivalent', seed: 4, strategy: 'frac_equiv_scale', level: L_CUED, label: 'liknämnigt, bara ett tips' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
@@ -44,7 +60,9 @@ export default function AcquisitionDemo() {
 
   if (!scaffold) return <div className="stage"><p className="muted">Kunde inte bygga scaffold.</p></div>;
 
-  const item = { code: c.code, seed: c.seed, family: 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
+  // The REAL family so the input pad matches the domain (fractions/negatives/decimals need the
+  // text pad for "/", "−", ","; a maths fact gets the numeric keypad).
+  const item = { code: c.code, seed: c.seed, family: BY_CODE.get(c.code)?.family ?? 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
   const onCapture = (cap: Captured) =>
     setRes({ ok: !cap.idk && grade(cap.given, scaffold.answer), given: cap.idk ? '(vet inte)' : cap.given, ms: cap.intervalMs });
 

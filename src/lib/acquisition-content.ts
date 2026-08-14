@@ -50,7 +50,21 @@ export type StrategyId =
   | 'x10_plus_x2'
   // ── bridging-through-10 (the second derivational domain, same faded-scaffold shape) ──
   | 'make_ten_add' // 8 + 5 → 8 + 2 = 10, + 3 = 13
-  | 'make_ten_sub'; // 14 − 6 → 14 − 4 = 10, − 2 = 8
+  | 'make_ten_sub' // 14 − 6 → 14 − 4 = 10, − 2 = 8
+  // ── generic rule domains (division / 2-digit / negatives / decimals / fractions) ──
+  | 'div_inverse_mult' // 56 / 8 → 8 × ? = 56 → 7   (shared by every div_table_t)
+  | 'mf_inverse_div' // 7 × □ = 63 → 63 / 7 → 9
+  | 'split_add_2d' // 34 + 25 → 30+20, 4+5, 50+9
+  | 'split_add_2d_carry' // 47 + 28 → 40+20, 7+8, 60+15
+  | 'split_sub_2d' // 68 − 25 → 60−20, 8−5, 40+3
+  | 'split_sub_2d_borrow' // 52 − 27 → 52−30=22, +3 = 25 (compensation)
+  | 'neg_minus_minus' // −3 − (−5) → −3 + 5
+  | 'neg_mult_same_sign' // (−4) × (−6) → 4 × 6 (same signs → +)
+  | 'neg_div_signs' // −48 / 6 → 48 / 6, then negate
+  | 'dec_add_tenths' // 2,7 + 1,8 → 27 + 18 tenths → 4,5 (shared no-carry/carry)
+  | 'frac_of_qty' // 3/4 of 8 → 8/4, ×3
+  | 'frac_equiv_scale' // 2/5 = □/15 → 15/5, ×2
+  | 'frac_add_same'; // 2/8 + 3/8 → (2+3)/8
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -196,19 +210,242 @@ for (const d of ADDITIVE_DERIVATIONS) {
   ADDITIVE_BY_CODE.set(d.code, list);
 }
 
-// Does this skill have a derivation at all? (Multiplication tables OR bridging-through-10.)
+// ── GENERIC RULE DERIVATIONS (division, 2-digit place value, negatives, decimals, fractions) ──
+//
+// A THIRD structure, deliberately separate from DERIVATIONS (multiplication) and
+// ADDITIVE_DERIVATIONS (bridging) so both earlier slices stay byte-for-byte untouched. Where those
+// two carry domain-specific shapes (a table `b`; an operator `op` + two operands), the remaining
+// maths domains each parse a differently-shaped prompt, so each derivation OWNS its parse: `build`
+// reads the built item and returns the L0 walk + the L1 partial, or null when the item doesn't fit
+// (the same "fall back to the bare item, child never stuck" contract as buildAdditiveScaffold).
+//
+// One strategy id may be SHARED across many codes (e.g. every div_table_t is `div_inverse_mult`):
+// buildScaffold disambiguates by (code, strategy), and hintFor/STRATEGY_COPY need only ONE entry
+// per id. `pivot` is the single number the L2 hint speaks about (a divisor, a rounded subtrahend);
+// it is meaningless for sign-rule strategies, which pass 0 and render a pivot-free hint.
+export type RuleScaffoldParts = { substeps: SubStep[]; partial: string; pivot: number };
+export type RuleDerivation = {
+  id: StrategyId;
+  code: string;
+  inputs: string[];
+  build: (item: { prompt: string; answer: string }) => RuleScaffoldParts | null;
+};
+
+// ── DIVISION · inverse-multiplication (spec gap-map domain 1) ───────────────────────────────
+// A division fact is a multiplication fact the child already owns, read backwards: 56 / 8 → "8
+// times what is 56?" → 7. The single sub-step reframes ÷ into the × she is fluent on; the fade
+// then peels the × frame away until she reads the bare ÷. `div_mixed` has no single-table inverse,
+// so it is NOT trained (its own tables are). Every div_table_t shares the one strategy id.
+const divInverse = (t: number): RuleDerivation => ({
+  id: 'div_inverse_mult', code: `div_table_${t}`, inputs: [`mult_table_${t}`],
+  build: (item) => {
+    const m = item.prompt.match(/^\s*(\d+)\s*\/\s*(\d+)\s*=/);
+    if (!m || Number(m[2]) !== t) return null;
+    const dividend = Number(m[1]);
+    // The missing-factor form she answers with her × fluency; its answer IS the quotient.
+    return { substeps: [{ prompt: `${t} × □ = ${dividend}`, answer: item.answer }], partial: `${t} × □ = ${dividend}`, pivot: t };
+  },
+});
+
+// ── 2-DIGIT place value · split into tens + ones (spec gap-map domain 2) ─────────────────────
+// A 2-digit sum/difference is partial sums: 34 + 25 → 30+20=50, 4+5=9, 50+9=59. Every sub-step is
+// a fact she owns (round-tens ± , single-digit ± , the recombine). The carry/borrow variants are
+// where this domain CHAINS onto bridging: 47+28's ones make-ten is add_cross_10, and sub-borrow
+// uses compensation (round the subtrahend up, give the overshoot back) so every step stays
+// no-borrow. Parses "a op b =" from the prompt; `t` here is a helper, not a table.
+const parseBin = (prompt: string, op: '+' | '−'): [number, number] | null => {
+  const m = prompt.match(/^\s*(\d+)\s*([+−])\s*(\d+)\s*=/);
+  return !m || m[2] !== op ? null : [Number(m[1]), Number(m[3])];
+};
+const tensOf = (n: number) => Math.floor(n / 10) * 10;
+// A signed integer parsed from a prompt token — the minus may be U+2212 (as skills.ts renders it)
+// or an ASCII hyphen; Number() rejects U+2212, so normalise first.
+const intOf = (s: string) => Number(s.replace(/−/g, '-'));
+// Render a signed integer the way skills.ts does (U+2212 for the negative), for scaffold prompts.
+const sgn = (n: number) => (n < 0 ? `−${Math.abs(n)}` : `${n}`);
+const gcd2 = (a: number, b: number): number => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b, a % b]; return a || 1; };
+// Format a tenths-COUNT as the canonical decimal string (matches answerToString(dec(t,1))): 45 → "4,5".
+const fmtTenths = (t: number) => (t % 10 === 0 ? String(t / 10) : `${Math.floor(t / 10)},${t % 10}`);
+
+export const RULE_DERIVATIONS: RuleDerivation[] = [
+  ...[2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12].map(divInverse),
+  {
+    id: 'split_add_2d', code: 'add_2d_no_carry', inputs: ['add_tens', 'add_within_10'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '+'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT + bT, ones = (a % 10) + (b % 10);
+      return {
+        substeps: [PLUS(aT, bT), PLUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} + ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    id: 'split_add_2d_carry', code: 'add_2d_carry', inputs: ['add_tens', 'add_cross_10', 'add_2d_no_carry'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '+'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT + bT, ones = (a % 10) + (b % 10);
+      // ones may cross ten (→ add_cross_10) or not (a tens-only carry); the walk is the same.
+      return {
+        substeps: [PLUS(aT, bT), PLUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} + ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    id: 'split_sub_2d', code: 'sub_2d_no_borrow', inputs: ['sub_within_10', 'add_tens'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '−'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT - bT, ones = (a % 10) - (b % 10);
+      return {
+        substeps: [MINUS(aT, bT), MINUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} − ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    // Borrow via COMPENSATION: round the subtrahend up to a ten, subtract that (no borrow), then
+    // add the overshoot back. Borrow ⟹ aT>bT ⟹ a ≥ bRoundUp, so a−bRoundUp is a clean
+    // no-borrow subtraction and the add-back never crosses a ten (aO + overshoot < 10). Both
+    // sub-steps land inside declared fluent inputs.
+    id: 'split_sub_2d_borrow', code: 'sub_2d_borrow', inputs: ['sub_2d_no_borrow', 'add_within_10'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '−'); if (!p) return null;
+      const [a, b] = p, bRoundUp = tensOf(b) + 10, mid = a - bRoundUp, overshoot = bRoundUp - b;
+      return {
+        substeps: [MINUS(a, bRoundUp), PLUS(mid, overshoot)],
+        partial: `${a} − ${b} = ${mid} + ${overshoot} =`, pivot: bRoundUp,
+      };
+    },
+  },
+  {
+    // The missing FACTOR is division read backwards, the mirror of div_table: 7 × □ = 63 → "63
+    // shared into 7" → 9. By the time this skill is reached division is fluent (it requires
+    // div_mixed), so the reframe lands on a fact she owns.
+    id: 'mf_inverse_div', code: 'missing_factor', inputs: ['div_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\D+(\d+)/); // "a × □ = product" → a, product
+      if (!m) return null;
+      const a = Number(m[1]), product = Number(m[2]);
+      return { substeps: [{ prompt: `${product} / ${a} =`, answer: item.answer }], partial: `${product} / ${a} =`, pivot: a };
+    },
+  },
+  // ── NEGATIVE integers · sign-rule rewrites (spec gap-map domain 3) ─────────────────────────
+  // A signed operation becomes the unsigned one she owns, plus a sign rule: (−4)×(−6) → 4×6 with
+  // "same signs → plus"; a − (−b) → a + b; a negative quotient → divide the magnitudes, then
+  // negate. Both the sub-steps AND the L1 partial must culminate in the SIGNED answer, so a
+  // sign-flip domain (neg_div) rewrites the sign explicitly rather than stopping at the magnitude.
+  {
+    // Subtracting a negative is adding: −3 − (−5) → −3 + 5. Both signs are U+2212 in the prompt.
+    id: 'neg_minus_minus', code: 'neg_sub_neg', inputs: ['neg_add_pos'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*([-−]?\d+)\s*−\s*\(\s*([-−]?\d+)\s*\)/);
+      if (!m) return null;
+      const a = intOf(m[1]), b = intOf(m[2]); // b is negative
+      return { substeps: [{ prompt: `${sgn(a)} + ${Math.abs(b)} =`, answer: item.answer }], partial: `${sgn(a)} + ${Math.abs(b)} =`, pivot: 0 };
+    },
+  },
+  {
+    // Same signs → positive: (−4) × (−6) → 4 × 6. The magnitude product IS the answer (no flip).
+    id: 'neg_mult_same_sign', code: 'neg_mult_neg_neg', inputs: ['mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*\(\s*([-−]?\d+)\s*\)\s*×\s*\(\s*([-−]?\d+)\s*\)/);
+      if (!m) return null;
+      const a = intOf(m[1]), b = intOf(m[2]);
+      return { substeps: [{ prompt: `${Math.abs(a)} × ${Math.abs(b)} =`, answer: item.answer }], partial: `${Math.abs(a)} × ${Math.abs(b)} =`, pivot: 0 };
+    },
+  },
+  {
+    // Different signs → negative (neg_div is ALWAYS a mixed-sign quotient): divide the magnitudes,
+    // then negate. The walk ends on 0 − q = −q so the last sub-step is the signed answer, and the
+    // L1 partial pulls the minus out first (−(|num| / |den|)) so it too lands on −q, never +q.
+    id: 'neg_div_signs', code: 'neg_div', inputs: ['div_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*([-−]?\d+)\s*\/\s*([-−]?\d+)\s*=/);
+      if (!m) return null;
+      const num = intOf(m[1]), den = intOf(m[2]);
+      if (den === 0) return null;
+      const q = Math.abs(num) / Math.abs(den);
+      if (!Number.isInteger(q)) return null;
+      return { substeps: [{ prompt: `${Math.abs(num)} / ${Math.abs(den)} =`, answer: String(q) }, MINUS(0, q)], partial: `−(${Math.abs(num)} / ${Math.abs(den)}) =`, pivot: 0 };
+    },
+  },
+  // ── DECIMALS · read the tenths, add like whole numbers, place the comma (spec gap-map domain 4) ──
+  // A tenths sum is a whole-number sum of tenth-COUNTS: 2,7 + 1,8 → 27 tenths + 18 tenths = 45
+  // tenths → 4,5. One method covers no-carry (0,3+0,5) and carry (2,7+1,8); each code declares
+  // the add its counts need (single-digit vs 2-digit-carry). dec_times_whole is NOT here: its
+  // ×-core is frequently multi-digit (a written procedure, not a fluent fact) — see the report.
+  ...(['dec_add_same', 'dec_add_carry'] as const).map((code): RuleDerivation => ({
+    id: 'dec_add_tenths', code, inputs: code === 'dec_add_same' ? ['add_within_10', 'dec_read_tenths'] : ['add_2d_carry', 'dec_read_tenths'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+),(\d+)\s*\+\s*(\d+),(\d+)\s*=/);
+      if (!m) return null;
+      const ta = Number(m[1]) * 10 + Number(m[2]), tb = Number(m[3]) * 10 + Number(m[4]), total = ta + tb;
+      return {
+        substeps: [{ prompt: `${ta} + ${tb} =`, answer: String(total) }, { prompt: `${total} tiondelar =`, answer: fmtTenths(total) }],
+        partial: `${item.prompt} ${total} tiondelar =`, pivot: 0,
+      };
+    },
+  })),
+  // ── FRACTIONS · the three trainable ones (integer + same-denominator answers) ────────────────
+  {
+    // "n/d of q": divide by the denominator, multiply by the numerator — exactly the item's own
+    // two steps, each a fact she owns.
+    id: 'frac_of_qty', code: 'frac_of_quantity', inputs: ['div_mixed', 'mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s+av\s+(\d+)/);
+      if (!m || Number(m[3]) % Number(m[2]) !== 0) return null;
+      const n = Number(m[1]), d = Number(m[2]), q = Number(m[3]), part = q / d;
+      return { substeps: [{ prompt: `${q} / ${d} =`, answer: String(part) }, { prompt: `${part} × ${n} =`, answer: String(part * n) }], partial: `${part} × ${n} =`, pivot: 0 };
+    },
+  },
+  {
+    // Equivalent fraction: how many times bigger is the new denominator, then scale the numerator.
+    id: 'frac_equiv_scale', code: 'frac_equivalent', inputs: ['div_mixed', 'mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s*=\s*□\/(\d+)/);
+      if (!m || Number(m[3]) % Number(m[2]) !== 0) return null;
+      const n = Number(m[1]), d = Number(m[2]), newD = Number(m[3]), k = newD / d;
+      return { substeps: [{ prompt: `${newD} / ${d} =`, answer: String(k) }, { prompt: `${n} × ${k} =`, answer: String(n * k) }], partial: `${n} × ${k} =`, pivot: 0 };
+    },
+  },
+  {
+    // Same denominator: add the numerators, keep the denominator. The result is graded BY VALUE
+    // (grade.ts reduces rationals), so a reducing sum is fine — the child may type 4/6 or 2/3 and
+    // the internal check reconstructs answerToString(frac(a+b,d)) so the walk never teaches a wrong
+    // fraction. The numerator add is the one non-trivial fact (add_within_10).
+    id: 'frac_add_same', code: 'frac_add_same_denom', inputs: ['add_within_10'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*(\d+)\/(\d+)\s*\+\s*(\d+)\/(\d+)\s*=/);
+      if (!m || m[2] !== m[4]) return null;
+      const a = Number(m[1]), d = Number(m[2]), b = Number(m[3]), g = gcd2(a + b, d), rn = (a + b) / g, rd = d / g;
+      if ((rd === 1 ? String(rn) : `${rn}/${rd}`) !== item.answer) return null; // reconstruct the canonical answer
+      return { substeps: [{ prompt: `${a} + ${b} =`, answer: String(a + b) }, { prompt: `(${a} + ${b})/${d} =`, answer: item.answer }], partial: `(${a} + ${b})/${d} =`, pivot: 0 };
+    },
+  },
+];
+
+export const RULE_BY_CODE = new Map<string, RuleDerivation[]>();
+for (const d of RULE_DERIVATIONS) {
+  const list = RULE_BY_CODE.get(d.code) ?? [];
+  list.push(d);
+  RULE_BY_CODE.set(d.code, list);
+}
+
+// Does this skill have a derivation at all? (Multiplication, bridging-through-10, or a rule domain.)
 export function hasDerivation(code: string): boolean {
-  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code);
+  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code) || RULE_BY_CODE.has(code);
 }
 
 // The shallowest derivation whose inputs are ALL fluent for this child, or null. `isFluent` is
 // the caller's readiness predicate (componentFluent on the selector state) — this module never
 // touches player state. Returning null is the readiness VETO: do NOT scaffold; let the graph
-// drop lower and serve the missing input instead (invariant 3). Multiplication and additive
-// derivations both expose `id` + `inputs`, so the trigger reads either through one signature.
-export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | null {
+// drop lower and serve the missing input instead (invariant 3). Every derivation kind exposes
+// `id` + `inputs`, so the trigger reads all three through one signature.
+export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | RuleDerivation | null {
   for (const d of DERIVATIONS_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   for (const d of ADDITIVE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
+  for (const d of RULE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   return null;
 }
 
@@ -231,6 +468,17 @@ export function buildScaffold(code: string, seed: number, strategy: StrategyId):
   // alone doesn't determine them) and decompose via make-ten.
   const add = ADDITIVE_BY_STRATEGY.get(strategy);
   if (add) return buildAdditiveScaffold(item, add, strategy);
+  // Generic rule domains: look up by CODE (a strategy id may be shared across codes), then the
+  // derivation that owns this strategy parses its own prompt.
+  const rule = RULE_BY_CODE.get(code);
+  if (rule) {
+    const d = rule.find((x) => x.id === strategy);
+    if (!d) return null;
+    const parts = d.build(item);
+    // Grade-identical guard: the walk MUST culminate in the item's own answer (invariant 1).
+    if (!parts || parts.substeps[parts.substeps.length - 1].answer !== item.answer) return null;
+    return { strategy, t: 0, b: parts.pivot, target: item.prompt, answer: item.answer, substeps: parts.substeps, partial: parts.partial };
+  }
   const d = BY_STRATEGY.get(strategy);
   if (!d || `mult_table_${d.table}` !== code) return null;
   const answer = Number(item.answer);
@@ -269,6 +517,23 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     // Bridging: b is the pivot filled to/from ten. Name the make-ten step, never the answer.
     make_ten_add: `${b} + ${10 - b} = 10, sen resten`,
     make_ten_sub: `${b} − ${b - 10} = 10, sen resten`,
+    // Division: b is the divisor. Point back to the × table she owns, never the quotient.
+    div_inverse_mult: `tänk baklänges: ${b} × ? = talet`,
+    mf_inverse_div: `dela istället: talet / ${b}`,
+    // 2-digit: name the split; the borrow hint's b is the rounded subtrahend.
+    split_add_2d: `tiotal för sig, ental för sig`,
+    split_add_2d_carry: `tiotal för sig, ental för sig`,
+    split_sub_2d: `tiotal minus tiotal, ental minus ental`,
+    split_sub_2d_borrow: `ta bort ${b} istället, lägg tillbaka`,
+    // Negatives: pivot-free sign rules — the strategy she has been walking.
+    neg_minus_minus: `minus och minus blir plus`,
+    neg_mult_same_sign: `lika tecken blir plus`,
+    neg_div_signs: `olika tecken blir minus`,
+    // Decimals + fractions: pivot-free method reminders.
+    dec_add_tenths: `räkna tiondelarna, sätt kommat sen`,
+    frac_of_qty: `dela med nämnaren, gånger täljaren`,
+    frac_equiv_scale: `hur många gånger större är nämnaren?`,
+    frac_add_same: `samma nämnare — addera täljarna`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -282,6 +547,19 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     x10_plus_x2: `10 × ${b} plus 2 × ${b}`,
     make_ten_add: `${b} + ${10 - b} = 10, then the rest`,
     make_ten_sub: `${b} − ${b - 10} = 10, then the rest`,
+    div_inverse_mult: `think ×: ${b} × ? = the number`,
+    mf_inverse_div: `divide instead: the number / ${b}`,
+    split_add_2d: `tens on their own, ones on their own`,
+    split_add_2d_carry: `tens on their own, ones on their own`,
+    split_sub_2d: `tens − tens, ones − ones`,
+    split_sub_2d_borrow: `subtract ${b} instead, then add back`,
+    neg_minus_minus: `minus and minus make plus`,
+    neg_mult_same_sign: `same signs make plus`,
+    neg_div_signs: `different signs make minus`,
+    dec_add_tenths: `add the tenths, place the comma after`,
+    frac_of_qty: `divide by the bottom, times the top`,
+    frac_equiv_scale: `how many times bigger is the bottom?`,
+    frac_add_same: `same bottom — add the tops`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -305,6 +583,19 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   x10_plus_x2: 'Tolvans tabell är tian plus tvåan: 10 × 7 = 70, 2 × 7 = 14, och 70 + 14 = 84.',
   make_ten_add: 'Tiokamrat-strategin: fyll upp till tio först. 8 + 5 → 8 + 2 = 10, och 3 kvar → 13. Öva 3–4 stycken tillsammans med en tioram eller fingrarna.',
   make_ten_sub: 'Tiokamrat-strategin baklänges: gå ner till tio först. 14 − 6 → 14 − 4 = 10, och 2 kvar → 8. Öva 3–4 stycken tillsammans.',
+  div_inverse_mult: 'Division är multiplikation baklänges: 56 / 8 → tänk "8 gånger vad blir 56?" → 7. Öva 3–4 stycken tillsammans med gångertabellen bredvid.',
+  mf_inverse_div: 'Saknad faktor är en division: 7 × □ = 63 → tänk "63 delat med 7" → 9.',
+  split_add_2d: 'Dela upp i tiotal och ental: 34 + 25 → 30 + 20 = 50, 4 + 5 = 9, 50 + 9 = 59.',
+  split_add_2d_carry: 'Dela upp i tiotal och ental, växla i entalen: 47 + 28 → 40 + 20 = 60, 7 + 8 = 15, 60 + 15 = 75.',
+  split_sub_2d: 'Dela upp i tiotal och ental: 68 − 25 → 60 − 20 = 40, 8 − 5 = 3, 40 + 3 = 43.',
+  split_sub_2d_borrow: 'Runda av nedtalet uppåt och lägg tillbaka: 52 − 27 → 52 − 30 = 22, och 3 tillbaka → 25.',
+  neg_minus_minus: 'Minus och minus blir plus: −3 − (−5) → −3 + 5 = 2. Skriv om det till en plus-uppgift.',
+  neg_mult_same_sign: 'Lika tecken blir plus: (−4) × (−6) → 4 × 6 = 24. Räkna talen utan tecken, sätt sedan plus.',
+  neg_div_signs: 'Olika tecken blir minus: −48 / 6 → 48 / 6 = 8, och sedan minus → −8.',
+  dec_add_tenths: 'Tal i tiondelar adderas som vanliga tal: 2,7 + 1,8 → 27 tiondelar + 18 tiondelar = 45 tiondelar → 4,5.',
+  frac_of_qty: 'Del av antal: 3/4 av 8 → dela med nämnaren (8 / 4 = 2), gånger täljaren (2 × 3 = 6).',
+  frac_equiv_scale: 'Liknämnigt: 2/5 = □/15 → nämnaren blev 3 gånger större (15 / 5 = 3), så täljaren också: 2 × 3 = 6.',
+  frac_add_same: 'Samma nämnare: addera täljarna, behåll nämnaren: 2/8 + 3/8 → (2 + 3)/8 = 5/8.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

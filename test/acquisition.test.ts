@@ -27,6 +27,7 @@ import {
   hasDerivation,
   hintFor,
   pickDerivation,
+  type StrategyId,
 } from '@/lib/acquisition-content';
 import { selectItem, type SelState } from '@/lib/selector';
 import { buildItem } from '@/lib/item';
@@ -522,5 +523,460 @@ describe('bridging-through-10 — the trigger and the engine', () => {
     for (let i = 0; i < 7; i++) { at += 5000; answerWith(5000 + i, at); }
     expect(repo.acquisitionLevel(pid, 'add_cross_10')).toBeNull(); // graduated, acquisition stops firing
     expect(acquisitionPlans(pid, buildStates(pid, AK2, 'maths')).has('add_cross_10')).toBe(false);
+  });
+});
+
+// ── DOMAIN · DIVISION (inverse-multiplication) ──────────────────────────────────────────────
+// A division fact reframed as the multiplication fact she owns: 56 / 8 → "8 × ? = 56" → 7.
+
+const AK5 = 5; // seedGradeFor(5) = 4: every ×-table seeds fluent; div_table_7/8/9 (year 5) do not.
+
+describe('division — the derivation content', () => {
+  it('registers an inverse-mult derivation for every table + missing_factor, not the union node', () => {
+    for (const t of [2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12]) expect(hasDerivation(`div_table_${t}`)).toBe(true);
+    expect(hasDerivation('missing_factor')).toBe(true);
+    expect(hasDerivation('div_mixed')).toBe(false); // a union node has no single-table inverse
+  });
+
+  it('decomposes the ACTUAL division into its × fact, never changing the quotient', () => {
+    for (const t of [3, 7, 8, 12]) {
+      for (let seed = 1; seed < 30; seed++) {
+        const item = buildItem(`div_table_${t}`, seed);
+        const sc = buildScaffold(`div_table_${t}`, seed, 'div_inverse_mult')!;
+        expect(sc.target).toBe(item.prompt);
+        expect(sc.answer).toBe(item.answer); // grading unchanged
+        expect(sc.substeps).toHaveLength(1);
+        const dividend = Number(item.prompt.match(/^(\d+)/)![1]);
+        expect(sc.substeps[0].prompt).toBe(`${t} × □ = ${dividend}`);
+        expect(sc.substeps[0].answer).toBe(item.answer); // she builds the quotient with her × fluency
+        expect(sc.partial).toBe(`${t} × □ = ${dividend}`);
+      }
+    }
+  });
+
+  it('missing_factor reframes to a division she owns, answer unchanged', () => {
+    for (let seed = 1; seed < 40; seed++) {
+      const item = buildItem('missing_factor', seed);
+      const sc = buildScaffold('missing_factor', seed, 'mf_inverse_div')!;
+      expect(sc.answer).toBe(item.answer);
+      expect(sc.substeps[0].prompt).toMatch(/^\d+ \/ \d+ =$/);
+      expect(sc.substeps[0].answer).toBe(item.answer);
+    }
+  });
+
+  it('picks inverse-mult when the table is fluent, vetoes when it is not (invariant 3)', () => {
+    expect(pickDerivation('div_table_8', () => true)?.id).toBe('div_inverse_mult');
+    expect(pickDerivation('div_table_8', (c) => c !== 'mult_table_8')).toBeNull();
+    expect(pickDerivation('missing_factor', () => true)?.id).toBe('mf_inverse_div');
+    expect(pickDerivation('missing_factor', (c) => c !== 'div_mixed')).toBeNull();
+  });
+
+  it('a division hint points at the × table, in both locales, never the quotient', () => {
+    for (const loc of ['sv', 'en']) {
+      const h = hintFor('div_inverse_mult', 8, loc);
+      expect(h).toContain('8');
+      expect(h).toContain('×');
+    }
+  });
+});
+
+describe('division — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // åk5: fluent on the ×-tables (seed) but failing the year-5 division facts — exactly who the
+  // inverse-mult reframe is for. No attempts on the ×-tables, so they stay steady/fluent.
+  function divver(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'divver', AK5, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'div_table_8', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'div_table_7', (t += 1000));
+    return pid;
+  }
+
+  it('both division gaps ignite with inverse-mult; the fluent ×-tables do not', () => {
+    const pid = divver(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK5, 'maths'));
+    expect(plans.get('div_table_8')).toMatchObject({ level: L_FULL, strategy: 'div_inverse_mult' });
+    expect(plans.get('div_table_7')).toMatchObject({ level: L_FULL, strategy: 'div_inverse_mult' });
+    expect(plans.has('mult_table_8')).toBe(false); // no derivation (it IS the input)
+  });
+
+  it('does NOT fire when the × table it inverts is not fluent — the graph drops lower', () => {
+    const pid = divver(fam);
+    const states = buildStates(pid, AK5, 'maths').map((s) =>
+      s.code === 'mult_table_8'
+        ? ({ ...s, seedFluent: false, earnedFluent: false, rate: { source: 'measured', value: 0.1 } } as SelState)
+        : s,
+    );
+    expect(acquisitionPlans(pid, states).has('div_table_8')).toBe(false);
+  });
+
+  it('is served the reframe, warmup-class (θ up, no rate), and graduates', () => {
+    const pid = divver(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK5, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'div_table_8', seed, buildItem('div_table_8', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    // It is actually served as a scaffold on the real engine.
+    let at = NOW + 100_000;
+    const served: string[] = [];
+    let item = issueNext(pid, AK5, at, { sessionId: sid, remaining: 10 });
+    for (let i = 0; i < 14; i++) {
+      served.push(item.acq ? `${item.code}@L${item.acq.level}` : item.code);
+      at += 5000;
+      const r = sessionAnswer(player, sid, item.code, item.seed, buildItem(item.code, item.seed).answer, false, 1, false, 2000, `idem-${item.code}-${at}-${Math.random()}`, null, at);
+      if (r.status === 'retry' || !r.next) break;
+      item = r.next;
+    }
+    expect(served.some((s) => s === 'div_table_8@L0' || s === 'div_table_7@L0')).toBe(true);
+
+    // Warmup-class + graduation on a fresh forced arc (own family — the fixture icon is fixed).
+    const fam2 = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+    const pid2 = divver(fam2);
+    const sid2 = repo.createSessionRun(pid2, 10, NOW, 'maths');
+    const p2 = { id: pid2, school_year: AK5, stretch: 0 };
+    const before = repo.abilities(pid2).get('div_table_8')!.theta;
+    repo.startAcquisition(pid2, 'div_table_8', 'div_inverse_mult', NOW);
+    let at2 = NOW + 200_000;
+    sessionAnswer(p2, sid2, 'div_table_8', 4242, buildItem('div_table_8', 4242).answer, false, 1, false, 2000, `d-${at2}`, null, at2);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid2, 'div_table_8') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid2).get('div_table_8')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid2, 'div_table_8')).toBeNull();
+    for (let i = 0; i < 8; i++) { at2 += 5000; sessionAnswer(p2, sid2, 'div_table_8', 5000 + i, buildItem('div_table_8', 5000 + i).answer, false, 1, false, 2000, `d2-${at2}-${i}`, null, at2); }
+    expect(repo.acquisitionLevel(pid2, 'div_table_8')).toBeNull(); // graduated
+  });
+});
+
+// ── DOMAIN · 2-DIGIT place value (split into tens + ones; carry/borrow chain onto bridging) ──
+
+const AK3 = 3; // seedGradeFor(3) = 2: year-1 inputs + add_2d_no_carry/sub_2d_no_borrow (yr2) seed
+// fluent; add_2d_carry is being failed, sub_2d_borrow (yr3) is genuinely below the seed.
+
+describe('2-digit place value — the derivation content', () => {
+  const cases = [
+    { code: 'add_2d_no_carry', strat: 'split_add_2d' as StrategyId, steps: 3 },
+    { code: 'add_2d_carry', strat: 'split_add_2d_carry' as StrategyId, steps: 3 },
+    { code: 'sub_2d_no_borrow', strat: 'split_sub_2d' as StrategyId, steps: 3 },
+    { code: 'sub_2d_borrow', strat: 'split_sub_2d_borrow' as StrategyId, steps: 2 },
+  ];
+
+  it('registers a split derivation for all four 2-digit seams', () => {
+    for (const c of cases) expect(hasDerivation(c.code)).toBe(true);
+  });
+
+  it('every scaffold parses + decomposes the ACTUAL item and lands on its answer (buildScaffold guard)', () => {
+    for (const c of cases) {
+      for (let seed = 1; seed < 50; seed++) {
+        const item = buildItem(c.code, seed);
+        const sc = buildScaffold(c.code, seed, c.strat);
+        expect(sc, `${c.code} seed ${seed}`).not.toBeNull(); // non-null over EVERY generated instance = parse+guard hold
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps).toHaveLength(c.steps);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer);
+        for (const s of sc!.substeps) expect(s.prompt.endsWith('=')).toBe(true);
+        expect(sc!.partial.endsWith('=')).toBe(true);
+      }
+    }
+  });
+
+  it('the borrow compensation keeps every sub-step non-negative and no-cross (invariant 3 arithmetic)', () => {
+    for (let seed = 1; seed < 80; seed++) {
+      const sc = buildScaffold('sub_2d_borrow', seed, 'split_sub_2d_borrow')!;
+      // step 1 "a − bRoundUp = mid": mid ≥ 0; step 2 "mid + overshoot": the ones never cross ten.
+      const mid = Number(sc.substeps[0].answer);
+      expect(mid).toBeGreaterThanOrEqual(0);
+      const overshoot = Number(sc.substeps[1].prompt.match(/\+ (\d+)/)![1]);
+      expect(overshoot).toBeGreaterThanOrEqual(1);
+      expect(overshoot).toBeLessThanOrEqual(9);
+      expect((mid % 10) + overshoot).toBeLessThan(10);
+    }
+  });
+
+  it('picks the split, and the carry/borrow seams VETO on the bridging input (the chain)', () => {
+    expect(pickDerivation('add_2d_carry', () => true)?.id).toBe('split_add_2d_carry');
+    expect(pickDerivation('add_2d_carry', (c) => c !== 'add_cross_10')).toBeNull(); // chains onto bridging
+    expect(pickDerivation('sub_2d_borrow', () => true)?.id).toBe('split_sub_2d_borrow');
+    expect(pickDerivation('sub_2d_borrow', (c) => c !== 'sub_2d_no_borrow')).toBeNull();
+    expect(pickDerivation('add_2d_no_carry', (c) => c !== 'add_tens')).toBeNull();
+  });
+});
+
+describe('2-digit place value — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // åk3: fluent on the within-ten facts AND add_2d_no_carry / sub_2d_no_borrow (seed), but failing
+  // the carry/borrow seams. No attempts on the inputs, so they stay steady/fluent.
+  function twoDigit(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'twodigit', AK3, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'add_2d_carry', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'sub_2d_borrow', (t += 1000));
+    return pid;
+  }
+
+  it('the carry and borrow gaps ignite; the no-carry facts she owns do not', () => {
+    const pid = twoDigit(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK3, 'maths'));
+    expect(plans.get('add_2d_carry')).toMatchObject({ level: L_FULL, strategy: 'split_add_2d_carry' });
+    expect(plans.get('sub_2d_borrow')).toMatchObject({ level: L_FULL, strategy: 'split_sub_2d_borrow' });
+    expect(plans.has('add_2d_no_carry')).toBe(false); // fluent, not failed
+    expect(plans.has('sub_2d_no_borrow')).toBe(false);
+  });
+
+  it('sub_2d_borrow is served, warmup-class, and graduates on the real engine', () => {
+    const pid = twoDigit(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK3, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'sub_2d_borrow', seed, buildItem('sub_2d_borrow', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('sub_2d_borrow')!.theta;
+    repo.startAcquisition(pid, 'sub_2d_borrow', 'split_sub_2d_borrow', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'sub_2d_borrow') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('sub_2d_borrow')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'sub_2d_borrow')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'sub_2d_borrow')).toBeNull(); // graduated
+  });
+});
+
+// ── DOMAIN · NEGATIVE integers (sign-rule rewrites) ─────────────────────────────────────────
+// A signed operation reframed as the unsigned one she owns + a sign rule. The sign-flip case
+// (neg_div) is the subtle one: BOTH its walk and its L1 partial must land on the negative answer.
+
+const AK7 = 7; // seedGradeFor(7) = 6: neg_add_pos, mult_mixed, div_mixed all seed fluent.
+
+describe('negatives — the derivation content', () => {
+  it('registers a sign-rewrite for the three seams', () => {
+    expect(hasDerivation('neg_sub_neg')).toBe(true);
+    expect(hasDerivation('neg_mult_neg_neg')).toBe(true);
+    expect(hasDerivation('neg_div')).toBe(true);
+  });
+
+  it('each sign-rewrite decomposes the actual item and lands on the SIGNED answer', () => {
+    const map = [
+      ['neg_sub_neg', 'neg_minus_minus'],
+      ['neg_mult_neg_neg', 'neg_mult_same_sign'],
+      ['neg_div', 'neg_div_signs'],
+    ] as const;
+    for (const [code, strat] of map) {
+      for (let seed = 1; seed < 50; seed++) {
+        const item = buildItem(code, seed);
+        const sc = buildScaffold(code, seed, strat);
+        expect(sc, `${code} seed ${seed}`).not.toBeNull();
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer); // walk ends on the signed answer
+      }
+    }
+  });
+
+  it('neg_div negates explicitly: magnitude first (positive), last step and partial are negative', () => {
+    for (let seed = 1; seed < 40; seed++) {
+      const item = buildItem('neg_div', seed);
+      const sc = buildScaffold('neg_div', seed, 'neg_div_signs')!;
+      expect(sc.substeps).toHaveLength(2);
+      expect(Number(sc.substeps[0].answer)).toBeGreaterThan(0); // the magnitude quotient
+      expect(Number(sc.substeps[1].answer)).toBeLessThan(0); // the sign applied
+      expect(sc.partial.startsWith('−(')).toBe(true); // the partial pulls the minus out → never grades +q
+      expect(item.answer.startsWith('-')).toBe(true);
+    }
+  });
+
+  it('picks the sign-rewrite, vetoes when the unsigned input is not fluent (invariant 3)', () => {
+    expect(pickDerivation('neg_sub_neg', () => true)?.id).toBe('neg_minus_minus');
+    expect(pickDerivation('neg_sub_neg', (c) => c !== 'neg_add_pos')).toBeNull();
+    expect(pickDerivation('neg_mult_neg_neg', (c) => c !== 'mult_mixed')).toBeNull();
+    expect(pickDerivation('neg_div', (c) => c !== 'div_mixed')).toBeNull();
+  });
+});
+
+describe('negatives — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function negs(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'negs', AK7, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'neg_sub_neg', (t += 1000));
+    for (let i = 0; i < 4; i++) miss(pid, 'neg_mult_neg_neg', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'neg_div', (t += 1000));
+    return pid;
+  }
+
+  it('all three sign seams ignite with their rewrite', () => {
+    const pid = negs(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK7, 'maths'));
+    expect(plans.get('neg_sub_neg')).toMatchObject({ level: L_FULL, strategy: 'neg_minus_minus' });
+    expect(plans.get('neg_mult_neg_neg')).toMatchObject({ level: L_FULL, strategy: 'neg_mult_same_sign' });
+    expect(plans.get('neg_div')).toMatchObject({ level: L_FULL, strategy: 'neg_div_signs' });
+  });
+
+  it('neg_mult_neg_neg is served, warmup-class, and graduates (a positive-answer rewrite)', () => {
+    const pid = negs(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK7, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'neg_mult_neg_neg', seed, buildItem('neg_mult_neg_neg', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('neg_mult_neg_neg')!.theta;
+    repo.startAcquisition(pid, 'neg_mult_neg_neg', 'neg_mult_same_sign', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'neg_mult_neg_neg') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('neg_mult_neg_neg')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'neg_mult_neg_neg')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'neg_mult_neg_neg')).toBeNull(); // graduated
+  });
+});
+
+// ── DOMAIN · DECIMALS (add tenths as whole counts, place the comma) + FRACTIONS ─────────────
+// dec_times_whole is deliberately absent — its ×-core is often multi-digit (see the report).
+
+const AK6 = 6; // seedGradeFor(6) = 5: dec_read_tenths, add_2d_carry, div_mixed, mult_mixed fluent.
+
+describe('decimals + fractions — the derivation content', () => {
+  const cases = [
+    { code: 'dec_add_same', strat: 'dec_add_tenths' as StrategyId },
+    { code: 'dec_add_carry', strat: 'dec_add_tenths' as StrategyId },
+    { code: 'frac_of_quantity', strat: 'frac_of_qty' as StrategyId },
+    { code: 'frac_equivalent', strat: 'frac_equiv_scale' as StrategyId },
+    { code: 'frac_add_same_denom', strat: 'frac_add_same' as StrategyId },
+  ];
+
+  it('registers a derivation for the two decimal adds and the three trainable fractions', () => {
+    for (const c of cases) expect(hasDerivation(c.code)).toBe(true);
+    expect(hasDerivation('dec_times_whole')).toBe(false); // multi-digit ×-core → reported, not built
+  });
+
+  it('every scaffold parses + decomposes the ACTUAL item and lands on its answer (all five)', () => {
+    for (const c of cases) {
+      for (let seed = 1; seed < 60; seed++) {
+        const item = buildItem(c.code, seed);
+        const sc = buildScaffold(c.code, seed, c.strat);
+        expect(sc, `${c.code} seed ${seed}`).not.toBeNull(); // parse + internal reconstruct hold over every instance
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer);
+        for (const s of sc!.substeps) expect(s.prompt.endsWith('=')).toBe(true);
+      }
+    }
+  });
+
+  it('decimal add makes the tenths a whole-number sum, then reads it back with the comma', () => {
+    const sc = buildScaffold('dec_add_carry', 3, 'dec_add_tenths')!;
+    expect(sc.substeps).toHaveLength(2);
+    expect(sc.substeps[0].prompt).toMatch(/^\d+ \+ \d+ =$/); // the tenth-counts, added as wholes
+    expect(sc.substeps[1].prompt).toContain('tiondelar');
+  });
+
+  it('same-denominator add is graded by VALUE, so a reducing sum still scaffolds', () => {
+    // find a reducing instance (e.g. 2/8 + 2/8 = 4/8 = 1/2) and confirm the walk lands on the
+    // reduced canonical answer, never the unreduced fraction.
+    let sawReducing = false;
+    for (let seed = 1; seed < 200 && !sawReducing; seed++) {
+      const item = buildItem('frac_add_same_denom', seed);
+      if (!item.answer.includes('/')) continue;
+      const sc = buildScaffold('frac_add_same_denom', seed, 'frac_add_same');
+      if (!sc) continue;
+      const denom = Number(item.prompt.match(/\/(\d+)/)![1]);
+      const ansDenom = Number(item.answer.split('/')[1]);
+      if (ansDenom !== denom) { sawReducing = true; expect(sc.substeps[sc.substeps.length - 1].answer).toBe(item.answer); }
+    }
+    expect(sawReducing).toBe(true);
+  });
+
+  it('picks each derivation and vetoes on a missing input (invariant 3)', () => {
+    expect(pickDerivation('dec_add_carry', () => true)?.id).toBe('dec_add_tenths');
+    expect(pickDerivation('dec_add_carry', (c) => c !== 'add_2d_carry')).toBeNull();
+    expect(pickDerivation('dec_add_same', (c) => c !== 'dec_read_tenths')).toBeNull();
+    expect(pickDerivation('frac_of_quantity', (c) => c !== 'div_mixed')).toBeNull();
+    expect(pickDerivation('frac_equivalent', (c) => c !== 'mult_mixed')).toBeNull();
+    expect(pickDerivation('frac_add_same_denom', (c) => c !== 'add_within_10')).toBeNull();
+  });
+});
+
+describe('decimals + fractions — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function decFrac(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'decfrac', AK6, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'dec_add_same', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'dec_add_carry', (t += 1000));
+    for (let i = 0; i < 4; i++) miss(pid, 'frac_of_quantity', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'frac_equivalent', (t += 1000));
+    return pid;
+  }
+
+  it('the decimal and fraction gaps ignite with their methods', () => {
+    const pid = decFrac(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK6, 'maths'));
+    expect(plans.get('dec_add_same')).toMatchObject({ level: L_FULL, strategy: 'dec_add_tenths' });
+    expect(plans.get('dec_add_carry')).toMatchObject({ level: L_FULL, strategy: 'dec_add_tenths' });
+    expect(plans.get('frac_of_quantity')).toMatchObject({ level: L_FULL, strategy: 'frac_of_qty' });
+    expect(plans.get('frac_equivalent')).toMatchObject({ level: L_FULL, strategy: 'frac_equiv_scale' });
+  });
+
+  it('frac_of_quantity is served, warmup-class, and graduates', () => {
+    const pid = decFrac(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK6, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'frac_of_quantity', seed, buildItem('frac_of_quantity', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('frac_of_quantity')!.theta;
+    repo.startAcquisition(pid, 'frac_of_quantity', 'frac_of_qty', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'frac_of_quantity') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('frac_of_quantity')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'frac_of_quantity')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'frac_of_quantity')).toBeNull(); // graduated
   });
 });
