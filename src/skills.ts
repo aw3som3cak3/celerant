@@ -375,6 +375,23 @@ const tier1: Skill[] = [
       return { prompt: `${a} + ${a} =`, answer: int(2 * a), steps: [`${a} + ${a} = ${2 * a}`] }; },
   }),
   S({
+    // "dubbla X" — doubling as a named mental-math OPERATION (a kid asked for it). It IS the double
+    // fact (a + a) reframed with the Swedish word, so it hangs off add_doubles and needs no
+    // derivation of its own — it's the anchor. NB the prompt carries a Swedish word ("dubbla"),
+    // unlike the symbolic maths prompts; English locale is deferred (see the acquisition report).
+    code: "double_within_20", year: 1, mode: "component", requires: ["add_doubles"],
+    generate: (r) => { const a = r.int(1, 10);
+      return { prompt: `dubbla ${a} =`, answer: int(2 * a), steps: [`${a} + ${a} = ${2 * a}`] }; },
+  }),
+  S({
+    // "hälften av X" (X even) — the inverse of doubling, and a real derivation candidate: halving is
+    // doubling read backwards ("vad plus sig självt blir 16?"). Hangs off double_within_20; the
+    // number is 2a so it is always even. Swedish-word prompt like its partner.
+    code: "half_within_20", year: 1, mode: "component", requires: ["double_within_20"],
+    generate: (r) => { const a = r.int(1, 10);
+      return { prompt: `hälften av ${2 * a} =`, answer: int(a), steps: [`${a} + ${a} = ${2 * a}`, `hälften av ${2 * a} = ${a}`] }; },
+  }),
+  S({
     code: "sub_within_10", year: 1, mode: "component", requires: ["add_within_10"],
     generate: (r) => { const a = r.int(3, 10), b = r.int(1, a - 1);
       return { prompt: `${a} − ${b} =`, answer: int(a - b), steps: [`${a} − ${b} = ${a - b}`] }; },

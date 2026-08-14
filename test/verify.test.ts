@@ -70,7 +70,10 @@ const verifyItem = (it: Item): Result => {
     return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
   }
 
-  if (/av|Förkorta/.test(prompt)) {
+  // Word-prompt maths (a Swedish operation word, not a symbolic expression): "n/d av q",
+  // "Förkorta …", and the mental-math "dubbla X" / "hälften av X". Not evaluable as an
+  // expression, so verify what applies — the final step states the answer.
+  if (/av|Förkorta|dubbla|hälften/.test(prompt)) {
     return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
   }
 

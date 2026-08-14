@@ -56,6 +56,8 @@ const EXACT: Record<string, string> = {
   add_within_5: 'plus till 5',
   add_within_10: 'plus till 10',
   add_doubles: 'dubblor',
+  double_within_20: 'dubbla',
+  half_within_20: 'hälften av',
   sub_within_10: 'minus till 10',
   missing_addend_10: 'tiokompisar',
   add_cross_10: 'plus över tiotalet',
