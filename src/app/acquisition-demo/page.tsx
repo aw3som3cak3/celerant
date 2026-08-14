@@ -23,7 +23,13 @@ const CASES: Demo[] = [
   { code: 'mult_table_7', seed: 9, strategy: 'x5_plus_x2', level: L_CUED, label: '×7 via 5×b + 2×b' },
 ];
 
-const LEVEL_NAME: Record<number, string> = { [L_FULL]: 'L0 · hela stegen', [L_PARTIAL]: 'L1 · ett steg kvar', [L_CUED]: 'L2 · bara tips' };
+// Plain-language captions — what stage of learning this example shows the child. No level
+// codes, no "5×b" notation, no answer spoiler: this page is for eyeballing the child's view.
+const STAGE_CAPTION: Record<number, string> = {
+  [L_FULL]: 'Barnet har precis mött talet — hela uträkningen visas, steg för steg.',
+  [L_PARTIAL]: 'Barnet börjar kunna det — bara sista steget kvar.',
+  [L_CUED]: 'Nästan klart — bara ett litet tips kvar.',
+};
 
 export default function AcquisitionDemo() {
   const { locale } = useI18n();
@@ -40,14 +46,15 @@ export default function AcquisitionDemo() {
 
   return (
     <div className="stage" style={{ textAlign: 'center' }}>
-      <p className="muted">AcquisitionStage-demo (test, ingen data) — {(idx % CASES.length) + 1} / {CASES.length}</p>
-      <p className="muted"><strong>{LEVEL_NAME[c.level]}</strong> · {c.label} · facit = {scaffold.answer}</p>
+      <h1 style={{ fontSize: '1.15rem', margin: '0 0 0.3rem' }}>Räknestege (test)</h1>
+      <p className="muted" style={{ marginBottom: '0.2rem' }}>Så här lär appen ut ett tal barnet inte kan än — exempel {(idx % CASES.length) + 1} / {CASES.length}.</p>
+      <p className="muted">{STAGE_CAPTION[c.level]}</p>
       {res ? (
         <div className="plain">
           <div style={{ fontSize: '2.5rem' }}>{res.ok ? '✅' : '🤔'}</div>
           <h2>{res.ok ? 'Rätt!' : 'Nästan'}</h2>
-          <p className="muted">du skrev “{res.given}” — rätt var “{scaffold.answer}” · {res.ms} ms</p>
-          <button className="primary" onClick={() => { setRes(null); setIdx((i) => i + 1); }} style={{ marginTop: '1rem' }}>Nästa →</button>
+          <p className="muted">du skrev “{res.given}” — rätt var “{scaffold.answer}”</p>
+          <button className="primary" onClick={() => { setRes(null); setIdx((i) => i + 1); }} style={{ marginTop: '1rem' }}>Nästa exempel →</button>
         </div>
       ) : (
         <AcquisitionStage
