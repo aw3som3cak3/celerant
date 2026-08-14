@@ -27,6 +27,7 @@ import {
   hasDerivation,
   hintFor,
   pickDerivation,
+  type StrategyId,
 } from '@/lib/acquisition-content';
 import { selectItem, type SelState } from '@/lib/selector';
 import { buildItem } from '@/lib/item';
@@ -654,5 +655,111 @@ describe('division — the trigger and the engine', () => {
     expect(repo.cleanPracticeRate(pid2, 'div_table_8')).toBeNull();
     for (let i = 0; i < 8; i++) { at2 += 5000; sessionAnswer(p2, sid2, 'div_table_8', 5000 + i, buildItem('div_table_8', 5000 + i).answer, false, 1, false, 2000, `d2-${at2}-${i}`, null, at2); }
     expect(repo.acquisitionLevel(pid2, 'div_table_8')).toBeNull(); // graduated
+  });
+});
+
+// ── DOMAIN · 2-DIGIT place value (split into tens + ones; carry/borrow chain onto bridging) ──
+
+const AK3 = 3; // seedGradeFor(3) = 2: year-1 inputs + add_2d_no_carry/sub_2d_no_borrow (yr2) seed
+// fluent; add_2d_carry is being failed, sub_2d_borrow (yr3) is genuinely below the seed.
+
+describe('2-digit place value — the derivation content', () => {
+  const cases = [
+    { code: 'add_2d_no_carry', strat: 'split_add_2d' as StrategyId, steps: 3 },
+    { code: 'add_2d_carry', strat: 'split_add_2d_carry' as StrategyId, steps: 3 },
+    { code: 'sub_2d_no_borrow', strat: 'split_sub_2d' as StrategyId, steps: 3 },
+    { code: 'sub_2d_borrow', strat: 'split_sub_2d_borrow' as StrategyId, steps: 2 },
+  ];
+
+  it('registers a split derivation for all four 2-digit seams', () => {
+    for (const c of cases) expect(hasDerivation(c.code)).toBe(true);
+  });
+
+  it('every scaffold parses + decomposes the ACTUAL item and lands on its answer (buildScaffold guard)', () => {
+    for (const c of cases) {
+      for (let seed = 1; seed < 50; seed++) {
+        const item = buildItem(c.code, seed);
+        const sc = buildScaffold(c.code, seed, c.strat);
+        expect(sc, `${c.code} seed ${seed}`).not.toBeNull(); // non-null over EVERY generated instance = parse+guard hold
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps).toHaveLength(c.steps);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer);
+        for (const s of sc!.substeps) expect(s.prompt.endsWith('=')).toBe(true);
+        expect(sc!.partial.endsWith('=')).toBe(true);
+      }
+    }
+  });
+
+  it('the borrow compensation keeps every sub-step non-negative and no-cross (invariant 3 arithmetic)', () => {
+    for (let seed = 1; seed < 80; seed++) {
+      const sc = buildScaffold('sub_2d_borrow', seed, 'split_sub_2d_borrow')!;
+      // step 1 "a − bRoundUp = mid": mid ≥ 0; step 2 "mid + overshoot": the ones never cross ten.
+      const mid = Number(sc.substeps[0].answer);
+      expect(mid).toBeGreaterThanOrEqual(0);
+      const overshoot = Number(sc.substeps[1].prompt.match(/\+ (\d+)/)![1]);
+      expect(overshoot).toBeGreaterThanOrEqual(1);
+      expect(overshoot).toBeLessThanOrEqual(9);
+      expect((mid % 10) + overshoot).toBeLessThan(10);
+    }
+  });
+
+  it('picks the split, and the carry/borrow seams VETO on the bridging input (the chain)', () => {
+    expect(pickDerivation('add_2d_carry', () => true)?.id).toBe('split_add_2d_carry');
+    expect(pickDerivation('add_2d_carry', (c) => c !== 'add_cross_10')).toBeNull(); // chains onto bridging
+    expect(pickDerivation('sub_2d_borrow', () => true)?.id).toBe('split_sub_2d_borrow');
+    expect(pickDerivation('sub_2d_borrow', (c) => c !== 'sub_2d_no_borrow')).toBeNull();
+    expect(pickDerivation('add_2d_no_carry', (c) => c !== 'add_tens')).toBeNull();
+  });
+});
+
+describe('2-digit place value — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // åk3: fluent on the within-ten facts AND add_2d_no_carry / sub_2d_no_borrow (seed), but failing
+  // the carry/borrow seams. No attempts on the inputs, so they stay steady/fluent.
+  function twoDigit(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'twodigit', AK3, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'add_2d_carry', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'sub_2d_borrow', (t += 1000));
+    return pid;
+  }
+
+  it('the carry and borrow gaps ignite; the no-carry facts she owns do not', () => {
+    const pid = twoDigit(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK3, 'maths'));
+    expect(plans.get('add_2d_carry')).toMatchObject({ level: L_FULL, strategy: 'split_add_2d_carry' });
+    expect(plans.get('sub_2d_borrow')).toMatchObject({ level: L_FULL, strategy: 'split_sub_2d_borrow' });
+    expect(plans.has('add_2d_no_carry')).toBe(false); // fluent, not failed
+    expect(plans.has('sub_2d_no_borrow')).toBe(false);
+  });
+
+  it('sub_2d_borrow is served, warmup-class, and graduates on the real engine', () => {
+    const pid = twoDigit(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK3, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'sub_2d_borrow', seed, buildItem('sub_2d_borrow', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('sub_2d_borrow')!.theta;
+    repo.startAcquisition(pid, 'sub_2d_borrow', 'split_sub_2d_borrow', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'sub_2d_borrow') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('sub_2d_borrow')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'sub_2d_borrow')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'sub_2d_borrow')).toBeNull(); // graduated
   });
 });

@@ -53,7 +53,11 @@ export type StrategyId =
   | 'make_ten_sub' // 14 − 6 → 14 − 4 = 10, − 2 = 8
   // ── generic rule domains (division / 2-digit / negatives / decimals / fractions) ──
   | 'div_inverse_mult' // 56 / 8 → 8 × ? = 56 → 7   (shared by every div_table_t)
-  | 'mf_inverse_div'; // 7 × □ = 63 → 63 / 7 → 9
+  | 'mf_inverse_div' // 7 × □ = 63 → 63 / 7 → 9
+  | 'split_add_2d' // 34 + 25 → 30+20, 4+5, 50+9
+  | 'split_add_2d_carry' // 47 + 28 → 40+20, 7+8, 60+15
+  | 'split_sub_2d' // 68 − 25 → 60−20, 8−5, 40+3
+  | 'split_sub_2d_borrow'; // 52 − 27 → 52−30=22, +3 = 25 (compensation)
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -236,8 +240,69 @@ const divInverse = (t: number): RuleDerivation => ({
   },
 });
 
+// ── 2-DIGIT place value · split into tens + ones (spec gap-map domain 2) ─────────────────────
+// A 2-digit sum/difference is partial sums: 34 + 25 → 30+20=50, 4+5=9, 50+9=59. Every sub-step is
+// a fact she owns (round-tens ± , single-digit ± , the recombine). The carry/borrow variants are
+// where this domain CHAINS onto bridging: 47+28's ones make-ten is add_cross_10, and sub-borrow
+// uses compensation (round the subtrahend up, give the overshoot back) so every step stays
+// no-borrow. Parses "a op b =" from the prompt; `t` here is a helper, not a table.
+const parseBin = (prompt: string, op: '+' | '−'): [number, number] | null => {
+  const m = prompt.match(/^\s*(\d+)\s*([+−])\s*(\d+)\s*=/);
+  return !m || m[2] !== op ? null : [Number(m[1]), Number(m[3])];
+};
+const tensOf = (n: number) => Math.floor(n / 10) * 10;
+
 export const RULE_DERIVATIONS: RuleDerivation[] = [
   ...[2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12].map(divInverse),
+  {
+    id: 'split_add_2d', code: 'add_2d_no_carry', inputs: ['add_tens', 'add_within_10'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '+'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT + bT, ones = (a % 10) + (b % 10);
+      return {
+        substeps: [PLUS(aT, bT), PLUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} + ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    id: 'split_add_2d_carry', code: 'add_2d_carry', inputs: ['add_tens', 'add_cross_10', 'add_2d_no_carry'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '+'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT + bT, ones = (a % 10) + (b % 10);
+      // ones may cross ten (→ add_cross_10) or not (a tens-only carry); the walk is the same.
+      return {
+        substeps: [PLUS(aT, bT), PLUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} + ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    id: 'split_sub_2d', code: 'sub_2d_no_borrow', inputs: ['sub_within_10', 'add_tens'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '−'); if (!p) return null;
+      const [a, b] = p, aT = tensOf(a), bT = tensOf(b), tens = aT - bT, ones = (a % 10) - (b % 10);
+      return {
+        substeps: [MINUS(aT, bT), MINUS(a % 10, b % 10), PLUS(tens, ones)],
+        partial: `${a} − ${b} = ${tens} + ${ones} =`, pivot: 0,
+      };
+    },
+  },
+  {
+    // Borrow via COMPENSATION: round the subtrahend up to a ten, subtract that (no borrow), then
+    // add the overshoot back. Borrow ⟹ aT>bT ⟹ a ≥ bRoundUp, so a−bRoundUp is a clean
+    // no-borrow subtraction and the add-back never crosses a ten (aO + overshoot < 10). Both
+    // sub-steps land inside declared fluent inputs.
+    id: 'split_sub_2d_borrow', code: 'sub_2d_borrow', inputs: ['sub_2d_no_borrow', 'add_within_10'],
+    build: (item) => {
+      const p = parseBin(item.prompt, '−'); if (!p) return null;
+      const [a, b] = p, bRoundUp = tensOf(b) + 10, mid = a - bRoundUp, overshoot = bRoundUp - b;
+      return {
+        substeps: [MINUS(a, bRoundUp), PLUS(mid, overshoot)],
+        partial: `${a} − ${b} = ${mid} + ${overshoot} =`, pivot: bRoundUp,
+      };
+    },
+  },
   {
     // The missing FACTOR is division read backwards, the mirror of div_table: 7 × □ = 63 → "63
     // shared into 7" → 9. By the time this skill is reached division is fluent (it requires
@@ -347,6 +412,11 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     // Division: b is the divisor. Point back to the × table she owns, never the quotient.
     div_inverse_mult: `tänk baklänges: ${b} × ? = talet`,
     mf_inverse_div: `dela istället: talet / ${b}`,
+    // 2-digit: name the split; the borrow hint's b is the rounded subtrahend.
+    split_add_2d: `tiotal för sig, ental för sig`,
+    split_add_2d_carry: `tiotal för sig, ental för sig`,
+    split_sub_2d: `tiotal minus tiotal, ental minus ental`,
+    split_sub_2d_borrow: `ta bort ${b} istället, lägg tillbaka`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -362,6 +432,10 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     make_ten_sub: `${b} − ${b - 10} = 10, then the rest`,
     div_inverse_mult: `think ×: ${b} × ? = the number`,
     mf_inverse_div: `divide instead: the number / ${b}`,
+    split_add_2d: `tens on their own, ones on their own`,
+    split_add_2d_carry: `tens on their own, ones on their own`,
+    split_sub_2d: `tens − tens, ones − ones`,
+    split_sub_2d_borrow: `subtract ${b} instead, then add back`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -387,6 +461,10 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   make_ten_sub: 'Tiokamrat-strategin baklänges: gå ner till tio först. 14 − 6 → 14 − 4 = 10, och 2 kvar → 8. Öva 3–4 stycken tillsammans.',
   div_inverse_mult: 'Division är multiplikation baklänges: 56 / 8 → tänk "8 gånger vad blir 56?" → 7. Öva 3–4 stycken tillsammans med gångertabellen bredvid.',
   mf_inverse_div: 'Saknad faktor är en division: 7 × □ = 63 → tänk "63 delat med 7" → 9.',
+  split_add_2d: 'Dela upp i tiotal och ental: 34 + 25 → 30 + 20 = 50, 4 + 5 = 9, 50 + 9 = 59.',
+  split_add_2d_carry: 'Dela upp i tiotal och ental, växla i entalen: 47 + 28 → 40 + 20 = 60, 7 + 8 = 15, 60 + 15 = 75.',
+  split_sub_2d: 'Dela upp i tiotal och ental: 68 − 25 → 60 − 20 = 40, 8 − 5 = 3, 40 + 3 = 43.',
+  split_sub_2d_borrow: 'Runda av nedtalet uppåt och lägg tillbaka: 52 − 27 → 52 − 30 = 22, och 3 tillbaka → 25.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

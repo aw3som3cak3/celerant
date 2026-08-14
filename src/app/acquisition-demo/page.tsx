@@ -28,6 +28,10 @@ const CASES: Demo[] = [
   // division via inverse multiplication (56 / 8 → 8 × ? = 56)
   { code: 'div_table_8', seed: 5, strategy: 'div_inverse_mult', level: L_FULL, label: 'division baklänges: / 8 via 8 ×' },
   { code: 'div_table_7', seed: 2, strategy: 'div_inverse_mult', level: L_CUED, label: 'division, bara ett tips' },
+  // 2-digit place value (split into tens + ones; borrow via compensation)
+  { code: 'add_2d_carry', seed: 4, strategy: 'split_add_2d_carry', level: L_FULL, label: 'tvåsiffrig, växling: 47 + 28' },
+  { code: 'sub_2d_borrow', seed: 5, strategy: 'split_sub_2d_borrow', level: L_FULL, label: 'tvåsiffrig, lån: 52 − 27 (runda av)' },
+  { code: 'sub_2d_no_borrow', seed: 3, strategy: 'split_sub_2d', level: L_PARTIAL, label: 'tvåsiffrig minus, sista steget' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
