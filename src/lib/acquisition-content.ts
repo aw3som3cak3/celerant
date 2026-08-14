@@ -56,6 +56,7 @@ export type StrategyId =
   // ── generic rule domains (division / 2-digit / negatives / decimals / fractions) ──
   | 'div_inverse_mult' // 56 / 8 → 8 × ? = 56 → 7   (shared by every div_table_t)
   | 'mf_inverse_div' // 7 × □ = 63 → 63 / 7 → 9
+  | 'half_inverse_double' // hälften av 16 → □ + □ = 16 → 8
   | 'split_add_2d' // 34 + 25 → 30+20, 4+5, 50+9
   | 'split_add_2d_carry' // 47 + 28 → 40+20, 7+8, 60+15
   | 'split_sub_2d' // 68 − 25 → 60−20, 8−5, 40+3
@@ -335,6 +336,20 @@ export const RULE_DERIVATIONS: RuleDerivation[] = [
       if (!m) return null;
       const a = Number(m[1]), product = Number(m[2]);
       return { substeps: [{ prompt: `${product} / ${a} =`, answer: item.answer }], partial: `${product} / ${a} =`, pivot: a };
+    },
+  },
+  {
+    // ── HALVING · inverse doubling. "hälften av 16" is the double fact read backwards: "vad plus
+    // sig självt blir 16?" → 8. The child owns her doubles (add_doubles), so this reframes halving
+    // into the missing-double she can answer — the same inverse-reframe shape as division. Doubling
+    // itself is NOT trained (it IS the anchor fact add_doubles); only halving derives.
+    id: 'half_inverse_double', code: 'half_within_20', inputs: ['add_doubles'],
+    build: (item) => {
+      const m = item.prompt.match(/(\d+)/); // "hälften av X ="
+      if (!m) return null;
+      const x = Number(m[1]);
+      if (x % 2 !== 0) return null;
+      return { substeps: [{ prompt: `□ + □ = ${x}`, answer: item.answer }], partial: `□ + □ = ${x}`, pivot: 0 };
     },
   },
   // ── NEGATIVE integers · sign-rule rewrites (spec gap-map domain 3) ─────────────────────────
@@ -717,6 +732,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     // Division: b is the divisor. Point back to the × table she owns, never the quotient.
     div_inverse_mult: `tänk baklänges: ${b} × ? = talet`,
     mf_inverse_div: `dela istället: talet / ${b}`,
+    half_inverse_double: `vad plus sig självt?`,
     // 2-digit: name the split; the borrow hint's b is the rounded subtrahend.
     split_add_2d: `tiotal för sig, ental för sig`,
     split_add_2d_carry: `tiotal för sig, ental för sig`,
@@ -752,6 +768,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     make_ten_sub: `${b} − ${b - 10} = 10, then the rest`,
     div_inverse_mult: `think ×: ${b} × ? = the number`,
     mf_inverse_div: `divide instead: the number / ${b}`,
+    half_inverse_double: `what plus itself?`,
     split_add_2d: `tens on their own, ones on their own`,
     split_add_2d_carry: `tens on their own, ones on their own`,
     split_sub_2d: `tens − tens, ones − ones`,
@@ -792,6 +809,7 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   make_ten_sub: 'Tiokamrat-strategin baklänges: gå ner till tio först. 14 − 6 → 14 − 4 = 10, och 2 kvar → 8. Öva 3–4 stycken tillsammans.',
   div_inverse_mult: 'Division är multiplikation baklänges: 56 / 8 → tänk "8 gånger vad blir 56?" → 7. Öva 3–4 stycken tillsammans med gångertabellen bredvid.',
   mf_inverse_div: 'Saknad faktor är en division: 7 × □ = 63 → tänk "63 delat med 7" → 9.',
+  half_inverse_double: 'Hälften är dubbelt baklänges: hälften av 16 → tänk "vad plus sig självt blir 16?" → 8.',
   split_add_2d: 'Dela upp i tiotal och ental: 34 + 25 → 30 + 20 = 50, 4 + 5 = 9, 50 + 9 = 59.',
   split_add_2d_carry: 'Dela upp i tiotal och ental, växla i entalen: 47 + 28 → 40 + 20 = 60, 7 + 8 = 15, 60 + 15 = 75.',
   split_sub_2d: 'Dela upp i tiotal och ental: 68 − 25 → 60 − 20 = 40, 8 − 5 = 3, 40 + 3 = 43.',

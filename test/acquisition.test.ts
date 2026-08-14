@@ -1387,3 +1387,128 @@ describe('word subjects — Swedish phonics trigger + engine', () => {
     expect(repo.acquisitionLevel(pid, 'spelling_t2')).toBeNull(); // graduated
   });
 });
+
+// ── DOUBLING + HALVING (a kid asked for "double and half of") ───────────────────────────────
+// Doubling is the add_doubles anchor reframed ("dubbla X") — no derivation. Halving is its
+// inverse and a clean derivation: "hälften av 16" → "vad plus sig självt blir 16?" → 8.
+
+describe('doubling + halving — the skills', () => {
+  it('doubling generates "dubbla X =" → 2X (X 1–10)', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const it = buildItem('double_within_20', seed);
+      const m = it.prompt.match(/^dubbla (\d+) =$/);
+      expect(m, it.prompt).not.toBeNull();
+      const x = Number(m![1]);
+      expect(x).toBeGreaterThanOrEqual(1);
+      expect(x).toBeLessThanOrEqual(10);
+      expect(it.answer).toBe(String(2 * x));
+    }
+  });
+
+  it('halving generates "hälften av X =" with X even → X/2', () => {
+    for (let seed = 1; seed < 60; seed++) {
+      const it = buildItem('half_within_20', seed);
+      const m = it.prompt.match(/^hälften av (\d+) =$/);
+      expect(m, it.prompt).not.toBeNull();
+      const x = Number(m![1]);
+      expect(x % 2).toBe(0); // always even
+      expect(it.answer).toBe(String(x / 2));
+    }
+  });
+});
+
+describe('halving — the derivation (inverse doubling)', () => {
+  it('halving derives (inverse double); doubling does NOT (it is the anchor)', () => {
+    expect(hasDerivation('half_within_20')).toBe(true);
+    expect(hasDerivation('double_within_20')).toBe(false); // dubbla X IS add_doubles — nothing to derive
+    expect(pickDerivation('half_within_20', () => true)?.id).toBe('half_inverse_double');
+    expect(pickDerivation('half_within_20', (c) => c !== 'add_doubles')).toBeNull(); // needs the doubles she owns
+  });
+
+  it('reframes "hälften av X" to the missing double, answer unchanged', () => {
+    for (let seed = 1; seed < 50; seed++) {
+      const item = buildItem('half_within_20', seed);
+      const x = Number(item.prompt.match(/(\d+)/)![1]);
+      const sc = buildScaffold('half_within_20', seed, 'half_inverse_double')!;
+      expect(sc.answer).toBe(item.answer); // grading unchanged
+      expect(sc.target).toBe(item.prompt);
+      expect(sc.substeps).toHaveLength(1);
+      expect(sc.substeps[0].prompt).toBe(`□ + □ = ${x}`); // "vad plus sig självt blir X?"
+      expect(sc.substeps[0].answer).toBe(item.answer); // she builds the half with her doubles
+    }
+  });
+});
+
+describe('halving — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // åk2: add_doubles / double seed fluent (year 1), half is being failed.
+  function halver(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'halver', AK2, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'half_within_20', (t += 1000));
+    return pid;
+  }
+
+  it('the halving gap ignites with the inverse-double reframe; doubling never scaffolds', () => {
+    const pid = halver(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK2, 'maths'));
+    expect(plans.get('half_within_20')).toMatchObject({ level: L_FULL, strategy: 'half_inverse_double' });
+    expect(plans.has('double_within_20')).toBe(false); // the anchor — no derivation, never scaffolded
+  });
+
+  it('does NOT fire when the doubles are not fluent — drop lower', () => {
+    const pid = halver(fam);
+    const states = buildStates(pid, AK2, 'maths').map((s) =>
+      s.code === 'add_doubles'
+        ? ({ ...s, seedFluent: false, earnedFluent: false, rate: { source: 'measured', value: 0.1 } } as SelState)
+        : s,
+    );
+    expect(acquisitionPlans(pid, states).has('half_within_20')).toBe(false);
+  });
+
+  it('is served, warmup-class (θ up, no rate), and graduates', () => {
+    const pid = halver(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK2, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'half_within_20', seed, buildItem('half_within_20', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    // Actually served as a scaffold on the real engine.
+    let at = NOW + 100_000;
+    const served: string[] = [];
+    let item = issueNext(pid, AK2, at, { sessionId: sid, remaining: 10 });
+    for (let i = 0; i < 14; i++) {
+      served.push(item.acq ? `${item.code}@L${item.acq.level}` : item.code);
+      at += 5000;
+      const r = sessionAnswer(player, sid, item.code, item.seed, buildItem(item.code, item.seed).answer, false, 1, false, 2000, `idem-${item.code}-${at}-${Math.random()}`, null, at);
+      if (r.status === 'retry' || !r.next) break;
+      item = r.next;
+    }
+    expect(served.some((s) => s === 'half_within_20@L0')).toBe(true);
+
+    const fam2 = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+    const pid2 = halver(fam2);
+    const sid2 = repo.createSessionRun(pid2, 10, NOW, 'maths');
+    const p2 = { id: pid2, school_year: AK2, stretch: 0 };
+    const before = repo.abilities(pid2).get('half_within_20')!.theta;
+    repo.startAcquisition(pid2, 'half_within_20', 'half_inverse_double', NOW);
+    let at2 = NOW + 200_000;
+    sessionAnswer(p2, sid2, 'half_within_20', 1, buildItem('half_within_20', 1).answer, false, 1, false, 2000, `h-${at2}`, null, at2);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid2, 'half_within_20') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid2).get('half_within_20')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid2, 'half_within_20')).toBeNull();
+    for (let i = 0; i < 8; i++) { at2 += 5000; sessionAnswer(p2, sid2, 'half_within_20', 100 + i, buildItem('half_within_20', 100 + i).answer, false, 1, false, 2000, `h2-${at2}-${i}`, null, at2); }
+    expect(repo.acquisitionLevel(pid2, 'half_within_20')).toBeNull(); // graduated
+  });
+});

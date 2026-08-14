@@ -606,4 +606,13 @@ export function runOneOffPlacements(db: ReturnType<typeof getDb>): void {
     for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
     mark('bridge_spelling_recog_v1');
   }
+
+  // Doubling + halving (double_within_20, half_within_20) enter the additive tier. half requires
+  // double, so buildStates would hand componentFluent an 'unknown' rate on double when it gates
+  // half — a throw — and neither new code gets an ability row (θ 0, out of band, never served)
+  // without a replay. Replay all once to seed them. Runs once; no MODEL_VERSION bump.
+  if (!done('bridge_double_half_v1')) {
+    for (const { id } of db.prepare('SELECT id FROM player').all() as { id: string }[]) replayOne(db, id);
+    mark('bridge_double_half_v1');
+  }
 }

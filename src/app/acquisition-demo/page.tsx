@@ -39,6 +39,8 @@ const CASES: Demo[] = [
   { code: 'neg_mult_neg_neg', seed: 6, strategy: 'neg_mult_same_sign', level: L_FULL, label: 'lika tecken: (−4)×(−6)' },
   { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
   { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
+  // halving via inverse doubling ("hälften av 16" → vad + samma = 16?)
+  { code: 'half_within_20', seed: 5, strategy: 'half_inverse_double', level: L_FULL, label: 'hälften av (dubbelt baklänges)' },
   // ── WORD SUBJECTS (letter pad + play button) ──
   // segment-and-spell · Swedish phonics (spelling_t2): hear the word → sound boxes → write
   { code: 'spelling_t2', seed: 0, strategy: 'sv_segment', level: L_FULL, label: 'stavning: ljuda ordet (b·i·l)' },
