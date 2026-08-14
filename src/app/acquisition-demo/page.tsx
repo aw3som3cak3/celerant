@@ -4,9 +4,28 @@ import { useMemo, useState } from 'react';
 import { AcquisitionStage } from '../_components/AcquisitionStage';
 import { buildScaffold, L_FULL, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
 import { BY_CODE } from '@/skills';
+import { buildItem } from '@/lib/item';
+import { SPELLING_LETTERS, spellingAudio } from '@/lib/spelling-content';
+import { ENGLISH_LETTERS } from '@/lib/english-content';
 import { useI18n } from '../_components/LocaleProvider';
 import { type Captured } from '../_components/InputStage';
 import { grade } from '@/lib/grade';
+
+// The word subjects are DICTATION — hear the word, spell it. This tiny play button stands in for
+// the real session's Dictation node so the discrimination ("kort/lång vokal?") can actually be
+// judged by ear on the tablet.
+function DemoDictation({ code, word }: { code: string; word: string }) {
+  const play = () => {
+    const a = spellingAudio(code, word);
+    if (a.kind === 'file') { new Audio(a.url).play().catch(() => {}); }
+    else if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const u = new SpeechSynthesisUtterance(word); u.lang = a.lang ?? 'sv-SE'; window.speechSynthesis.speak(u);
+    }
+  };
+  return <button type="button" className="primary" style={{ fontSize: '1rem', padding: '0.4rem 1rem' }} onClick={play}>🔊 Spela ordet</button>;
+}
+
+const WORD_STRATEGIES = new Set<StrategyId>(['sv_double', 'en_irregular_cue']);
 
 // THROWAWAY demo of the scaffolded-acquisition surface (AcquisitionStage), sibling of
 // /choice-demo. Wired to nothing, writes NO data, playerId is a stub — it exists only to
@@ -41,12 +60,20 @@ const CASES: Demo[] = [
   { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
   { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
   { code: 'frac_equivalent', seed: 4, strategy: 'frac_equiv_scale', level: L_CUED, label: 'liknämnigt, bara ett tips' },
+  // WORD SUBJECTS — a different kind of teaching (rule-walk + cue-fade), not derivation.
+  // Swedish doubling (spelling_t3): hear the word → kort/lång vokal? → spell it.
+  { code: 'spelling_t3', seed: 0, strategy: 'sv_double', level: L_FULL, label: 'stavning: hör vokalen → dubbla?' },
+  { code: 'spelling_t3', seed: 4, strategy: 'sv_double', level: L_CUED, label: 'stavning, bara ett tips' },
+  // English irregular past (en_past_irregular): the word itself, progressively hidden (cue-fade).
+  { code: 'en_past_irregular', seed: 0, strategy: 'en_irregular_cue', level: L_FULL, label: 'engelska: hela ordet visas' },
+  { code: 'en_past_irregular', seed: 2, strategy: 'en_irregular_cue', level: L_PARTIAL, label: 'engelska: halva ordet dolt' },
+  { code: 'en_past_irregular', seed: 4, strategy: 'en_irregular_cue', level: L_CUED, label: 'engelska: bara första bokstaven' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
 // codes, no "5×b" notation, no answer spoiler: this page is for eyeballing the child's view.
 const STAGE_CAPTION: Record<number, string> = {
-  [L_FULL]: 'Barnet har precis mött talet — hela uträkningen visas, steg för steg.',
+  [L_FULL]: 'Barnet har precis mött det — allt stöd visas, steg för steg.',
   [L_PARTIAL]: 'Barnet börjar kunna det — bara sista steget kvar.',
   [L_CUED]: 'Nästan klart — bara ett litet tips kvar.',
 };
@@ -56,26 +83,32 @@ export default function AcquisitionDemo() {
   const [idx, setIdx] = useState(0);
   const [res, setRes] = useState<{ ok: boolean; given: string; ms: number } | null>(null);
   const c = CASES[idx % CASES.length];
-  const scaffold = useMemo(() => buildScaffold(c.code, c.seed, c.strategy), [c]);
+  const isWord = WORD_STRATEGIES.has(c.strategy);
+  // Word items are DICTATION: the answer is the whole word (buildItem). Maths items derive a fact,
+  // so the answer comes from the maths scaffold.
+  const answer = useMemo(
+    () => (isWord ? (buildItem(c.code, c.seed).answer as string) : buildScaffold(c.code, c.seed, c.strategy)?.answer ?? null),
+    [c, isWord],
+  );
+  if (!answer) return <div className="stage"><p className="muted">Kunde inte bygga stödet.</p></div>;
 
-  if (!scaffold) return <div className="stage"><p className="muted">Kunde inte bygga scaffold.</p></div>;
-
-  // The REAL family so the input pad matches the domain (fractions/negatives/decimals need the
-  // text pad for "/", "−", ","; a maths fact gets the numeric keypad).
-  const item = { code: c.code, seed: c.seed, family: BY_CODE.get(c.code)?.family ?? 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
+  // Word items pass the letter pad + a play-audio node, which routes AcquisitionStage to its word
+  // path. Maths items get the REAL family so the input pad matches the domain ("/", "−", ",").
+  const letters = isWord ? (c.code.startsWith('en_') ? ENGLISH_LETTERS : SPELLING_LETTERS) : undefined;
+  const item = { code: c.code, seed: c.seed, family: BY_CODE.get(c.code)?.family ?? 'multiplication', answerLength: isWord ? answer.length : answer.replace(/[^0-9]/g, '').length };
   const onCapture = (cap: Captured) =>
-    setRes({ ok: !cap.idk && grade(cap.given, scaffold.answer), given: cap.idk ? '(vet inte)' : cap.given, ms: cap.intervalMs });
+    setRes({ ok: !cap.idk && grade(cap.given, answer), given: cap.idk ? '(vet inte)' : cap.given, ms: cap.intervalMs });
 
   return (
     <div className="stage" style={{ textAlign: 'center' }}>
-      <h1 style={{ fontSize: '1.15rem', margin: '0 0 0.3rem' }}>Räknestege (test)</h1>
-      <p className="muted" style={{ marginBottom: '0.2rem' }}>Så här lär appen ut ett tal barnet inte kan än — exempel {(idx % CASES.length) + 1} / {CASES.length}.</p>
+      <h1 style={{ fontSize: '1.15rem', margin: '0 0 0.3rem' }}>{isWord ? 'Ordstege (test)' : 'Räknestege (test)'}</h1>
+      <p className="muted" style={{ marginBottom: '0.2rem' }}>Så här lär appen ut {isWord ? 'ett ord' : 'ett tal'} barnet inte kan än — exempel {(idx % CASES.length) + 1} / {CASES.length}.</p>
       <p className="muted">{STAGE_CAPTION[c.level]}</p>
       {res ? (
         <div className="plain">
           <div style={{ fontSize: '2.5rem' }}>{res.ok ? '✅' : '🤔'}</div>
           <h2>{res.ok ? 'Rätt!' : 'Nästan'}</h2>
-          <p className="muted">du skrev “{res.given}” — rätt var “{scaffold.answer}”</p>
+          <p className="muted">du skrev “{res.given}” — rätt var “{answer}”</p>
           <button className="primary" onClick={() => { setRes(null); setIdx((i) => i + 1); }} style={{ marginTop: '1rem' }}>Nästa exempel →</button>
         </div>
       ) : (
@@ -88,6 +121,8 @@ export default function AcquisitionDemo() {
           locale={locale}
           onCapture={onCapture}
           showIdk
+          letters={letters}
+          dictation={isWord ? <DemoDictation code={c.code} word={answer} /> : undefined}
         />
       )}
     </div>
