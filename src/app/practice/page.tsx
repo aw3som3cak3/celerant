@@ -388,8 +388,16 @@ function Practice() {
             onCapture={onCapture}
             disabled={busy || phase === 'correct'}
             showIdk
-            idkLabel={t('practice.dontKnow')}
+            // Word subjects are DICTATION: the letter pad + the play-audio prompt, exactly as the
+            // bare rung renders them (below). Passing these routes AcquisitionStage to its word path.
+            idkLabel={isWordItem ? <span className="idk-hear"><HeadphonesOff /> Jag hör inte</span> : t('practice.dontKnow')}
             armKey={armKey}
+            {...(isWordItem
+              ? {
+                  letters: item.family.startsWith('en_') ? ENGLISH_LETTERS : (spellingTiles ?? SPELLING_LETTERS),
+                  dictation: <Dictation itemKey={`${item.code}:${item.seed}`} code={item.code} seed={item.seed} />,
+                }
+              : {})}
           />
           <div className="quiet-word fade">{phase === 'correct' ? word : retry ? t('practice.tryAgain') : ''}</div>
           <button className="quit-btn" onClick={endEarly}><Emoji e="🏠" /> {t('common.home')}</button>

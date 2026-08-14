@@ -1707,3 +1707,15 @@ table.plain-table th {
   font-weight: 400;
   letter-spacing: 0;
 }
+/* WORD SUBJECTS: the cue shown above the letter pad — the faded word / gapped form / rule tip.
+   The dictation control sits below it (same prompt slot). Monospace + wide tracking so the
+   underscore blanks in a gapped cue ("w__t", "vi__") read as distinct letter slots. */
+.acq-word-prompt { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+.acq-cue {
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: var(--ink-soft);
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  text-align: center;
+}

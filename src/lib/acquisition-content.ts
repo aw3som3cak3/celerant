@@ -13,6 +13,8 @@
 // The server-side trigger, state and ledger flag live in acquisition.ts.
 
 import { buildItem } from './item';
+import { T3_PAIRS } from './spelling-content';
+import type { ChoicePromptData, ChoiceOption } from './choice';
 
 // ── The fade schedule (spec §3) ────────────────────────────────────────────
 // L0 full     5 × 7 = ? → 35 + 7 = ? → 6 × 7 = ?   (each sub-step, then the target)
@@ -64,7 +66,9 @@ export type StrategyId =
   | 'dec_add_tenths' // 2,7 + 1,8 → 27 + 18 tenths → 4,5 (shared no-carry/carry)
   | 'frac_of_qty' // 3/4 of 8 → 8/4, ×3
   | 'frac_equiv_scale' // 2/5 = □/15 → 15/5, ×2
-  | 'frac_add_same'; // 2/8 + 3/8 → (2+3)/8
+  | 'frac_add_same' // 2/8 + 3/8 → (2+3)/8
+  // ── word subjects (rule-application-fade + cue-fade) ──
+  | 'sv_double'; // spelling_t3 doubling: hear short vowel → double the consonant
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -432,9 +436,93 @@ for (const d of RULE_DERIVATIONS) {
   RULE_BY_CODE.set(d.code, list);
 }
 
-// Does this skill have a derivation at all? (Multiplication, bridging-through-10, or a rule domain.)
+// ── WORD SUBJECTS · the fade primitive with NON-derivation support (word-subjects-acquisition-spec) ──
+//
+// The reframe (spec §0): the maths scaffold is ONE instance of "fade the support from a fully-
+// modelled example to independent recall". Spelling/English don't decompose into fluent sub-facts,
+// so the support isn't a derivation — but the SAME engine (trigger, L0→L3 fade, warmup-θ,
+// graduation, acquisitionCodes) teaches them once you add new SUPPORT-TYPES:
+//   • rule  — Direct-Instruction rule-application-fade: a discrimination/rule walk (CHOICE taps),
+//             then produce the form (letter pad). Has a fluent-input veto (the parts the rule joins).
+//   • cuefade — errorless cue-fade: the atomic item, progressively hidden (whole → gapped →
+//             first-letter → dictation). NO fluent-input veto (inputs:[] → the veto auto-passes).
+//
+// Rendered by AcquisitionStage's word path (ChoiceStage for a discrimination sub-step, the existing
+// letter-pad InputStage for the produced target, a CUE node above the pad). Sub-steps are INERT; the
+// grade-identical guard is generalised — the produced TARGET is always the item's real word
+// (buildItem's answer), so grading is byte-unchanged, and a builder that can't form a clean walk
+// returns null → bare-item fallback.
+
+// One INERT L0 sub-step: a CHOICE tap (reuse ChoiceStage) or a letter-pad gap fill.
+export type WordSubStep =
+  | { kind: 'choice'; prompt: ChoicePromptData; question: string; options: ChoiceOption[]; answer: string }
+  | { kind: 'letters'; cue: string; answer: string };
+
+export type WordScaffoldParts = {
+  substeps: WordSubStep[]; // the L0 walk (rule-fade); [] for cue-fade (the fade is entirely in the cue)
+  cueAt: (level: number) => string | null; // the cue shown ABOVE the letter pad, per fade level (L0..L2)
+};
+export type WordDerivation = {
+  id: StrategyId;
+  code: string;
+  kind: 'rule' | 'cuefade';
+  inputs: string[]; // rule: the parts the rule joins (fluent-input veto); cuefade: [] (auto-pass)
+  build: (item: { answer: string }, code: string) => WordScaffoldParts | null;
+};
+
+// Swedish doubling: given a T3 word, is it the SHORT (doubled-consonant) member, and the gapped cue
+// that flags the doubling position (compare against the pair partner so medial doubles like
+// villa/vila are found too). Returns null for a word not in the pair table → bare fallback.
+function t3Doubling(word: string): { isShort: boolean; gap: string } | null {
+  const pair = T3_PAIRS.find((p) => p.short === word || p.long === word);
+  if (!pair) return null;
+  const isShort = pair.short === word;
+  // The short form is the long form with ONE extra consonant inserted at index i — this covers
+  // both a repeated letter (vitt/vit, villa/vila) and the ck doubling (tack/tak). Pick the first i.
+  let i = -1;
+  for (let k = 0; k < pair.short.length; k++) {
+    if (pair.short.slice(0, k) + pair.short.slice(k + 1) === pair.long) { i = k; break; }
+  }
+  if (i < 0) return null;
+  const gap = isShort
+    ? pair.short.slice(0, i) + '__' + pair.short.slice(i + 2) // two slots = double
+    : pair.long.slice(0, i) + '_' + pair.long.slice(i + 1); //  one slot = single
+  return { isShort, gap };
+}
+
+export const WORD_DERIVATIONS: WordDerivation[] = [
+  {
+    // SLICE 1 · Swedish doubling (spelling_t3) — a rule-application procedure walk. She owns basic
+    // transparent spelling (spelling_t2); she is failing the DOUBLING decision. The L0 walk is the
+    // discrimination the rule turns on (hear the word → short vowel doubles, long vowel doesn't),
+    // then she produces the word; L1 keeps the gapped cue; L2 is the bare rule tip.
+    id: 'sv_double', code: 'spelling_t3', kind: 'rule', inputs: ['spelling_t2'],
+    build: (item, code) => {
+      const d = t3Doubling(item.answer);
+      if (!d) return null;
+      const tip = d.isShort ? 'kort vokal → dubbla' : 'lång vokal → enkel';
+      const substeps: WordSubStep[] = [{
+        kind: 'choice',
+        prompt: { show: 'listen', code, word: item.answer },
+        question: 'Hör du en kort eller lång vokal?',
+        options: [{ value: 'kort', render: 'word' }, { value: 'lång', render: 'word' }],
+        answer: d.isShort ? 'kort' : 'lång',
+      }];
+      return { substeps, cueAt: (lvl) => (lvl <= L_PARTIAL ? d.gap : tip) };
+    },
+  },
+];
+
+export const WORD_BY_CODE = new Map<string, WordDerivation[]>();
+for (const d of WORD_DERIVATIONS) {
+  const list = WORD_BY_CODE.get(d.code) ?? [];
+  list.push(d);
+  WORD_BY_CODE.set(d.code, list);
+}
+
+// Does this skill have a derivation at all? (Maths derivation, OR a word-subject support-type.)
 export function hasDerivation(code: string): boolean {
-  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code) || RULE_BY_CODE.has(code);
+  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code) || RULE_BY_CODE.has(code) || WORD_BY_CODE.has(code);
 }
 
 // The shallowest derivation whose inputs are ALL fluent for this child, or null. `isFluent` is
@@ -442,10 +530,13 @@ export function hasDerivation(code: string): boolean {
 // touches player state. Returning null is the readiness VETO: do NOT scaffold; let the graph
 // drop lower and serve the missing input instead (invariant 3). Every derivation kind exposes
 // `id` + `inputs`, so the trigger reads all three through one signature.
-export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | RuleDerivation | null {
+export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | RuleDerivation | WordDerivation | null {
   for (const d of DERIVATIONS_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   for (const d of ADDITIVE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   for (const d of RULE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
+  // Word subjects: rule-fade has a fluent-input veto like maths; cue-fade declares inputs:[] so
+  // `[].every(...) === true` auto-passes — an atomic item derives from nothing (spec §2).
+  for (const d of WORD_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   return null;
 }
 
@@ -501,6 +592,30 @@ function buildAdditiveScaffold(item: { prompt: string; answer: string }, d: Addi
   return { strategy, t: 0, b: d.pivot(a, b), target: item.prompt, answer: item.answer, substeps, partial: d.partial(a, b) };
 }
 
+// ── The WORD scaffold (built client-side by AcquisitionStage's word path) ───────────────────
+// Parallel to Scaffold, for the word subjects. The produced `answer` is byte-identical to
+// buildItem's (grading unchanged); `substeps` are the INERT L0 walk (rule-fade) or [] (cue-fade);
+// `cueAt(level)` is the cue shown above the letter pad.
+export type WordScaffold = {
+  strategy: StrategyId;
+  code: string;
+  answer: string; // the word — the server grades this, exactly as for the bare rung
+  isRule: boolean; // rule-fade (has a discrimination walk) vs cue-fade
+  substeps: WordSubStep[];
+  cueAt: (level: number) => string | null;
+};
+
+// Build the word scaffold for (code, seed, strategy). Returns null when the derivation can't form a
+// clean walk (e.g. a T3 word not in the pair table) → AcquisitionStage falls back to the bare item.
+export function buildWordScaffold(code: string, seed: number, strategy: StrategyId): WordScaffold | null {
+  const d = WORD_BY_CODE.get(code)?.find((x) => x.id === strategy);
+  if (!d) return null;
+  const item = buildItem(code, seed);
+  const parts = d.build(item, code);
+  if (!parts) return null;
+  return { strategy, code, answer: item.answer, isRule: d.kind === 'rule', substeps: parts.substeps, cueAt: parts.cueAt };
+}
+
 // The L2 cue — a plain-language nudge at the bare fact, in the child's language. Never the
 // answer; just the strategy she has been walking for the last few items.
 export function hintFor(strategy: StrategyId, b: number, locale: string): string {
@@ -534,6 +649,9 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     frac_of_qty: `dela med nämnaren, gånger täljaren`,
     frac_equiv_scale: `hur många gånger större är nämnaren?`,
     frac_add_same: `samma nämnare — addera täljarna`,
+    // Word subjects render their L2 cue via cueAt(); this entry exists only for Record
+    // completeness (AcquisitionStage's word path never calls hintFor).
+    sv_double: `kort vokal → dubbla konsonanten`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -560,6 +678,7 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     frac_of_qty: `divide by the bottom, times the top`,
     frac_equiv_scale: `how many times bigger is the bottom?`,
     frac_add_same: `same bottom — add the tops`,
+    sv_double: `short vowel → double the consonant`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -596,6 +715,7 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   frac_of_qty: 'Del av antal: 3/4 av 8 → dela med nämnaren (8 / 4 = 2), gånger täljaren (2 × 3 = 6).',
   frac_equiv_scale: 'Liknämnigt: 2/5 = □/15 → nämnaren blev 3 gånger större (15 / 5 = 3), så täljaren också: 2 × 3 = 6.',
   frac_add_same: 'Samma nämnare: addera täljarna, behåll nämnaren: 2/8 + 3/8 → (2 + 3)/8 = 5/8.',
+  sv_double: 'Dubbelteckning: hör du en KORT vokal så dubblas konsonanten (vitt), en LÅNG vokal enkeltecknas (vit). Säg ordet långsamt tillsammans och lyssna på vokalen.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────
