@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { AcquisitionStage } from '../_components/AcquisitionStage';
 import { buildScaffold, L_FULL, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
+import { BY_CODE } from '@/skills';
 import { useI18n } from '../_components/LocaleProvider';
 import { type Captured } from '../_components/InputStage';
 import { grade } from '@/lib/grade';
@@ -59,7 +60,9 @@ export default function AcquisitionDemo() {
 
   if (!scaffold) return <div className="stage"><p className="muted">Kunde inte bygga scaffold.</p></div>;
 
-  const item = { code: c.code, seed: c.seed, family: 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
+  // The REAL family so the input pad matches the domain (fractions/negatives/decimals need the
+  // text pad for "/", "−", ","; a maths fact gets the numeric keypad).
+  const item = { code: c.code, seed: c.seed, family: BY_CODE.get(c.code)?.family ?? 'multiplication', answerLength: scaffold.answer.replace(/[^0-9]/g, '').length };
   const onCapture = (cap: Captured) =>
     setRes({ ok: !cap.idk && grade(cap.given, scaffold.answer), given: cap.idk ? '(vet inte)' : cap.given, ms: cap.intervalMs });
 
