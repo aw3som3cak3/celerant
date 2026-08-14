@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { ModelStage } from '../_components/ModelStage';
 import { pizzaProblem, type Openness } from '@/lib/modelling';
 import { makeRng, randomSeed } from '@/lib/rng';
+import { TestFamilyGate } from '../_components/TestFamilyGate';
 
 // THROWAWAY demo of the APPLICATION-tier ModelStage (modelling first slice). Wired to nothing, no
 // data written — it exists only to feel the pizza-party modelling loop end to end on a real tablet
@@ -18,7 +19,8 @@ const LEVELS: { openness: Openness; blurb: string }[] = [
   { openness: 3, blurb: 'Räkna gästerna själv och bestäm hur mycket de äter.' },
 ];
 
-export default function ModelDemo() {
+export default function Page() { return <TestFamilyGate><ModelDemo /></TestFamilyGate>; }
+function ModelDemo() {
   const [idx, setIdx] = useState(0);
   const [seed, setSeed] = useState(() => randomSeed());
   const level = LEVELS[idx % LEVELS.length];

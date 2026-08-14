@@ -38,11 +38,13 @@ export default function GranskaHub() {
     return <div className="granska"><h1>Granska</h1><p>Den här sidan är bara tillgänglig för testfamiljen.</p></div>;
 
   type Surface = { icon: string; label: string; href: string; kvar?: number };
+  // The CURRENT vet needs only — vetted surfaces (the maths räknestege, the sentence demo) are
+  // dropped; the acquisition demo now leads with the new WORD teaching (rule-walk + cue-fade).
   const surfaces: Surface[] = [
     { icon: '🔊', label: 'Ljud (stavningsklipp)', href: '/stava/granska/ljud', kvar: audioKvar },
     { icon: '🖼️', label: 'Bilder (engelska + storlek/verb)', href: '/stava/granska-bilder', kvar: imageKvar },
-    { icon: '💬', label: 'Meningar (engelsk mening-demo)', href: '/choice-demo' },
-    { icon: '➕', label: 'Räknestege (scaffold-demo)', href: '/acquisition-demo' },
+    { icon: '🔤', label: 'Ordstege — stavning + engelska (rule-walk + cue-fade)', href: '/acquisition-demo' },
+    { icon: '🍕', label: 'Modell — matematisk modellering (pizza)', href: '/model-demo' },
     { icon: '🐛', label: 'Trasiga frågor (fel/idk-logg)', href: '/stava/fragor' },
   ];
   // Outstanding first; a done surface (0 kvar) sinks to the bottom. Demos keep their order.

@@ -10,6 +10,7 @@ import { ENGLISH_LETTERS } from '@/lib/english-content';
 import { useI18n } from '../_components/LocaleProvider';
 import { type Captured } from '../_components/InputStage';
 import { grade } from '@/lib/grade';
+import { TestFamilyGate } from '../_components/TestFamilyGate';
 
 // The word subjects are DICTATION — hear the word, spell it. This tiny play button stands in for
 // the real session's Dictation node so the discrimination ("kort/lång vokal?") can actually be
@@ -36,6 +37,13 @@ type Demo = { code: string; seed: number; strategy: StrategyId; level: number; l
 
 // One of each level, across a few tables/strategies, so the whole fade is visible in a lap.
 const CASES: Demo[] = [
+  // WORD SUBJECTS FIRST — the new, unvetted teaching (rule-walk + cue-fade). The maths räknestege
+  // below is already vetted, so the word cases lead.
+  { code: 'spelling_t3', seed: 0, strategy: 'sv_double', level: L_FULL, label: 'stavning: hör vokalen → dubbla?' },
+  { code: 'spelling_t3', seed: 4, strategy: 'sv_double', level: L_CUED, label: 'stavning, bara ett tips' },
+  { code: 'en_past_irregular', seed: 0, strategy: 'en_irregular_cue', level: L_FULL, label: 'engelska: hela ordet visas' },
+  { code: 'en_past_irregular', seed: 2, strategy: 'en_irregular_cue', level: L_PARTIAL, label: 'engelska: halva ordet dolt' },
+  { code: 'en_past_irregular', seed: 4, strategy: 'en_irregular_cue', level: L_CUED, label: 'engelska: bara första bokstaven' },
   { code: 'mult_table_6', seed: 3, strategy: 'x5_plus_one', level: L_FULL, label: '×6 via 5×b + en b till' },
   { code: 'mult_table_3', seed: 7, strategy: 'x2_plus_one', level: L_FULL, label: '×3 via 2×b + en b till' },
   { code: 'mult_table_8', seed: 5, strategy: 'x4_double', level: L_PARTIAL, label: '×8 via dubbla 4×b' },
@@ -60,14 +68,6 @@ const CASES: Demo[] = [
   { code: 'dec_add_carry', seed: 3, strategy: 'dec_add_tenths', level: L_FULL, label: 'decimaler: 2,7 + 1,8 via tiondelar' },
   { code: 'frac_of_quantity', seed: 5, strategy: 'frac_of_qty', level: L_FULL, label: 'del av antal: 3/4 av 8' },
   { code: 'frac_equivalent', seed: 4, strategy: 'frac_equiv_scale', level: L_CUED, label: 'liknämnigt, bara ett tips' },
-  // WORD SUBJECTS — a different kind of teaching (rule-walk + cue-fade), not derivation.
-  // Swedish doubling (spelling_t3): hear the word → kort/lång vokal? → spell it.
-  { code: 'spelling_t3', seed: 0, strategy: 'sv_double', level: L_FULL, label: 'stavning: hör vokalen → dubbla?' },
-  { code: 'spelling_t3', seed: 4, strategy: 'sv_double', level: L_CUED, label: 'stavning, bara ett tips' },
-  // English irregular past (en_past_irregular): the word itself, progressively hidden (cue-fade).
-  { code: 'en_past_irregular', seed: 0, strategy: 'en_irregular_cue', level: L_FULL, label: 'engelska: hela ordet visas' },
-  { code: 'en_past_irregular', seed: 2, strategy: 'en_irregular_cue', level: L_PARTIAL, label: 'engelska: halva ordet dolt' },
-  { code: 'en_past_irregular', seed: 4, strategy: 'en_irregular_cue', level: L_CUED, label: 'engelska: bara första bokstaven' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
@@ -78,7 +78,8 @@ const STAGE_CAPTION: Record<number, string> = {
   [L_CUED]: 'Nästan klart — bara ett litet tips kvar.',
 };
 
-export default function AcquisitionDemo() {
+export default function Page() { return <TestFamilyGate><AcquisitionDemo /></TestFamilyGate>; }
+function AcquisitionDemo() {
   const { locale } = useI18n();
   const [idx, setIdx] = useState(0);
   const [res, setRes] = useState<{ ok: boolean; given: string; ms: number } | null>(null);

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { ChoiceStage, type ChoicePromptData, type ChoiceOption } from '../_components/ChoiceStage';
+import { TestFamilyGate } from '../_components/TestFamilyGate';
 
 // THROWAWAY demo of the recognition ChoiceStage (WS II-a). Wired to nothing, no data
 // written — it exists only to feel the Fler/Färre and pick-the-amount surface on a real
@@ -68,7 +69,8 @@ const ITEMS: Demo[] = [
   },
 ];
 
-export default function ChoiceDemo() {
+export default function Page() { return <TestFamilyGate><ChoiceDemo /></TestFamilyGate>; }
+function ChoiceDemo() {
   const [idx, setIdx] = useState(0);
   const [res, setRes] = useState<{ ok: boolean; chosen: string | number; ms: number } | null>(null);
   const it = ITEMS[idx % ITEMS.length];
