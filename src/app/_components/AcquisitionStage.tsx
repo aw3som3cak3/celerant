@@ -222,7 +222,20 @@ function WordAcquisitionStage({
     setStep((i) => i + 1);
   }, []);
 
-  // The produced target: the ordinary letter-pad dictation, with the fade-level cue above the pad.
+  // The cue is a HINT, never the answer template: a labelled "Tips" row (visually distinct, above
+  // the pad) that she may use as a memory aid. A faded/gapped word ("V_T") shown here can no longer
+  // be misread as fill-in-the-blank — the answer AREA (below) is full-length slots for the WHOLE
+  // word, so at every fade level she produces the whole word and the cue only thins.
+  const tips = (cue: string | null) =>
+    cue == null ? null : (
+      <div className="acq-tips" aria-label="tips">
+        <span className="acq-tips-label">Tips</span>
+        <span className="acq-cue">{cue}</span>
+      </div>
+    );
+
+  // The produced target: the ordinary letter-pad dictation. `slots` = the WHOLE word's length, so
+  // the answer area shows one slot per letter and she always produces the whole word.
   const target = (cue: string | null) => (
     <InputStage
       key="word-target"
@@ -235,10 +248,11 @@ function WordAcquisitionStage({
       idkLabel={idkLabel}
       armKey={armKey}
       letters={letters}
+      slots={item.answerLength}
       promptNode={
         <div className="acq-word-prompt">
-          {cue != null && <div className="acq-cue" aria-label="ledtråd">{cue}</div>}
           {dictation}
+          {tips(cue)}
         </div>
       }
     />
@@ -249,7 +263,7 @@ function WordAcquisitionStage({
     return (
       <InputStage
         mode="session" item={item} playerId={playerId} onCapture={onCapture} disabled={disabled}
-        showIdk={showIdk} idkLabel={idkLabel} armKey={armKey} letters={letters}
+        showIdk={showIdk} idkLabel={idkLabel} armKey={armKey} letters={letters} slots={item.answerLength}
         promptNode={<div className="acq-word-prompt">{dictation}</div>}
       />
     );

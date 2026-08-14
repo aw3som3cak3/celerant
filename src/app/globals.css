@@ -1707,15 +1707,56 @@ table.plain-table th {
   font-weight: 400;
   letter-spacing: 0;
 }
-/* WORD SUBJECTS: the cue shown above the letter pad — the faded word / gapped form / rule tip.
-   The dictation control sits below it (same prompt slot). Monospace + wide tracking so the
-   underscore blanks in a gapped cue ("w__t", "vi__") read as distinct letter slots. */
-.acq-word-prompt { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+/* WORD SUBJECTS: the play button + a "Tips" HINT row (the faded word / gapped form / rule tip).
+   The hint is deliberately SECONDARY — a muted, labelled pill — so it can never read as the answer
+   template: she produces the WHOLE word in the slots below, using the hint only as a memory aid. */
+.acq-word-prompt { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.acq-tips {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  background: var(--surface-2, rgba(127, 127, 127, 0.12));
+  border: 1px dashed var(--line, rgba(127, 127, 127, 0.35));
+}
+.acq-tips-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+  opacity: 0.8;
+}
 .acq-cue {
-  font-size: 1.7rem;
+  font-size: 1.25rem;
   font-weight: 600;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   color: var(--ink-soft);
   font-family: ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
-  text-align: center;
 }
+/* The ANSWER area for a word: one full-length slot per letter of the WHOLE word, prominent (this,
+   not the hint, is where she types). Slots fill left-to-right; the next empty one is highlighted. */
+.answer-slots {
+  display: flex;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 3rem;
+  margin: 0.4rem 0 0.2rem;
+  flex-wrap: wrap;
+}
+.answer-slot {
+  width: 2rem;
+  height: 2.8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border-bottom: 3px solid var(--line, rgba(127, 127, 127, 0.4));
+  color: var(--ink, inherit);
+}
+.answer-slot.filled { border-bottom-color: var(--accent, #4a7); }
+.answer-slot.active { border-bottom-color: var(--accent, #4a7); background: var(--surface-2, rgba(74, 170, 119, 0.1)); border-radius: 6px 6px 0 0; }
+.answer-overflow { align-self: center; font-size: 1.9rem; font-weight: 700; color: var(--danger, #c44); text-transform: uppercase; }

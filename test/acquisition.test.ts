@@ -1134,6 +1134,20 @@ describe('word subjects — English irregular past (cue-fade) content', () => {
       expect(sc!.cueAt(L_CUED)!.startsWith(w[0])).toBe(true);
     }
   });
+
+  it('produces the WHOLE word at every fade level — the gapped cue is a hint, never a fill-template', () => {
+    // Regression: a gapped cue "V_T" must not read as fill-in-the-blank (press "i"); she recalls
+    // the whole word, the cue only thins. The graded answer is the whole word at EVERY level, and
+    // the gapped cue is a DISTINCT string (a hint), never equal to the answer or a single letter.
+    const word = buildItem('en_past_irregular', 0).answer; // 'went'
+    const sc = buildWordScaffold('en_past_irregular', 0, 'en_irregular_cue')!;
+    for (const lvl of [L_FULL, L_PARTIAL, L_CUED]) {
+      expect(sc.answer).toBe(word); // the produced answer is always the whole word, not the gap
+      expect(sc.answer.length).toBeGreaterThan(1);
+    }
+    expect(sc.cueAt(L_PARTIAL)).not.toBe(word); // the hint is not the answer
+    expect(sc.cueAt(L_PARTIAL)).toContain('_'); // it is a gapped memory aid
+  });
 });
 
 describe('word subjects — English irregular past trigger + engine', () => {
