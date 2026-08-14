@@ -2,7 +2,8 @@
 
 import { useCallback, useState } from 'react';
 import { InputStage, type StageItem, type Captured } from './InputStage';
-import { buildScaffold, hintFor, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
+import { ChoiceStage } from './ChoiceStage';
+import { buildScaffold, buildWordScaffold, hintFor, L_FULL, L_PARTIAL, L_CUED, type StrategyId } from '@/lib/acquisition-content';
 import { grade } from '@/lib/grade';
 
 // ── SCAFFOLDED ACQUISITION — the child-facing surface (spec §3, §5) ─────────
@@ -33,6 +34,8 @@ export function AcquisitionStage({
   showIdk,
   idkLabel,
   armKey,
+  letters,
+  dictation,
 }: {
   item: StageItem;
   level: number;
@@ -44,7 +47,22 @@ export function AcquisitionStage({
   showIdk?: boolean;
   idkLabel?: React.ReactNode;
   armKey?: number;
+  // WORD SUBJECTS: present ⇒ this is a spelling/English dictation item. `letters` is the letter pad's
+  // glyphs (the tier's letters), `dictation` the play-audio prompt node. Their presence routes to the
+  // word path (rule-application-fade / cue-fade); absent ⇒ the maths numpad path below, unchanged.
+  letters?: readonly string[];
+  dictation?: React.ReactNode;
 }) {
+  // A word item (spelling/English) uses the letter pad + choice-tap sub-steps, never the numpad.
+  if (letters) {
+    return (
+      <WordAcquisitionStage
+        item={item} level={level} strategy={strategy} playerId={playerId}
+        onCapture={onCapture} disabled={disabled} showIdk={showIdk} idkLabel={idkLabel}
+        armKey={armKey} letters={letters} dictation={dictation}
+      />
+    );
+  }
   // Built from (code, seed, strategy) with the SAME shared builder the server reasons about —
   // the answer key never crosses the wire, exactly as for an ordinary item.
   const scaffold = buildScaffold(item.code, item.seed, strategy);
@@ -156,5 +174,128 @@ export function AcquisitionStage({
         />
       )}
     </div>
+  );
+}
+
+// ── WORD SUBJECTS · the same fade primitive on the letter pad + choice taps ──────────────────
+//
+// The support differs from maths (a discrimination WALK for rule-fade, a fading CUE for cue-fade)
+// but the contract is identical: only the produced TARGET is a recorded attempt; the L0
+// discrimination sub-steps are INERT (a wrong/idk tap reveals its value and carries on — errorless,
+// never marked). The target is the ordinary letter-pad dictation, graded by grade() as today, so a
+// scaffolded word never changes what the server grades. Reuses ChoiceStage (discrimination) and the
+// existing letter-pad InputStage (production) — no third input surface.
+function WordAcquisitionStage({
+  item, level, strategy, playerId, onCapture, disabled, showIdk, idkLabel, armKey, letters, dictation,
+}: {
+  item: StageItem;
+  level: number;
+  strategy: StrategyId;
+  playerId: string;
+  onCapture: (c: Captured) => void;
+  disabled?: boolean;
+  showIdk?: boolean;
+  idkLabel?: React.ReactNode;
+  armKey?: number;
+  letters: readonly string[];
+  dictation?: React.ReactNode;
+}) {
+  const scaffold = buildWordScaffold(item.code, item.seed, strategy);
+  const [step, setStep] = useState(0); // index into the L0 discrimination sub-steps
+  const [reveal, setReveal] = useState<string | null>(null);
+
+  const sub = scaffold?.substeps[step];
+  const onSub = useCallback(
+    (given: string, idk: boolean) => {
+      if (!sub) return;
+      if (!idk && grade(given, sub.answer)) {
+        setStep((i) => i + 1);
+        return;
+      }
+      // Errorless: show the right answer and carry on. No retry, no mark, no record.
+      setReveal(sub.answer);
+    },
+    [sub],
+  );
+  const afterReveal = useCallback(() => {
+    setReveal(null);
+    setStep((i) => i + 1);
+  }, []);
+
+  // The produced target: the ordinary letter-pad dictation, with the fade-level cue above the pad.
+  const target = (cue: string | null) => (
+    <InputStage
+      key="word-target"
+      mode="session"
+      item={item}
+      playerId={playerId}
+      onCapture={onCapture}
+      disabled={disabled}
+      showIdk={showIdk}
+      idkLabel={idkLabel}
+      armKey={armKey}
+      letters={letters}
+      promptNode={
+        <div className="acq-word-prompt">
+          {cue != null && <div className="acq-cue" aria-label="ledtråd">{cue}</div>}
+          {dictation}
+        </div>
+      }
+    />
+  );
+
+  // A malformed derivation can never leave the child stuck: fall back to the bare dictation item.
+  if (!scaffold) {
+    return (
+      <InputStage
+        mode="session" item={item} playerId={playerId} onCapture={onCapture} disabled={disabled}
+        showIdk={showIdk} idkLabel={idkLabel} armKey={armKey} letters={letters}
+        promptNode={<div className="acq-word-prompt">{dictation}</div>}
+      />
+    );
+  }
+
+  // L1 / L2 — no walk, just the target with the (thinning) cue.
+  if (level === L_CUED) return target(scaffold.cueAt(L_CUED));
+  if (level === L_PARTIAL) return target(scaffold.cueAt(L_PARTIAL));
+
+  // L0 — walk the INERT discrimination sub-steps (a CHOICE tap or a letter-pad gap), then the target.
+  if (step >= scaffold.substeps.length) return target(scaffold.cueAt(L_FULL));
+  if (reveal != null) {
+    return (
+      <div className="acq-stage">
+        <div className="acq-reveal">
+          <div className="prompt">{reveal}</div>
+          <button className="next-btn" onClick={afterReveal} type="button">Vidare</button>
+        </div>
+      </div>
+    );
+  }
+  if (sub!.kind === 'choice') {
+    return (
+      <ChoiceStage
+        itemKey={`word-sub-${step}`}
+        prompt={sub!.prompt}
+        question={sub!.question}
+        options={sub!.options}
+        onCapture={(v) => onSub(String(v), false)}
+        disabled={disabled}
+      />
+    );
+  }
+  // A letter-pad gap sub-step (a gapped word she completes) — inert, same reveal-and-carry contract.
+  return (
+    <InputStage
+      key={`word-sub-${step}`}
+      mode="session"
+      item={item}
+      playerId={playerId}
+      onCapture={(c) => onSub(c.given, c.idk)}
+      disabled={disabled}
+      showIdk={showIdk}
+      idkLabel={idkLabel}
+      letters={letters}
+      promptNode={<div className="acq-word-prompt"><div className="acq-cue">{sub!.cue}</div>{dictation}</div>}
+    />
   );
 }

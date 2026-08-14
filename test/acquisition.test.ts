@@ -27,8 +27,10 @@ import {
   hasDerivation,
   hintFor,
   pickDerivation,
+  buildWordScaffold,
   type StrategyId,
 } from '@/lib/acquisition-content';
+import { T3_PAIRS } from '@/lib/spelling-content';
 import { selectItem, type SelState } from '@/lib/selector';
 import { buildItem } from '@/lib/item';
 
@@ -978,5 +980,203 @@ describe('decimals + fractions — the trigger and the engine', () => {
     expect(repo.cleanPracticeRate(pid, 'frac_of_quantity')).toBeNull();
     for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
     expect(repo.acquisitionLevel(pid, 'frac_of_quantity')).toBeNull(); // graduated
+  });
+});
+
+// ── WORD SUBJECT · Swedish doubling (spelling_t3) — RULE-APPLICATION-FADE ────────────────────
+// The first non-derivation support-type on the SAME engine: a discrimination walk (hear the word →
+// short vowel doubles) then produce it, fading to a bare dictation.
+
+const AK4_SP = 4; // seedGradeFor(4) = 3: spelling_t2 (yr2) seeds fluent — the base she owns; she is
+// failing the DOUBLING (spelling_t3, yr3).
+
+const t3IsShort = (word: string) => T3_PAIRS.some((p) => p.short === word);
+
+describe('word subjects — Swedish doubling (rule-application-fade) content', () => {
+  it('registers a rule derivation on spelling_t3 with a fluent-input veto', () => {
+    expect(hasDerivation('spelling_t3')).toBe(true);
+    expect(pickDerivation('spelling_t3', () => true)?.id).toBe('sv_double');
+    // The rule joins the base she must already spell — spelling_t2 fluency is the veto (spec §2).
+    expect(pickDerivation('spelling_t3', (c) => c !== 'spelling_t2')).toBeNull();
+  });
+
+  it('the L0 walk is a hear→short/long discrimination, then the produced word is the real answer', () => {
+    for (let seed = 0; seed < 34; seed++) {
+      const item = buildItem('spelling_t3', seed);
+      const sc = buildWordScaffold('spelling_t3', seed, 'sv_double');
+      expect(sc, `seed ${seed} word ${item.answer}`).not.toBeNull();
+      expect(sc!.answer).toBe(item.answer); // the produced target IS the item's real word — grading unchanged
+      expect(sc!.isRule).toBe(true);
+      expect(sc!.substeps).toHaveLength(1);
+      const sub = sc!.substeps[0];
+      expect(sub.kind).toBe('choice');
+      if (sub.kind === 'choice') {
+        expect(sub.prompt).toEqual({ show: 'listen', code: 'spelling_t3', word: item.answer }); // hears the dictated word
+        expect(sub.options.map((o) => o.value)).toEqual(['kort', 'lång']);
+        expect(sub.answer).toBe(t3IsShort(item.answer) ? 'kort' : 'lång'); // the rule's discrimination
+      }
+    }
+  });
+
+  it('the cue flags the doubling: two slots for a short (doubled) word, one for a long, tip at L2', () => {
+    const shortSeed = [0, 2, 4, 6, 8].find((s) => t3IsShort(buildItem('spelling_t3', s).answer))!;
+    const longSeed = [0, 2, 4, 6, 8].find((s) => !t3IsShort(buildItem('spelling_t3', s).answer))!;
+    const shortSc = buildWordScaffold('spelling_t3', shortSeed, 'sv_double')!;
+    const longSc = buildWordScaffold('spelling_t3', longSeed, 'sv_double')!;
+    expect((shortSc.cueAt(L_FULL)!.match(/_/g) || []).length).toBe(2); // double → two blanks
+    expect((longSc.cueAt(L_FULL)!.match(/_/g) || []).length).toBe(1); // single → one blank
+    expect(shortSc.cueAt(L_PARTIAL)).toBe(shortSc.cueAt(L_FULL)); // L1 keeps the gap cue
+    expect(shortSc.cueAt(L_CUED)).toContain('vokal'); // L2 is the bare rule tip
+    expect(shortSc.cueAt(L_CUED)).not.toContain('_');
+  });
+});
+
+describe('word subjects — Swedish doubling trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  // A speller who owns transparent spelling (spelling_t2, seed-fluent) but keeps failing the
+  // doubling. No attempts on spelling_t2, so it stays steady/fluent (the rule's input).
+  function speller(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'speller', AK4_SP, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'spelling')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'spelling_t3', (t += 1000));
+    return pid;
+  }
+
+  it('the doubling gap ignites with sv_double; the base she owns is not scaffolded', () => {
+    const pid = speller(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK4_SP, 'spelling'));
+    expect(plans.get('spelling_t3')).toMatchObject({ level: L_FULL, strategy: 'sv_double' });
+    expect(plans.has('spelling_t2')).toBe(false); // no derivation — it IS the input she owns
+  });
+
+  it('does NOT fire when the base spelling (spelling_t2) is not fluent — drop lower', () => {
+    const pid = speller(fam);
+    const states = buildStates(pid, AK4_SP, 'spelling').map((s) =>
+      s.code === 'spelling_t2'
+        ? ({ ...s, seedFluent: false, earnedFluent: false, rate: { source: 'measured', value: 0.1 } } as SelState)
+        : s,
+    );
+    expect(acquisitionPlans(pid, states).has('spelling_t3')).toBe(false);
+  });
+
+  it('is served the rule-walk, warmup-class (θ up, no rate), and graduates', () => {
+    const pid = speller(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'spelling');
+    const player = { id: pid, school_year: AK4_SP, stretch: 0 };
+
+    // Actually served as a scaffold in a spelling session (not routed around).
+    let at = NOW + 100_000;
+    const served: string[] = [];
+    let item = issueNext(pid, AK4_SP, at, { sessionId: sid, remaining: 10, subject: 'spelling' });
+    for (let i = 0; i < 14; i++) {
+      served.push(item.acq ? `${item.code}@L${item.acq.level}:${item.acq.strategy}` : item.code);
+      at += 5000;
+      const r = sessionAnswer(player, sid, item.code, item.seed, buildItem(item.code, item.seed).answer, false, 1, false, 2000, `idem-${item.code}-${at}-${Math.random()}`, null, at);
+      if (r.status === 'retry' || !r.next) break;
+      item = r.next;
+    }
+    expect(served.some((s) => s === 'spelling_t3@L0:sv_double')).toBe(true);
+
+    // Warmup-class + graduation on a fresh forced arc (own family — fixed fixture icon).
+    const fam2 = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+    const pid2 = speller(fam2);
+    const sid2 = repo.createSessionRun(pid2, 10, NOW, 'spelling');
+    const p2 = { id: pid2, school_year: AK4_SP, stretch: 0 };
+    const before = repo.abilities(pid2).get('spelling_t3')!.theta;
+    repo.startAcquisition(pid2, 'spelling_t3', 'sv_double', NOW);
+    let at2 = NOW + 200_000;
+    sessionAnswer(p2, sid2, 'spelling_t3', 0, buildItem('spelling_t3', 0).answer, false, 1, false, 2000, `s-${at2}`, null, at2);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid2, 'spelling_t3') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1); // warmup-class — never a fluency/rate measure
+    expect(repo.abilities(pid2).get('spelling_t3')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid2, 'spelling_t3')).toBeNull();
+    for (let i = 0; i < 8; i++) { at2 += 5000; sessionAnswer(p2, sid2, 'spelling_t3', i * 2, buildItem('spelling_t3', i * 2).answer, false, 1, false, 2000, `s2-${at2}-${i}`, null, at2); }
+    expect(repo.acquisitionLevel(pid2, 'spelling_t3')).toBeNull(); // graduated
+  });
+});
+
+// ── WORD SUBJECT · English irregular past (en_past_irregular) — CUE-FADE ─────────────────────
+// The purest atomic case: no rule to apply, so the support is the WORD ITSELF, progressively
+// hidden (whole → gapped → first-letter → dictation). inputs:[] ⇒ NO fluent-input veto.
+
+const AK_EN = 4;
+
+describe('word subjects — English irregular past (cue-fade) content', () => {
+  it('registers a cue-fade derivation with NO fluent-input veto (an atomic item derives from nothing)', () => {
+    expect(hasDerivation('en_past_irregular')).toBe(true);
+    // The defining property: even with NOTHING fluent, the veto auto-passes (inputs:[] → every() is true).
+    expect(pickDerivation('en_past_irregular', () => false)?.id).toBe('en_irregular_cue');
+  });
+
+  it('the fade hides the word: whole → interior gapped (first+last) → first-letter, no discrimination walk', () => {
+    for (let seed = 0; seed < 30; seed++) {
+      const item = buildItem('en_past_irregular', seed);
+      const w = item.answer;
+      const sc = buildWordScaffold('en_past_irregular', seed, 'en_irregular_cue');
+      expect(sc, `seed ${seed} word ${w}`).not.toBeNull();
+      expect(sc!.answer).toBe(w); // the produced target IS the real word — grading unchanged
+      expect(sc!.isRule).toBe(false);
+      expect(sc!.substeps).toHaveLength(0); // cue-fade has no walk — the fade is entirely the cue
+      expect(sc!.cueAt(L_FULL)).toBe(w); // L0 shows the whole word to copy (errorless)
+      expect(sc!.cueAt(L_PARTIAL)).toBe(w[0] + '_'.repeat(w.length - 2) + w[w.length - 1]); // interior hidden
+      expect(sc!.cueAt(L_CUED)).toBe(w[0] + '_'.repeat(w.length - 1)); // first letter + length only
+      // never asks her to recall an unseen item — the first letter always shows.
+      expect(sc!.cueAt(L_CUED)!.startsWith(w[0])).toBe(true);
+    }
+  });
+});
+
+describe('word subjects — English irregular past trigger + engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function enLearner(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'enlearner', AK_EN, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'english')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'en_past_irregular', (t += 1000));
+    return pid;
+  }
+
+  it('any failed atomic word ignites cue-fade (no readiness veto to satisfy)', () => {
+    const pid = enLearner(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK_EN, 'english'));
+    expect(plans.get('en_past_irregular')).toMatchObject({ level: L_FULL, strategy: 'en_irregular_cue' });
+  });
+
+  it('a cue-fade attempt is warmup-class (θ up, no rate) and graduates off the bare rung', () => {
+    const pid = enLearner(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'english');
+    const player = { id: pid, school_year: AK_EN, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'en_past_irregular', seed, buildItem('en_past_irregular', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('en_past_irregular')!.theta;
+    repo.startAcquisition(pid, 'en_past_irregular', 'en_irregular_cue', NOW);
+    let at = NOW + 200_000;
+    answerWith(0, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'en_past_irregular') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1); // warmup-class — the faded latency never reaches the aim
+    expect(repo.abilities(pid).get('en_past_irregular')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'en_past_irregular')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(i * 2, at); }
+    expect(repo.acquisitionLevel(pid, 'en_past_irregular')).toBeNull(); // graduated, monotonic
   });
 });
