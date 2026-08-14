@@ -23,6 +23,19 @@ import { grade } from '@/lib/grade';
 // (the counter, the θ update, the session all stay as they were), and a sub-step she fumbles
 // costs her nothing. A wrong or unknown sub-step simply SHOWS its value and moves on: every
 // level must be winnable, and a miss softens the scaffold rather than punishing it.
+// The scaffold framed as a teaching HELPER: a card with a heading naming the problem being worked,
+// so a child never mistakes a walk-through step for a new, unscored question ("varför får jag en ny
+// fråga utan att veta om den förra var rätt?"). Wraps every scaffold level (L0–L2); the bare L3 is
+// the ordinary item and gets no card.
+function AcqHelper({ heading, children }: { heading: string; children: React.ReactNode }) {
+  return (
+    <div className="acq-helper">
+      <p className="acq-helper-head">{heading}</p>
+      {children}
+    </div>
+  );
+}
+
 export function AcquisitionStage({
   item,
   level,
@@ -53,14 +66,19 @@ export function AcquisitionStage({
   letters?: readonly string[];
   dictation?: React.ReactNode;
 }) {
-  // A word item (spelling/English) uses the letter pad + choice-tap sub-steps, never the numpad.
+  // A word item (spelling/English) uses the letter pad + choice-tap sub-steps, never the numpad. It
+  // gets the same teaching-helper frame; the heading can't name the word (it's dictated — naming it
+  // would spoil it), so it says "here's how to spell it, step by step".
   if (letters) {
+    const wordHeading = locale === 'en' ? 'Here’s how to spell it, step by step' : 'Så här stavar du ordet, steg för steg';
     return (
-      <WordAcquisitionStage
-        item={item} level={level} strategy={strategy} playerId={playerId}
-        onCapture={onCapture} disabled={disabled} showIdk={showIdk} idkLabel={idkLabel}
-        armKey={armKey} letters={letters} dictation={dictation}
-      />
+      <AcqHelper heading={wordHeading}>
+        <WordAcquisitionStage
+          item={item} level={level} strategy={strategy} playerId={playerId}
+          onCapture={onCapture} disabled={disabled} showIdk={showIdk} idkLabel={idkLabel}
+          armKey={armKey} letters={letters} dictation={dictation}
+        />
+      </AcqHelper>
     );
   }
   // Built from (code, seed, strategy) with the SAME shared builder the server reasons about —
@@ -99,43 +117,52 @@ export function AcquisitionStage({
     return <InputStage mode="session" item={item} playerId={playerId} onCapture={onCapture} disabled={disabled} showIdk={showIdk} idkLabel={idkLabel} armKey={armKey} />;
   }
 
+  // The card heading names the problem the walk is teaching (the target minus its trailing "="), so
+  // "70 + 80" reads as step one of working out "82 + 72", not a new question.
+  const target = scaffold.target.replace(/\s*=\s*$/, '');
+  const heading = locale === 'en' ? `Here's how to work out ${target}` : `Så här räknar du ut ${target}`;
+
   if (level === L_PARTIAL) {
     // The decomposition is already done; one operation left. The answer is still the target's,
     // so the server grades it exactly as it grades the bare fact.
     return (
-      <InputStage
-        mode="session"
-        item={item}
-        playerId={playerId}
-        onCapture={onCapture}
-        disabled={disabled}
-        showIdk={showIdk}
-        idkLabel={idkLabel}
-        armKey={armKey}
-        promptOverride={scaffold.partial}
-      />
+      <AcqHelper heading={heading}>
+        <InputStage
+          mode="session"
+          item={item}
+          playerId={playerId}
+          onCapture={onCapture}
+          disabled={disabled}
+          showIdk={showIdk}
+          idkLabel={idkLabel}
+          armKey={armKey}
+          promptOverride={scaffold.partial}
+        />
+      </AcqHelper>
     );
   }
 
   if (level === L_CUED) {
     // The bare fact, with the strategy she has been walking as a quiet tip — never the answer.
     return (
-      <InputStage
-        mode="session"
-        item={item}
-        playerId={playerId}
-        onCapture={onCapture}
-        disabled={disabled}
-        showIdk={showIdk}
-        idkLabel={idkLabel}
-        armKey={armKey}
-        promptNode={
-          <span className="acq-cued">
-            {scaffold.target}
-            <span className="acq-hint">{hintFor(strategy, scaffold.b, locale)}</span>
-          </span>
-        }
-      />
+      <AcqHelper heading={heading}>
+        <InputStage
+          mode="session"
+          item={item}
+          playerId={playerId}
+          onCapture={onCapture}
+          disabled={disabled}
+          showIdk={showIdk}
+          idkLabel={idkLabel}
+          armKey={armKey}
+          promptNode={
+            <span className="acq-cued">
+              {scaffold.target}
+              <span className="acq-hint">{hintFor(strategy, scaffold.b, locale)}</span>
+            </span>
+          }
+        />
+      </AcqHelper>
     );
   }
 
@@ -144,6 +171,7 @@ export function AcquisitionStage({
   const onTarget = step >= scaffold.substeps.length;
   const sub = scaffold.substeps[step];
   return (
+    <AcqHelper heading={heading}>
     <div className="acq-stage">
       {shown.length > 0 && (
         <div className="acq-steps">
@@ -174,6 +202,7 @@ export function AcquisitionStage({
         />
       )}
     </div>
+    </AcqHelper>
   );
 }
 

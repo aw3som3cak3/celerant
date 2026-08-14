@@ -1688,6 +1688,18 @@ table.plain-table th {
    The faded derived-fact scaffold. Deliberately quiet: the solved steps sit ABOVE
    the live prompt in a smaller, softer type so the child reads her own work, and
    the L2 tip is a whisper under the fact — never a banner, never a score. */
+/* The teaching-helper card: frames a scaffold walk so it never reads as a new, unscored question.
+   A soft accent-tinted box with a heading naming the problem being worked. */
+.acq-helper {
+  width: 100%; max-width: 440px; margin: 0 auto;
+  border: 2px solid var(--accent); border-radius: 18px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+  padding: 0.85rem 1rem 1.15rem;
+}
+.acq-helper-head {
+  margin: 0 0 0.8rem; text-align: center;
+  font-size: 1.05rem; font-weight: 700; line-height: 1.3; color: var(--ink);
+}
 .acq-stage { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; width: 100%; }
 .acq-steps {
   display: flex;
