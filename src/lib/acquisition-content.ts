@@ -47,7 +47,10 @@ export type StrategyId =
   | 'x2_double_double'
   | 'x10_minus_one'
   | 'x10_plus_one'
-  | 'x10_plus_x2';
+  | 'x10_plus_x2'
+  // ── bridging-through-10 (the second derivational domain, same faded-scaffold shape) ──
+  | 'make_ten_add' // 8 + 5 → 8 + 2 = 10, + 3 = 13
+  | 'make_ten_sub'; // 14 − 6 → 14 − 4 = 10, − 2 = 8
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -130,18 +133,82 @@ for (const d of DERIVATIONS) {
 }
 for (const list of DERIVATIONS_BY_CODE.values()) list.sort((a, b) => a.substeps(7).length - b.substeps(7).length);
 
-// Does this skill have a derivation at all? (The first slice is multiplication tables only —
-// bridging-through-10 addition is the same shape and comes later.)
+// ── SECOND DOMAIN · bridging-through-10 addition/subtraction (spec §4 "later slices") ────────
+//
+// The same faded-scaffold pedagogy as multiplication, on the ADDITIVE seam the child meets first:
+// crossing ten by MAKING TEN. 8 + 5 is not a fact to memorise — it is derived from two she owns,
+// the bond to ten (8 + 2) and the leftover (10 + 3). The shape is identical to a multiplication
+// derivation, with ONE structural difference: a sum/difference is not recoverable from its answer
+// (13 could be 8+5 or 9+4), so the instance's BOTH operands are parsed from the built item's
+// prompt rather than divided out of the answer. That is why additive derivations carry their own
+// type and their substeps take (a, b), not the single multiplier b.
+//
+// Kept in a SEPARATE array/type from DERIVATIONS so the multiplication slice is byte-for-byte
+// untouched (its tests iterate DERIVATIONS and read d.table / d.substeps(b)); the two are merged
+// only at the lookup helpers below, which every consumer already goes through.
+export type AdditiveDerivation = {
+  id: StrategyId;
+  code: string; // the skill this derives — 'add_cross_10' | 'sub_cross_10'
+  op: '+' | '−'; // U+2212 for subtraction, matching the generator's prompt
+  // Every skill whose fluency the strategy ASSUMES (spec §2.2, invariant 3): the bond to ten
+  // (missing_addend_10 — "8 + □ = 10") and the single-digit op she splits/recombines with. Both
+  // sit at/below year 1, so a child who lacks them is dropped lower by the graph, never scaffolded.
+  inputs: string[];
+  // The L0 walk for `a op b`, EXCLUDING the target (2 steps: make ten, then add/subtract the rest).
+  substeps: (a: number, b: number) => SubStep[];
+  // The L1 partial — the make-ten decomposition already done, one operation left.
+  partial: (a: number, b: number) => string;
+  // The pivot number filled to/from ten, for the L2 hint (the number the make-ten acts on).
+  pivot: (a: number, b: number) => number;
+};
+
+export const ADDITIVE_DERIVATIONS: AdditiveDerivation[] = [
+  {
+    id: 'make_ten_add', code: 'add_cross_10', op: '+', inputs: ['add_within_10', 'missing_addend_10'],
+    // Fill the LARGER operand to ten (the smaller bump), then add the leftover. rem = a+b−10 > 0
+    // and the complement c = 10−hi < lo, so both steps land inside add_within_10 (invariant 3).
+    substeps: (a, b) => {
+      const hi = Math.max(a, b), c = 10 - hi, rem = a + b - 10;
+      return [PLUS(hi, c), PLUS(10, rem)];
+    },
+    partial: (a, b) => `${a} + ${b} = 10 + ${a + b - 10} =`,
+    pivot: (a, b) => Math.max(a, b),
+  },
+  {
+    id: 'make_ten_sub', code: 'sub_cross_10', op: '−', inputs: ['sub_within_10', 'missing_addend_10'],
+    // Subtract DOWN to ten first (take the minuend's ones off), then subtract what's left of b.
+    // ones = a−10 ∈ [1,8]; the generator guarantees a−b < 10, i.e. b > ones, so rem2 = b−ones > 0
+    // and 10 − rem2 ≥ 1 — every step is a real sub_within_10 fact.
+    substeps: (a, b) => {
+      const ones = a - 10, rem2 = b - ones;
+      return [MINUS(a, ones), MINUS(10, rem2)];
+    },
+    partial: (a, b) => `${a} − ${b} = 10 − ${b - (a - 10)} =`,
+    pivot: (a) => a,
+  },
+];
+
+export const ADDITIVE_BY_STRATEGY = new Map(ADDITIVE_DERIVATIONS.map((d) => [d.id, d]));
+export const ADDITIVE_BY_CODE = new Map<string, AdditiveDerivation[]>();
+for (const d of ADDITIVE_DERIVATIONS) {
+  const list = ADDITIVE_BY_CODE.get(d.code) ?? [];
+  list.push(d);
+  ADDITIVE_BY_CODE.set(d.code, list);
+}
+
+// Does this skill have a derivation at all? (Multiplication tables OR bridging-through-10.)
 export function hasDerivation(code: string): boolean {
-  return DERIVATIONS_BY_CODE.has(code);
+  return DERIVATIONS_BY_CODE.has(code) || ADDITIVE_BY_CODE.has(code);
 }
 
 // The shallowest derivation whose inputs are ALL fluent for this child, or null. `isFluent` is
 // the caller's readiness predicate (componentFluent on the selector state) — this module never
 // touches player state. Returning null is the readiness VETO: do NOT scaffold; let the graph
-// drop lower and serve the missing input instead (invariant 3).
-export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | null {
+// drop lower and serve the missing input instead (invariant 3). Multiplication and additive
+// derivations both expose `id` + `inputs`, so the trigger reads either through one signature.
+export function pickDerivation(code: string, isFluent: (c: string) => boolean): Derivation | AdditiveDerivation | null {
   for (const d of DERIVATIONS_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
+  for (const d of ADDITIVE_BY_CODE.get(code) ?? []) if (d.inputs.every(isFluent)) return d;
   return null;
 }
 
@@ -159,14 +226,31 @@ export type Scaffold = {
 // have produced, decomposed. Same (code, seed) → same scaffold on client and server, and its
 // `answer` is byte-identical to buildItem's, so grading is completely unchanged.
 export function buildScaffold(code: string, seed: number, strategy: StrategyId): Scaffold | null {
+  const item = buildItem(code, seed);
+  // Bridging-through-10: the additive domain. Parse BOTH operands from the prompt (the answer
+  // alone doesn't determine them) and decompose via make-ten.
+  const add = ADDITIVE_BY_STRATEGY.get(strategy);
+  if (add) return buildAdditiveScaffold(item, add, strategy);
   const d = BY_STRATEGY.get(strategy);
   if (!d || `mult_table_${d.table}` !== code) return null;
-  const item = buildItem(code, seed);
   const answer = Number(item.answer);
   if (!Number.isFinite(answer)) return null;
   const b = answer / d.table;
   if (!Number.isInteger(b)) return null;
   return { strategy, t: d.table, b, target: item.prompt, answer: item.answer, substeps: d.substeps(b), partial: d.partial(b) };
+}
+
+// Parse "a op b =" from a built additive item, and decompose it. Returns null on any malformed
+// prompt (AcquisitionStage then falls back to the bare item — the child is never left stuck).
+function buildAdditiveScaffold(item: { prompt: string; answer: string }, d: AdditiveDerivation, strategy: StrategyId): Scaffold | null {
+  const m = item.prompt.match(/^\s*(\d+)\s*([+−])\s*(\d+)\s*=/);
+  if (!m || m[2] !== d.op) return null;
+  const a = Number(m[1]), b = Number(m[3]);
+  const substeps = d.substeps(a, b);
+  // Grade-identical guard: the walk MUST land on the item's own answer, or we'd teach a wrong sum.
+  if (substeps[substeps.length - 1].answer !== item.answer) return null;
+  // t is unused for additive (no table); b carries the pivot the L2 hint speaks about.
+  return { strategy, t: 0, b: d.pivot(a, b), target: item.prompt, answer: item.answer, substeps, partial: d.partial(a, b) };
 }
 
 // The L2 cue — a plain-language nudge at the bare fact, in the child's language. Never the
@@ -182,6 +266,9 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     x10_minus_one: `10 × ${b} minus en ${b}`,
     x10_plus_one: `10 × ${b} och en ${b} till`,
     x10_plus_x2: `10 × ${b} plus 2 × ${b}`,
+    // Bridging: b is the pivot filled to/from ten. Name the make-ten step, never the answer.
+    make_ten_add: `${b} + ${10 - b} = 10, sen resten`,
+    make_ten_sub: `${b} − ${b - 10} = 10, sen resten`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -193,6 +280,8 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     x10_minus_one: `10 × ${b} minus one ${b}`,
     x10_plus_one: `10 × ${b}, and one more ${b}`,
     x10_plus_x2: `10 × ${b} plus 2 × ${b}`,
+    make_ten_add: `${b} + ${10 - b} = 10, then the rest`,
+    make_ten_sub: `${b} − ${b - 10} = 10, then the rest`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -214,6 +303,8 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   x10_minus_one: 'Nians tabell byggs från tians: 10 × 7 = 70, minus en 7 → 63. Gör 3–4 stycken tillsammans.',
   x10_plus_one: 'Elvans tabell är tians plus en till: 10 × 7 = 70, och en 7 till → 77.',
   x10_plus_x2: 'Tolvans tabell är tian plus tvåan: 10 × 7 = 70, 2 × 7 = 14, och 70 + 14 = 84.',
+  make_ten_add: 'Tiokamrat-strategin: fyll upp till tio först. 8 + 5 → 8 + 2 = 10, och 3 kvar → 13. Öva 3–4 stycken tillsammans med en tioram eller fingrarna.',
+  make_ten_sub: 'Tiokamrat-strategin baklänges: gå ner till tio först. 14 − 6 → 14 − 4 = 10, och 2 kvar → 8. Öva 3–4 stycken tillsammans.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

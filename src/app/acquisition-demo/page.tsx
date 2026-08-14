@@ -21,6 +21,10 @@ const CASES: Demo[] = [
   { code: 'mult_table_8', seed: 5, strategy: 'x4_double', level: L_PARTIAL, label: '×8 via dubbla 4×b' },
   { code: 'mult_table_6', seed: 4, strategy: 'x5_plus_one', level: L_CUED, label: '×6, bara ett tips' },
   { code: 'mult_table_7', seed: 9, strategy: 'x5_plus_x2', level: L_CUED, label: '×7 via 5×b + 2×b' },
+  // bridging-through-10 (the second domain, same faded scaffold on a make-ten seam)
+  { code: 'add_cross_10', seed: 3, strategy: 'make_ten_add', level: L_FULL, label: 'tiokamrat: 8 + 5 via 10' },
+  { code: 'sub_cross_10', seed: 6, strategy: 'make_ten_sub', level: L_FULL, label: 'tiokamrat baklänges: 14 − 6 via 10' },
+  { code: 'add_cross_10', seed: 8, strategy: 'make_ten_add', level: L_CUED, label: 'tiokamrat, bara ett tips' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level
