@@ -57,7 +57,10 @@ export type StrategyId =
   | 'split_add_2d' // 34 + 25 → 30+20, 4+5, 50+9
   | 'split_add_2d_carry' // 47 + 28 → 40+20, 7+8, 60+15
   | 'split_sub_2d' // 68 − 25 → 60−20, 8−5, 40+3
-  | 'split_sub_2d_borrow'; // 52 − 27 → 52−30=22, +3 = 25 (compensation)
+  | 'split_sub_2d_borrow' // 52 − 27 → 52−30=22, +3 = 25 (compensation)
+  | 'neg_minus_minus' // −3 − (−5) → −3 + 5
+  | 'neg_mult_same_sign' // (−4) × (−6) → 4 × 6 (same signs → +)
+  | 'neg_div_signs'; // −48 / 6 → 48 / 6, then negate
 
 export type SubStep = { prompt: string; answer: string };
 
@@ -251,6 +254,11 @@ const parseBin = (prompt: string, op: '+' | '−'): [number, number] | null => {
   return !m || m[2] !== op ? null : [Number(m[1]), Number(m[3])];
 };
 const tensOf = (n: number) => Math.floor(n / 10) * 10;
+// A signed integer parsed from a prompt token — the minus may be U+2212 (as skills.ts renders it)
+// or an ASCII hyphen; Number() rejects U+2212, so normalise first.
+const intOf = (s: string) => Number(s.replace(/−/g, '-'));
+// Render a signed integer the way skills.ts does (U+2212 for the negative), for scaffold prompts.
+const sgn = (n: number) => (n < 0 ? `−${Math.abs(n)}` : `${n}`);
 
 export const RULE_DERIVATIONS: RuleDerivation[] = [
   ...[2, 5, 10, 3, 4, 6, 7, 8, 9, 11, 12].map(divInverse),
@@ -313,6 +321,46 @@ export const RULE_DERIVATIONS: RuleDerivation[] = [
       if (!m) return null;
       const a = Number(m[1]), product = Number(m[2]);
       return { substeps: [{ prompt: `${product} / ${a} =`, answer: item.answer }], partial: `${product} / ${a} =`, pivot: a };
+    },
+  },
+  // ── NEGATIVE integers · sign-rule rewrites (spec gap-map domain 3) ─────────────────────────
+  // A signed operation becomes the unsigned one she owns, plus a sign rule: (−4)×(−6) → 4×6 with
+  // "same signs → plus"; a − (−b) → a + b; a negative quotient → divide the magnitudes, then
+  // negate. Both the sub-steps AND the L1 partial must culminate in the SIGNED answer, so a
+  // sign-flip domain (neg_div) rewrites the sign explicitly rather than stopping at the magnitude.
+  {
+    // Subtracting a negative is adding: −3 − (−5) → −3 + 5. Both signs are U+2212 in the prompt.
+    id: 'neg_minus_minus', code: 'neg_sub_neg', inputs: ['neg_add_pos'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*([-−]?\d+)\s*−\s*\(\s*([-−]?\d+)\s*\)/);
+      if (!m) return null;
+      const a = intOf(m[1]), b = intOf(m[2]); // b is negative
+      return { substeps: [{ prompt: `${sgn(a)} + ${Math.abs(b)} =`, answer: item.answer }], partial: `${sgn(a)} + ${Math.abs(b)} =`, pivot: 0 };
+    },
+  },
+  {
+    // Same signs → positive: (−4) × (−6) → 4 × 6. The magnitude product IS the answer (no flip).
+    id: 'neg_mult_same_sign', code: 'neg_mult_neg_neg', inputs: ['mult_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*\(\s*([-−]?\d+)\s*\)\s*×\s*\(\s*([-−]?\d+)\s*\)/);
+      if (!m) return null;
+      const a = intOf(m[1]), b = intOf(m[2]);
+      return { substeps: [{ prompt: `${Math.abs(a)} × ${Math.abs(b)} =`, answer: item.answer }], partial: `${Math.abs(a)} × ${Math.abs(b)} =`, pivot: 0 };
+    },
+  },
+  {
+    // Different signs → negative (neg_div is ALWAYS a mixed-sign quotient): divide the magnitudes,
+    // then negate. The walk ends on 0 − q = −q so the last sub-step is the signed answer, and the
+    // L1 partial pulls the minus out first (−(|num| / |den|)) so it too lands on −q, never +q.
+    id: 'neg_div_signs', code: 'neg_div', inputs: ['div_mixed'],
+    build: (item) => {
+      const m = item.prompt.match(/^\s*([-−]?\d+)\s*\/\s*([-−]?\d+)\s*=/);
+      if (!m) return null;
+      const num = intOf(m[1]), den = intOf(m[2]);
+      if (den === 0) return null;
+      const q = Math.abs(num) / Math.abs(den);
+      if (!Number.isInteger(q)) return null;
+      return { substeps: [{ prompt: `${Math.abs(num)} / ${Math.abs(den)} =`, answer: String(q) }, MINUS(0, q)], partial: `−(${Math.abs(num)} / ${Math.abs(den)}) =`, pivot: 0 };
     },
   },
 ];
@@ -417,6 +465,10 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     split_add_2d_carry: `tiotal för sig, ental för sig`,
     split_sub_2d: `tiotal minus tiotal, ental minus ental`,
     split_sub_2d_borrow: `ta bort ${b} istället, lägg tillbaka`,
+    // Negatives: pivot-free sign rules — the strategy she has been walking.
+    neg_minus_minus: `minus och minus blir plus`,
+    neg_mult_same_sign: `lika tecken blir plus`,
+    neg_div_signs: `olika tecken blir minus`,
   };
   const en: Record<StrategyId, string> = {
     x2_plus_one: `2 × ${b}, and one more ${b}`,
@@ -436,6 +488,9 @@ export function hintFor(strategy: StrategyId, b: number, locale: string): string
     split_add_2d_carry: `tens on their own, ones on their own`,
     split_sub_2d: `tens − tens, ones − ones`,
     split_sub_2d_borrow: `subtract ${b} instead, then add back`,
+    neg_minus_minus: `minus and minus make plus`,
+    neg_mult_same_sign: `same signs make plus`,
+    neg_div_signs: `different signs make minus`,
   };
   return (locale === 'en' ? en : sv)[strategy];
 }
@@ -465,6 +520,9 @@ export const STRATEGY_COPY: Record<StrategyId, string> = {
   split_add_2d_carry: 'Dela upp i tiotal och ental, växla i entalen: 47 + 28 → 40 + 20 = 60, 7 + 8 = 15, 60 + 15 = 75.',
   split_sub_2d: 'Dela upp i tiotal och ental: 68 − 25 → 60 − 20 = 40, 8 − 5 = 3, 40 + 3 = 43.',
   split_sub_2d_borrow: 'Runda av nedtalet uppåt och lägg tillbaka: 52 − 27 → 52 − 30 = 22, och 3 tillbaka → 25.',
+  neg_minus_minus: 'Minus och minus blir plus: −3 − (−5) → −3 + 5 = 2. Skriv om det till en plus-uppgift.',
+  neg_mult_same_sign: 'Lika tecken blir plus: (−4) × (−6) → 4 × 6 = 24. Räkna talen utan tecken, sätt sedan plus.',
+  neg_div_signs: 'Olika tecken blir minus: −48 / 6 → 48 / 6 = 8, och sedan minus → −8.',
 };
 
 // ── The fade fold (state from the ledger) ──────────────────────────────────

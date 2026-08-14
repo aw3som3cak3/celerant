@@ -32,6 +32,10 @@ const CASES: Demo[] = [
   { code: 'add_2d_carry', seed: 4, strategy: 'split_add_2d_carry', level: L_FULL, label: 'tvåsiffrig, växling: 47 + 28' },
   { code: 'sub_2d_borrow', seed: 5, strategy: 'split_sub_2d_borrow', level: L_FULL, label: 'tvåsiffrig, lån: 52 − 27 (runda av)' },
   { code: 'sub_2d_no_borrow', seed: 3, strategy: 'split_sub_2d', level: L_PARTIAL, label: 'tvåsiffrig minus, sista steget' },
+  // negatives (sign-rule rewrites)
+  { code: 'neg_sub_neg', seed: 4, strategy: 'neg_minus_minus', level: L_FULL, label: 'minus minus blir plus' },
+  { code: 'neg_mult_neg_neg', seed: 6, strategy: 'neg_mult_same_sign', level: L_FULL, label: 'lika tecken: (−4)×(−6)' },
+  { code: 'neg_div', seed: 3, strategy: 'neg_div_signs', level: L_FULL, label: 'olika tecken, division' },
 ];
 
 // Plain-language captions — what stage of learning this example shows the child. No level

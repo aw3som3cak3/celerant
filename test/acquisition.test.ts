@@ -763,3 +763,103 @@ describe('2-digit place value — the trigger and the engine', () => {
     expect(repo.acquisitionLevel(pid, 'sub_2d_borrow')).toBeNull(); // graduated
   });
 });
+
+// ── DOMAIN · NEGATIVE integers (sign-rule rewrites) ─────────────────────────────────────────
+// A signed operation reframed as the unsigned one she owns + a sign rule. The sign-flip case
+// (neg_div) is the subtle one: BOTH its walk and its L1 partial must land on the negative answer.
+
+const AK7 = 7; // seedGradeFor(7) = 6: neg_add_pos, mult_mixed, div_mixed all seed fluent.
+
+describe('negatives — the derivation content', () => {
+  it('registers a sign-rewrite for the three seams', () => {
+    expect(hasDerivation('neg_sub_neg')).toBe(true);
+    expect(hasDerivation('neg_mult_neg_neg')).toBe(true);
+    expect(hasDerivation('neg_div')).toBe(true);
+  });
+
+  it('each sign-rewrite decomposes the actual item and lands on the SIGNED answer', () => {
+    const map = [
+      ['neg_sub_neg', 'neg_minus_minus'],
+      ['neg_mult_neg_neg', 'neg_mult_same_sign'],
+      ['neg_div', 'neg_div_signs'],
+    ] as const;
+    for (const [code, strat] of map) {
+      for (let seed = 1; seed < 50; seed++) {
+        const item = buildItem(code, seed);
+        const sc = buildScaffold(code, seed, strat);
+        expect(sc, `${code} seed ${seed}`).not.toBeNull();
+        expect(sc!.answer).toBe(item.answer); // grading unchanged
+        expect(sc!.target).toBe(item.prompt);
+        expect(sc!.substeps[sc!.substeps.length - 1].answer).toBe(item.answer); // walk ends on the signed answer
+      }
+    }
+  });
+
+  it('neg_div negates explicitly: magnitude first (positive), last step and partial are negative', () => {
+    for (let seed = 1; seed < 40; seed++) {
+      const item = buildItem('neg_div', seed);
+      const sc = buildScaffold('neg_div', seed, 'neg_div_signs')!;
+      expect(sc.substeps).toHaveLength(2);
+      expect(Number(sc.substeps[0].answer)).toBeGreaterThan(0); // the magnitude quotient
+      expect(Number(sc.substeps[1].answer)).toBeLessThan(0); // the sign applied
+      expect(sc.partial.startsWith('−(')).toBe(true); // the partial pulls the minus out → never grades +q
+      expect(item.answer.startsWith('-')).toBe(true);
+    }
+  });
+
+  it('picks the sign-rewrite, vetoes when the unsigned input is not fluent (invariant 3)', () => {
+    expect(pickDerivation('neg_sub_neg', () => true)?.id).toBe('neg_minus_minus');
+    expect(pickDerivation('neg_sub_neg', (c) => c !== 'neg_add_pos')).toBeNull();
+    expect(pickDerivation('neg_mult_neg_neg', (c) => c !== 'mult_mixed')).toBeNull();
+    expect(pickDerivation('neg_div', (c) => c !== 'div_mixed')).toBeNull();
+  });
+});
+
+describe('negatives — the trigger and the engine', () => {
+  let fam: string;
+  beforeEach(() => {
+    fam = repo.createFamily(`turtle+ice_cream-${Math.random().toString(36).slice(2)}`, 't:i', 't:x', NOW);
+  });
+
+  function negs(familyId: string): string {
+    const pid = repo.createPlayer(familyId, 'negs', AK7, NOW);
+    for (let i = 0; i < 5; i++) {
+      getDb()
+        .prepare("INSERT INTO session_run (player_id, target, completed, started_at, ended_at, subject) VALUES (?, 10, 10, ?, ?, 'maths')")
+        .run(pid, NOW - 100_000 - i * 1000, NOW - 90_000 - i * 1000);
+    }
+    let t = NOW + 1000;
+    for (let i = 0; i < 4; i++) miss(pid, 'neg_sub_neg', (t += 1000));
+    for (let i = 0; i < 4; i++) miss(pid, 'neg_mult_neg_neg', (t += 1000));
+    for (let i = 0; i < 4; i++) idk(pid, 'neg_div', (t += 1000));
+    return pid;
+  }
+
+  it('all three sign seams ignite with their rewrite', () => {
+    const pid = negs(fam);
+    const plans = acquisitionPlans(pid, buildStates(pid, AK7, 'maths'));
+    expect(plans.get('neg_sub_neg')).toMatchObject({ level: L_FULL, strategy: 'neg_minus_minus' });
+    expect(plans.get('neg_mult_neg_neg')).toMatchObject({ level: L_FULL, strategy: 'neg_mult_same_sign' });
+    expect(plans.get('neg_div')).toMatchObject({ level: L_FULL, strategy: 'neg_div_signs' });
+  });
+
+  it('neg_mult_neg_neg is served, warmup-class, and graduates (a positive-answer rewrite)', () => {
+    const pid = negs(fam);
+    const sid = repo.createSessionRun(pid, 10, NOW, 'maths');
+    const player = { id: pid, school_year: AK7, stretch: 0 };
+    const answerWith = (seed: number, at: number) =>
+      sessionAnswer(player, sid, 'neg_mult_neg_neg', seed, buildItem('neg_mult_neg_neg', seed).answer, false, 1, false, 2000, `idem-${at}-${Math.random()}`, null, at);
+
+    const before = repo.abilities(pid).get('neg_mult_neg_neg')!.theta;
+    repo.startAcquisition(pid, 'neg_mult_neg_neg', 'neg_mult_same_sign', NOW);
+    let at = NOW + 200_000;
+    answerWith(4242, at);
+    const row = getDb().prepare('SELECT warmup, acq_level FROM attempt WHERE player_id = ? AND skill_code = ? ORDER BY id DESC LIMIT 1').get(pid, 'neg_mult_neg_neg') as { warmup: number; acq_level: number };
+    expect(row.acq_level).toBe(L_FULL);
+    expect(row.warmup).toBe(1);
+    expect(repo.abilities(pid).get('neg_mult_neg_neg')!.theta).toBeGreaterThan(before);
+    expect(repo.cleanPracticeRate(pid, 'neg_mult_neg_neg')).toBeNull();
+    for (let i = 0; i < 8; i++) { at += 5000; answerWith(5000 + i, at); }
+    expect(repo.acquisitionLevel(pid, 'neg_mult_neg_neg')).toBeNull(); // graduated
+  });
+});
