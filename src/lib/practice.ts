@@ -125,6 +125,12 @@ export type NextItem = {
   novel: boolean; // first time this player has seen this kind of problem (§3.5)
 };
 
+// Skills ADDED to the graph after existing children started — introduce each once to a child who
+// has never met it (see selector `introduceCodes`). Grade-based seeding marks them fluent for an
+// older child, so without this they'd be perpetually skipped. Safe to leave entries here after
+// every child has met them (the never-seen check makes it a no-op); prune when tidying.
+const INTRODUCE_SKILLS: ReadonlySet<string> = new Set(['double_within_20', 'half_within_20']);
+
 export type NextOpts = {
   stretch?: boolean; // shift the success target 0.80 -> 0.65
   chosenCode?: string; // the child's session-start choice (§3.2) — first item only
@@ -266,6 +272,10 @@ function pickNext(playerId: string, schoolYear: number, now: number, opts: NextO
       reachUp: warmup || opts.peakEnd ? false : opts.reachUp,
       seedGrade: seedGradeFor(schoolYear),
       acquisitionCodes: acqPlans.size ? new Set(acqPlans.keys()) : undefined, // the one eligibility touch
+      // Meet newly-added skills once (double/half) — but only for an ESTABLISHED child (introductions
+      // are for content added after they started, not during onboarding, where an easy introduction
+      // would displace the gentle opener). Off in the ramp and below the novelty threshold.
+      introduceCodes: !warmup && repo.totalAttempts(playerId) >= 15 ? INTRODUCE_SKILLS : undefined,
     });
     scores = r.scores;
     introduced = r.introduced;

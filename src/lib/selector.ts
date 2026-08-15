@@ -28,6 +28,16 @@ export const P_BAND = 0.2;
 // on being routed around (which is the bug); far above it, one gap would eat the session.
 export const ACQ_PRIORITY = 0.5;
 
+// NEW-CONTENT INTRODUCTION (the double/half case). A skill added to the graph AFTER an existing
+// child started is seeded by grade — for an older child that's seed-fluent (θ≈2.4, the band's easy
+// edge), so it's perpetually outranked and never served, and the child never MEETS it. The caller
+// passes `introduceCodes` — the EXPLICIT list of newly-added skills — and the selector serves such
+// a skill ONCE if the child has never seen it and can likely do it (p ≥ target); one serve sets
+// lastSeenAt and it recedes to normal ranking. It must be an explicit list, NOT a never-seen
+// heuristic: every child also has a large backlog of legitimately-skipped seed-fluent recognition
+// and floor skills (~20 of them) that must NOT be introduced.
+export const NOVEL_INTRO_PRIORITY = 0.5;
+
 // Fluency evidence for a component, three-valued (addendum §7). `unknown` is
 // distinct from a low measured/provisional value: it means nothing has been
 // measured or seeded, which is only possible before placement has run.
@@ -81,6 +91,7 @@ export type SkillScore = {
   recency: number;
   score: number;
   acquisition?: boolean; // this skill will be served as a SCAFFOLD, not a bare item (see acquisitionCodes)
+  novelIntro?: boolean; // a never-seen, too-easy skill being INTRODUCED once (see introduceNovel / NOVEL_INTRO_MAX)
 };
 
 // A skill is "fluent enough to unlock what follows it" only if it is a compound
@@ -221,6 +232,10 @@ export type SelectOptions = {
   // only candidate. Absent (the default) ⇒ byte-identical to the pre-acquisition selector.
   // The selector stays subject-blind: it receives a set of codes and never asks why.
   acquisitionCodes?: ReadonlySet<string>;
+  // Introduce NEW content: the EXPLICIT set of newly-added skills to serve once to a child who has
+  // never met them (see NOVEL_INTRO_PRIORITY). Explicit, not a never-seen heuristic, because the
+  // backlog of seed-fluent recognition/floor skills is also never-seen. Absent/empty ⇒ byte-identical.
+  introduceCodes?: ReadonlySet<string>;
   // The child's placement grade (seedGradeFor). Governs the pre-symbolic floor:
   // a child placed above it (seedGrade ≥ 1) who has real symbolic work is not
   // served the year-0 on-ramp rungs. Default 0 → no suppression (beginner). See
@@ -241,12 +256,15 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
     const p = predict(s.theta);
     const d = decay(s, opts.now);
     const r = recency(s.code, opts.recentCodes);
-    // An acquisition skill is not ranked on its bare-fact p at all — what will actually be
-    // served is a faded scaffold whose every step she can already do. It takes ACQ_PRIORITY in
-    // place of the distance term, and then competes on the ORDINARY spacing/interleaving terms.
+    // An acquisition skill is ranked on the scaffold's winnability, a novel-intro skill on getting
+    // MET once — both take a fixed priority in place of the distance term. novelIntro: a newly-added
+    // skill (explicit list) the child has never met and can likely do (p ≥ target); a too-hard one
+    // waits. acquisition wins if a skill is somehow both.
     const acquisition = opts.acquisitionCodes?.has(s.code) ?? false;
-    const score = (acquisition ? ACQ_PRIORITY : -Math.abs(p - target)) + 0.35 * d - 0.5 * r + 0.05 * opts.rand();
-    return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score, acquisition };
+    const novelIntro = !acquisition && (opts.introduceCodes?.has(s.code) ?? false) && isEligible && s.lastSeenAt == null && p >= target;
+    const base = acquisition ? ACQ_PRIORITY : novelIntro ? NOVEL_INTRO_PRIORITY : -Math.abs(p - target);
+    const score = base + 0.35 * d - 0.5 * r + 0.05 * opts.rand();
+    return { code: s.code, unlocked: isUnlocked, eligible: isEligible, p, decay: d, recency: r, score, acquisition, novelIntro };
   });
 
   // PLACEMENT-AWARE FLOOR (one-ova-track / number-sense-onramp). The year-0 rungs
@@ -275,7 +293,7 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
   const eligible = scores.filter((s) => s.eligible);
   // ...plus the acquisition candidates, which enter the pool on the scaffold's winnability
   // rather than on the bare fact's p (the one eligibility touch — see acquisitionCodes).
-  let pool = eligible.filter((s) => s.acquisition || Math.abs(s.p - target) <= P_BAND);
+  let pool = eligible.filter((s) => s.acquisition || s.novelIntro || Math.abs(s.p - target) <= P_BAND);
 
   // Empty band: never serve the least-bad too-hard item. Fall back to the item
   // closest to target from the SAFE side — err too-easy, never too-hard (failing
@@ -319,5 +337,5 @@ export function selectItem(states: SelState[], opts: SelectOptions): SelectResul
   // skill ever being reachable.
   let best = pool[0];
   for (const sc of pool) if (sc.score > best.score) best = sc;
-  return { chosen: byCode.get(best.code)!, scores, introduced: false };
+  return { chosen: byCode.get(best.code)!, scores, introduced: best.novelIntro ?? false };
 }
