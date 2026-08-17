@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import * as repo from '@/db/repo';
 import { sessionFromRequest, parentFamilyFromRequest } from '@/lib/auth';
-import { buildLadder, buildAlerts, confirmBuildComplete, confirmCapability } from '@/lib/electronics';
+import { buildLadder, buildAlerts, confirmBuildComplete, confirmCapability, korkortStatuses } from '@/lib/electronics';
 import { CapabilityCode } from '@/lib/electronics-builds';
 import { json } from '@/lib/api';
 
@@ -48,6 +48,10 @@ export function GET(req: NextRequest) {
     })),
     capabilities: repo.electronicsCapabilityRows(p.id),
     alerts: buildAlerts(p.id),
+    // KÖRKORT (docs/electronics-korkort-flow.md): the three-state view a master reads when approving.
+    // EARNED derives purely from the granted capability — approving a build (which grants the
+    // elec_cap_tier_* capability) is what flips the körkort to 🎖️. No körkort-specific record.
+    korkort: korkortStatuses(p.id),
   }));
 
   return json({ authorized: true, adult: parentFamilyFromRequest(req, now) === s.familyId, players });

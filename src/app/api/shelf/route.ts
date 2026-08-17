@@ -3,6 +3,7 @@ import { requirePlayer } from '@/lib/auth';
 import * as repo from '@/db/repo';
 import { skillEligibility } from '@/lib/sprint';
 import { skillLabel } from '@/lib/labels';
+import { shelfKorkort } from '@/lib/electronics';
 import { json } from '@/lib/api';
 
 export const runtime = 'nodejs';
@@ -20,5 +21,10 @@ export function GET(req: NextRequest) {
   const diplomas = skillEligibility(player.id)
     .filter((e) => e.band === 'fluent')
     .map((e) => ({ code: e.code, label: skillLabel(e.code), family: e.family }));
-  return json({ days: repo.sessionDaysLast7(player.id, now), diplomas });
+  // ELECTRONICS KÖRKORT (docs/electronics-korkort-flow.md): the same wall, two extra plaque classes —
+  // ⏳ TODO (fluent on screen, a pending build at the station, carrying its kit + instructions so it
+  // can be prepped) and 🎖️ EARNED (a master approved the build). The child's OWN körkort only, never a
+  // sibling's. Test-family gated for now, like the other electronics surfaces; empty otherwise.
+  const korkort = repo.isTestFamilyPlayer(player.id) ? shelfKorkort(player.id) : [];
+  return json({ days: repo.sessionDaysLast7(player.id, now), diplomas, korkort });
 }

@@ -8,7 +8,14 @@ import {
   type BuildDef,
   type VoltageTier,
 } from './electronics-builds';
-import { fluencyMet } from './electronics-fluency-seam';
+import { fluencyMet, fluencyFluentMeasured } from './electronics-fluency-seam';
+import {
+  KORKORT,
+  korkortState,
+  type KorkortDef,
+  type KorkortState,
+  type FluencyOf,
+} from './electronics-korkort';
 
 // ── The readiness detector + the grownup ALERT (docs/electronics-subject-plan.md §2b) ───────────
 //
@@ -88,6 +95,78 @@ export function buildAlerts(playerId: string): BuildAlert[] {
       kitBom: r.build.kit_bom.map((l) => ({ qty: l.qty, part: l.part })),
       instructions: [...r.build.instructions.kid_adult],
     }));
+}
+
+// ── KÖRKORT wiring (docs/electronics-korkort-flow.md) ───────────────────────────────────────────
+// The consumer side of the PURE körkort derivation: it binds the fluency seam (fluent && measured)
+// and the child's owned capabilities to `korkortState`, so the shelf + the phase-1 reveal can render
+// LOCKED / TODO / EARNED. No new record backs EARNED — it derives from the `elec_cap_tier_*`
+// capability the existing adult-approval already grants (confirmBuildComplete). θ-inert: reads the
+// fluency signal beside the engine, writes nothing.
+
+// One körkort's shelf-facing view for a child.
+export type KorkortView = {
+  id: string;
+  namn: string;
+  tier: string;
+  state: KorkortState;
+  prov: string;
+  grants: string;
+  kitBom: { qty: number; part: string }[];
+  instructions: { kid: string[]; adult: string[] };
+};
+
+// Bind the fluency seam for a child into the pure `FluencyOf` the derivation wants.
+function fluencyOfFor(playerId: string): FluencyOf {
+  return (code) => fluencyFluentMeasured(playerId, code);
+}
+
+function korkortView(k: KorkortDef, state: KorkortState): KorkortView {
+  return {
+    id: k.id,
+    namn: k.namn,
+    tier: k.tier,
+    state,
+    prov: k.prov,
+    grants: k.grants,
+    kitBom: k.kitBom.map((l) => ({ qty: l.qty, part: l.part })),
+    instructions: { kid: [...k.instructions.kid], adult: [...k.instructions.adult] },
+  };
+}
+
+// Every körkort's state for a child (LOCKED / TODO / EARNED), derived from fluency + capabilities.
+export function korkortStatuses(playerId: string): KorkortView[] {
+  const owned = repo.electronicsCapabilities(playerId);
+  const fluencyOf = fluencyOfFor(playerId);
+  return KORKORT.map((k) => korkortView(k, korkortState(k, fluencyOf, owned)));
+}
+
+// The child's shelf körkort: only what they own or are ready to build (TODO + EARNED) — LOCKED
+// körkort are not shown (nothing to witness yet, and never a comparison). Their own shelf only.
+export function shelfKorkort(playerId: string): KorkortView[] {
+  return korkortStatuses(playerId).filter((v) => v.state !== 'locked');
+}
+
+// Phase-1 reveal: the körkort that are TODO now AND whose flip is attributable to a fluency crossing
+// that happened THIS session (a code in `crossedCodes`). A körkort flips to TODO exactly when its LAST
+// remaining requirement reaches fluent && measured; that measured crossing is one of this session's
+// diplomas — so this fires in the flip session and not forever after. Returns the display names.
+export function newlyTodoKorkort(playerId: string, crossedCodes: readonly string[]): string[] {
+  if (crossedCodes.length === 0) return [];
+  const crossed = new Set(crossedCodes);
+  const owned = repo.electronicsCapabilities(playerId);
+  const fluencyOf = fluencyOfFor(playerId);
+  return KORKORT.filter(
+    (k) =>
+      korkortState(k, fluencyOf, owned) === 'todo' &&
+      k.fluencyRequires.some((c) => crossed.has(c)),
+  ).map((k) => k.namn);
+}
+
+// Which körkort a given capability grant EARNS — so the adult-approval surface can name the körkort a
+// build completion just unlocked. Derived from the registry (no körkort-specific record needed).
+export function korkortEarnedByCapability(capability: string): KorkortDef | null {
+  return KORKORT.find((k) => k.grants === capability) ?? null;
 }
 
 // ── Adult-confirmed writes (the ONE write that crosses back, boundary §3) ───────────────────────

@@ -29,6 +29,16 @@ type LadderRow = {
   kitBom: { qty: number; part: string }[];
   instructions: string[];
 };
+type Korkort = {
+  id: string;
+  namn: string;
+  tier: string;
+  state: 'locked' | 'todo' | 'earned';
+  prov: string;
+  grants: string;
+  kitBom: { qty: number; part: string }[];
+  instructions: { kid: string[]; adult: string[] };
+};
 type Player = {
   id: string;
   icon: string;
@@ -36,6 +46,7 @@ type Player = {
   ladder: LadderRow[];
   capabilities: { capability: string; granted_at: number; source: string }[];
   alerts: unknown[];
+  korkort: Korkort[];
 };
 type Data = { authorized: boolean; adult: boolean; players: Player[] };
 
@@ -119,6 +130,8 @@ function BuildLadder() {
         </div>
       )}
 
+      {player && player.korkort.length > 0 && <KorkortStrip korkort={player.korkort} />}
+
       {player?.ladder.map((row) => (
         <BuildCard
           key={row.buildId}
@@ -127,6 +140,59 @@ function BuildLadder() {
           onComplete={() => confirmBuild(player.id, row.buildId)}
           onConfirmEquipment={(cap) => confirmEquipment(player.id, cap)}
         />
+      ))}
+    </div>
+  );
+}
+
+// The KÖRKORT strip (docs/electronics-korkort-flow.md): the three-state körkort a master approves at
+// the bench. EARNED derives from the capability the build approval below already grants — this strip
+// just witnesses it. Approval carries NO score; a körkort is private and never a comparison.
+function KorkortStrip({ korkort }: { korkort: Korkort[] }) {
+  const KSTATE: Record<Korkort['state'], string> = {
+    locked: 'låst',
+    todo: 'redo för prov',
+    earned: '🎖️ godkänt körkort',
+  };
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+      <h2 style={{ fontSize: '1.1rem', margin: '0.5rem 0 0' }}>Körkort</h2>
+      {korkort.map((k) => (
+        <div
+          key={k.id}
+          style={{
+            border: '1px solid var(--line, #ddd)',
+            borderRadius: 12,
+            padding: '0.8rem',
+            opacity: k.state === 'locked' ? 0.7 : 1,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+            <strong>Körkort: {k.namn}</strong>
+            <span className="muted" style={{ whiteSpace: 'nowrap' }}>{KSTATE[k.state]}</span>
+          </div>
+          {k.state === 'todo' && (
+            <div className="muted" style={{ marginTop: '0.5rem', fontSize: '0.9rem' }}>
+              <p style={{ margin: '0 0 0.4rem' }}><strong>Prov:</strong> {k.prov}</p>
+              <details>
+                <summary>Byggsats + vad du godkänner</summary>
+                <ul style={{ margin: '0.4rem 0' }}>
+                  {k.kitBom.map((l, i) => (
+                    <li key={i}>{l.qty}× {l.part}</li>
+                  ))}
+                </ul>
+                <ol style={{ margin: '0.4rem 0' }}>
+                  {k.instructions.adult.map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </details>
+              <p style={{ marginTop: '0.4rem', fontSize: '0.82rem' }}>
+                Godkänn körkortet genom att bekräfta rätt bygge nedan.
+              </p>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -198,7 +264,7 @@ function BuildCard({
             </ol>
           </details>
           {row.status === 'ready' && adult && (
-            <button className="softbtn" onClick={onComplete}>Bekräfta: klart ✓</button>
+            <button className="softbtn" onClick={onComplete}>Godkänn körkort: klart ✓</button>
           )}
           {row.status === 'ready' && !adult && (
             <p className="muted" style={{ fontSize: '0.85rem' }}>En vuxen bekräftar när bygget är klart.</p>

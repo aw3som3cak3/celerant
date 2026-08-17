@@ -14,6 +14,7 @@ import { skillLabel } from './labels';
 import { extractFeatures, FEATURES_VERSION } from './features';
 import { answerLengthOf, buildItem } from './item';
 import { nextBurstCode, settleBurstOnAnswer } from './burst';
+import { newlyTodoKorkort } from './electronics';
 import { acquisitionPlans, noteScaffoldServed, servedLevel, isScaffolded, settleAcquisitionOnAnswer, type AcquisitionPlan } from './acquisition';
 import { L_BARE, type StrategyId } from './acquisition-content';
 
@@ -601,7 +602,7 @@ export function sessionSelectOpts(player: SessionPlayer, sessionId: number | und
 
 export type SessionAnswerResult =
   | { status: 'retry' }
-  | { status: 'correct' | 'revealed'; steps: string[]; session?: SessionProgress; next: IssuedItem | null; diplomas?: string[] };
+  | { status: 'correct' | 'revealed'; steps: string[]; session?: SessionProgress; next: IssuedItem | null; diplomas?: string[]; korkort?: string[] };
 
 // A1: idempotent on idemKey; grades authoritatively by re-generating from the seed;
 // first-try-wrong returns retry and records NOTHING (identical to the pending flow);
@@ -687,8 +688,20 @@ export function sessionAnswer(
   const next = done ? null : issueNext(playerId, player.school_year, now, sessionSelectOpts(player, sessionId, now));
   // B1: on the last item, reveal any diplomas the child earned via a burst crossing this session
   // (batched, peak-end — never mid-session). Labels, so the client just renders them.
-  const diplomas = done && sessionId != null ? repo.burstDiplomasInSession(sessionId).map(skillLabel) : undefined;
-  return { status: correct ? 'correct' : 'revealed', steps: it.steps, session, next, diplomas };
+  const crossedCodes = done && sessionId != null ? repo.burstDiplomasInSession(sessionId) : [];
+  const diplomas = crossedCodes.length > 0 ? crossedCodes.map(skillLabel) : undefined;
+  // KÖRKORT phase-1 reveal (docs/electronics-korkort-flow.md): a körkort that flipped LOCKED→TODO
+  // this session (its last fluency requirement crossed here) is witnessed on the done screen — a
+  // gentle "du är flytande → nästa: körkort X vid stationen". No bonus, no points. Test-family gated
+  // like the rest of the electronics surfaces. The persistent TODO plaque lives on the shelf.
+  const korkort =
+    done && crossedCodes.length > 0 && repo.isTestFamilyPlayer(playerId)
+      ? (() => {
+          const names = newlyTodoKorkort(playerId, crossedCodes);
+          return names.length > 0 ? names : undefined;
+        })()
+      : undefined;
+  return { status: correct ? 'correct' : 'revealed', steps: it.steps, session, next, diplomas, korkort };
 }
 
 // Test-only: read the stashed answer for a pending item (the client never can).

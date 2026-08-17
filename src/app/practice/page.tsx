@@ -27,7 +27,7 @@ type Item = { code: string; seed: number; family: string; answerLength: number; 
 type Session = { completed: number; target: number; done: boolean };
 type AnswerResp =
   | { status: 'retry' }
-  | { status: 'correct' | 'revealed'; steps?: string[]; session?: Session; next: Item | null; diplomas?: string[] };
+  | { status: 'correct' | 'revealed'; steps?: string[]; session?: Session; next: Item | null; diplomas?: string[]; korkort?: string[] };
 type Choice = { code: string; label: string; sample: string };
 
 const QUIET_WORDS: Record<string, string[]> = {
@@ -58,6 +58,7 @@ function Practice() {
   const [icon, setIcon] = useState<string | null>(null);
   const [hasDiplomas, setHasDiplomas] = useState(false);
   const [diplomas, setDiplomas] = useState<string[]>([]); // diplomas earned via a burst this session (WS III B1)
+  const [korkort, setKorkort] = useState<string[]>([]); // electronics körkort that flipped LOCKED→TODO this session
   const triesRef = useRef(1); // client-tracked try count for the CURRENT item (1, then 2 on a retry)
   const autoStarted = useRef(false);
   const resumingRef = useRef(false);
@@ -222,7 +223,10 @@ function Practice() {
           playerId, sessionId, code: c.code, seed: c.seed, given, idk: c.idk, tries: triesRef.current, warmup: item.warmup, intervalMs: c.intervalMs, idemKey: c.idemKey, env: c.env,
         });
         ackAnswers([c.idemKey]); // the server processed it (recorded or a retry) — clear it
-        if (r.status !== 'retry' && r.session?.done) setDiplomas(r.diplomas ?? []); // B1: this session's burst crossings
+        if (r.status !== 'retry' && r.session?.done) {
+          setDiplomas(r.diplomas ?? []); // B1: this session's burst crossings
+          setKorkort(r.korkort ?? []); // körkort that flipped LOCKED→TODO this session (test family)
+        }
         if (r.status === 'retry') {
           triesRef.current = 2;
           setRetry(true);
@@ -313,6 +317,15 @@ function Practice() {
             <p><Emoji e="🏅" /> {diplomas.length === 1
               ? `Grattis! Du fick diplom i ${diplomas[0]}.`
               : `Grattis! Du fick diplom i ${diplomas.slice(0, -1).join(', ')} och ${diplomas[diplomas.length - 1]}.`}</p>
+          </div>
+        )}
+        {korkort.length > 0 && (
+          // KÖRKORT phase-1: a gentle witness that a skill is now FLUENT and a physical next step
+          // waits at the station. Not a prize — a hand-off. No number, no speed. (Test family only.)
+          <div className="diploma-earned korkort-todo">
+            {korkort.map((namn) => (
+              <p key={namn}><Emoji e="⏳" /> Du är flytande! Nästa: körkort <strong>{namn}</strong> vid elektronikstationen.</p>
+            ))}
           </div>
         )}
         <div style={{ marginTop: '1.5rem', display: 'flex', gap: '0.8rem', flexWrap: 'wrap', justifyContent: 'center' }}>
