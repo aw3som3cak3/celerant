@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- CORRECT model: a COMPLETE loop — two wires, battery to LED and back. LED lit. -->
+  <rect x="20" y="24" width="80" height="72" rx="4" fill="none" stroke="#555" stroke-width="4"/>
+  <!-- battery on the left edge -->
+  <line x1="14" y1="52" x2="26" y2="52" stroke="#333" stroke-width="6"/>
+  <line x1="16" y1="66" x2="24" y2="66" stroke="#333" stroke-width="3"/>
+  <!-- LED on the right edge, glowing -->
+  <circle cx="100" cy="60" r="12" fill="#ffe100" stroke="#d4a800" stroke-width="2"/>
+  <g stroke="#ffcf00" stroke-width="3" stroke-linecap="round">
+    <line x1="100" y1="40" x2="100" y2="32"/><line x1="118" y1="60" x2="116" y2="60"/>
+    <line x1="86" y1="46" x2="80" y2="40"/><line x1="114" y1="46" x2="119" y2="41"/>
+  </g>
+</svg>

@@ -49,7 +49,8 @@ export function GET(req: NextRequest) {
   // table holds rows for every subject a child practises, so scope the loop by the skill's
   // subject or a spelling row would surface in the maths table.
   const subjParam = req.nextUrl.searchParams.get('subject');
-  const subject: Subject = subjParam === 'spelling' ? 'spelling' : subjParam === 'english' ? 'english' : 'maths';
+  const subject: Subject =
+    subjParam === 'spelling' ? 'spelling' : subjParam === 'english' ? 'english' : subjParam === 'electronics' ? 'electronics' : 'maths';
 
   const ability = repo.abilities(playerId);
   // Aim uses the SEED grade — the SAME grade the fluency layer gates milestones and

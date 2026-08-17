@@ -14,7 +14,12 @@ export type ChoicePromptData =
   // child; a `___` in it marks a CLOZE blank (rendered as a gap). `lang` says which tongue the
   // sentence is in — 'sv' when the Swedish sentence carries the MEANING and the options are the
   // candidate English renderings (the L1-pull discrimination), 'en' for an English cloze.
-  | { show: 'sentence'; text: string; lang: 'sv' | 'en' };
+  | { show: 'sentence'; text: string; lang: 'sv' | 'en' }
+  // ELECTRONICS (subject:'electronics'). An optional schematic/part image in the prompt area,
+  // referenced by name → /elec/<art>.svg. `art` present ⇒ show the picture (symbol-match shows the
+  // schematic symbol); `art` absent ⇒ nothing shown, the Swedish `question` alone drives the pick
+  // (the model-vs-misconception items: "Vilken bild visar hur strömmen går?" with circuit options).
+  | { show: 'elec'; art?: string; label?: string };
 
 export type ChoiceOption =
   | { value: number; render: 'numeral' } // tap the digit
@@ -26,7 +31,8 @@ export type ChoiceOption =
   | { value: string; render: 'picto'; kind: string } // tap the ARASAAC pictogram /pictos/<kind>.png — for verbs/attributes the emoji photo-set lacks (English Phase B/C)
   | { value: string; render: 'sizednoun'; kind: string; big: boolean } // two-word recombination: the noun emoji shown BIG or small ("big cat") — English Phase B
   | { value: string; render: 'nounverb'; noun: string; verb: string } // SVO frame: agent emoji + action picto ("the dog is running") — English Phase C
-  | { value: string; render: 'word' }; // tap the printed WORD — value IS the word string, graded (English print bridge, Phase D)
+  | { value: string; render: 'word' } // tap the printed WORD — value IS the word string, graded (English print bridge, Phase D)
+  | { value: string; render: 'elec'; art: string }; // ELECTRONICS: tap the part / schematic / circuit image /elec/<art>.svg — value is graded (a part key or model tag). The documented MISCONCEPTIONS are authored as the distractor `art`s.
 
 // Carried on Item.choice for a recognition rung. `question` and any option `label`s are
 // display strings held here (Swedish, like the maths `steps`) — the render layer shows

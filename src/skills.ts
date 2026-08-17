@@ -29,7 +29,7 @@ export type Rng = {
 // second subject (spelling) can be pooled, mapped, seeded and gated SEPARATELY without
 // silently mixing — see the SKILLS-iteration register. Defaulted in S() so authoring a
 // maths skill never has to name it.
-export type Subject = "maths" | "spelling" | "english";
+export type Subject = "maths" | "spelling" | "english" | "electronics";
 
 export type Answer =
   | { kind: "int"; v: number }
@@ -1402,9 +1402,186 @@ const tierEnglish: Skill[] = [
   }),
 ];
 
+/* ═══ TIER · ELECTRONICS (subject: 'electronics') — first slice "Tänd en lysdiod" ═══════ */
+// The fourth subject and the first DOWNSTREAM one (docs/electronics-subject-plan.md): it CONSUMES
+// the other subjects, so crossRequires finally does real work and maths visibly pays off. Slotted in
+// engine-untouched, exactly like English: subject:'electronics', intra-subject `requires`,
+// cross-subject maths gates via `crossRequires`. Three tiers, in Concrete→Representational→Abstract
+// (CRA) dependency order:
+//   • MODEL (accuracy, format:'choice' ⇒ non-sprintable): the conceptual model taught AGAINST the
+//     documented Shipstone misconceptions — each wrong model is authored as a discrimination
+//     distractor (plan §1b). No calculation is eligible until the model tier is met (§1a).
+//   • RECOGNITION (fluency via the recognition crossing, format:'choice'): part-from-image, symbol→part.
+//   • CALCULATION (fluency, numpad ⇒ sprintable): resistor sizing, colour-band value, series total —
+//     each CROSS-GATED on the maths it consumes, and gated on the model tier.
+// Every rung carries Swedish instructions, so every rung also crossRequires READING_READY (§3).
+// Images are simple placeholder SVGs under /public/elec (see report — all need real art). The build
+// handoff (build_light_led_coin) and the durable-capability/alert surface are a LATER slice (§5.3);
+// nothing here touches selector/θ/gate/ledger (A11 boundary).
+const ELEC_DIV = "div_mixed"; // "consumes division"
+const ELEC_SUB = "sub_within_10"; // the small subtraction Vsupply − Vled
+const ELEC_ADD = "add_2d_carry"; // two-digit addition (series total)
+const ELEC_PLACE = "mult_by_powers_of_ten"; // place value / powers of ten (colour bands)
+
+const ELEC_PARTS = [
+  { key: "led", sv: "lysdiod", art: "led" },
+  { key: "resistor", sv: "motstånd", art: "resistor" },
+  { key: "battery", sv: "batteri", art: "battery" },
+  { key: "breadboard", sv: "kopplingsdäck", art: "breadboard" },
+] as const;
+
+const ELEC_SYMBOLS = [
+  { part: "led", sv: "lysdiod", sym: "sym_led", art: "led" },
+  { part: "resistor", sv: "motstånd", sym: "sym_resistor", art: "resistor" },
+  { part: "battery", sv: "batteri", sym: "sym_battery", art: "battery" },
+] as const;
+
+// Swedish resistor colour code (index === digit). svart=0 … vit=9; the multiplier band's colour digit
+// IS the power of ten (svart ×10^0, brun ×10^1) — that is the place-value link elec_colour_value trains.
+const ELEC_COLOURS = ["svart", "brun", "röd", "orange", "gul", "grön", "blå", "violett", "grå", "vit"] as const;
+
+const shuffle = <T>(r: Rng, xs: T[]): T[] => {
+  for (let i = xs.length - 1; i > 0; i--) { const j = r.int(0, i); [xs[i], xs[j]] = [xs[j], xs[i]]; }
+  return xs;
+};
+// A tappable electronics image whose graded value IS its art name (model + circuit picks).
+const elecOpt = (art: string): ChoiceOption => ({ value: art, render: "elec", art });
+
+const tierElectronics: Skill[] = [
+  // ── MODEL tier (accuracy-graded; distractors = the named misconceptions, plan §1b) ──
+  S({
+    // A complete LOOP needs TWO connections — trained against the unipolar / one-wire misconception
+    // (and clashing-currents as a second lure).
+    code: "elec_loop", subject: "electronics", family: "elec_model", year: 1, mode: "component", format: "choice",
+    requires: [], crossRequires: [READING_READY],
+    generate: (r) => ({
+      prompt: "", answer: { kind: "word", text: "loop_ok" },
+      steps: ["Strömmen behöver en hel slinga — två sladdar, fram och tillbaka."],
+      choice: {
+        prompt: { show: "elec" },
+        question: "Vilken bild visar hur lampan lyser?",
+        options: shuffle(r, [elecOpt("loop_ok"), elecOpt("loop_unipolar"), elecOpt("loop_clash")]),
+      },
+    }),
+  }),
+  S({
+    // Current is the SAME all the way round; nothing is "used up" — against consumption / cookie-monster
+    // (use the moving-rope-loop framing in `steps`, not water/pressure — plan §1e).
+    code: "elec_not_consumed", subject: "electronics", family: "elec_model", year: 1, mode: "component", format: "choice",
+    requires: ["elec_loop"], crossRequires: [READING_READY],
+    generate: (r) => ({
+      prompt: "", answer: { kind: "word", text: "flow_ok" },
+      steps: ["Strömmen är lika stor hela vägen runt — som ett rep i en ögla: hela öglan rör sig på en gång, inget försvinner."],
+      choice: {
+        prompt: { show: "elec" },
+        question: "I vilken bild är strömmen lika stor hela vägen runt?",
+        options: shuffle(r, [elecOpt("flow_ok"), elecOpt("flow_used_up"), elecOpt("loop_clash")]),
+      },
+    }),
+  }),
+  S({
+    // Polarity: an LED has a + and − leg and lights ONE way — a fact, drilled as a right-vs-reversed
+    // discrimination (the reversed LED is the errorless distractor).
+    code: "elec_polarity", subject: "electronics", family: "elec_model", year: 1, mode: "component", format: "choice",
+    requires: ["elec_not_consumed"], crossRequires: [READING_READY],
+    generate: (r) => ({
+      prompt: "", answer: { kind: "word", text: "led_fwd" },
+      steps: ["Lysdioden lyser bara åt ett håll: långa benet mot plus (+)."],
+      choice: {
+        prompt: { show: "elec" },
+        question: "Vilken lysdiod lyser? (långa benet mot +)",
+        options: shuffle(r, [elecOpt("led_fwd"), elecOpt("led_rev")]),
+      },
+    }),
+  }),
+
+  // ── RECOGNITION tier (fluency via the recognition crossing) ──
+  S({
+    // Identify LED / resistor / battery / breadboard from an image.
+    code: "elec_id_parts", subject: "electronics", family: "elec_recog", year: 1, mode: "component", format: "choice",
+    requires: [], crossRequires: [READING_READY],
+    generate: (r) => {
+      const target = r.pick(ELEC_PARTS);
+      return {
+        prompt: "", answer: { kind: "word", text: target.key }, steps: [target.sv],
+        choice: {
+          prompt: { show: "elec" },
+          question: `Vilken bild visar en ${target.sv}?`,
+          options: shuffle(r, ELEC_PARTS.map((p): ChoiceOption => ({ value: p.key, render: "elec", art: p.art }))),
+        },
+      };
+    },
+  }),
+  S({
+    // Match a schematic SYMBOL → the physical part. Gated on id_parts AND the whole model tier
+    // (elec_polarity ⇒ not_consumed ⇒ loop), so "the model comes first" holds (§1a).
+    code: "elec_symbol_match", subject: "electronics", family: "elec_recog", year: 2, mode: "component", format: "choice",
+    requires: ["elec_id_parts", "elec_polarity"], crossRequires: [READING_READY],
+    generate: (r) => {
+      const target = r.pick(ELEC_SYMBOLS);
+      return {
+        prompt: "", answer: { kind: "word", text: target.part }, steps: [`Symbolen är en ${target.sv}.`],
+        choice: {
+          prompt: { show: "elec", art: target.sym },
+          question: "Vilken del hör ihop med symbolen?",
+          options: shuffle(r, ELEC_SYMBOLS.map((s): ChoiceOption => ({ value: s.part, render: "elec", art: s.art }))),
+        },
+      };
+    },
+  }),
+
+  // ── CALCULATION tier (fluency, numpad; cross-gated on maths AND gated on the model tier) ──
+  S({
+    // Current-limiting resistor: R = (Vsupply − Vled) / I. Slice-1 supply is a coin cell (≈3 V) — the
+    // build agent owns higher tiers. Whole-number arithmetic: Vled=2 and (Vsupply, I) chosen so the
+    // subtraction stays within 10 and the division is exact. crossRequires subtraction + division.
+    code: "elec_resistor_pick", subject: "electronics", family: "elec_calc", year: 5, mode: "component",
+    requires: ["elec_symbol_match"], crossRequires: [READING_READY, ELEC_SUB, ELEC_DIV],
+    generate: (r) => {
+      const vled = 2;
+      const { vs, i, q } = until(
+        () => { const I = r.int(1, 4), Q = r.int(1, 8), diff = I * Q; return { vs: vled + diff, i: I, q: Q }; },
+        (v) => v.vs <= 10,
+      );
+      return {
+        prompt: `Motstånd: (${vs} − ${vled}) / ${i} =`, answer: int(q),
+        steps: [`Spänning över motståndet: ${vs} − ${vled} = ${vs - vled}`, `${vs - vled} / ${i} = ${q}`],
+      };
+    },
+  }),
+  S({
+    // Read a resistor's colour bands → value: two significant digits, then a ×10^m multiplier band —
+    // a rule-walk (colour→digit, then place value). The `steps` walk the rule on a miss (teach, don't
+    // just test — via the existing reveal mechanism; see the report on why the self-fading acquisition
+    // scaffold is deferred for a numpad rung). crossRequires place-value / powers of ten.
+    code: "elec_colour_value", subject: "electronics", family: "elec_calc", year: 4, mode: "component",
+    requires: ["elec_id_parts", "elec_polarity"], crossRequires: [READING_READY, ELEC_PLACE],
+    generate: (r) => {
+      const d1 = r.int(1, 9), d2 = r.int(0, 9), m = r.int(0, 1); // first digit never 0; multiplier ×1 or ×10
+      const value = (d1 * 10 + d2) * 10 ** m;
+      return {
+        prompt: `${ELEC_COLOURS[d1]} ${ELEC_COLOURS[d2]} ${ELEC_COLOURS[m]} =`, answer: int(value),
+        steps: [`${ELEC_COLOURS[d1]}=${d1}, ${ELEC_COLOURS[d2]}=${d2} → ${d1 * 10 + d2}`, `× 10^${m} = ${value} (Ω)`],
+      };
+    },
+  }),
+  S({
+    // Two resistors in SERIES add up. crossRequires addition.
+    code: "elec_series_add", subject: "electronics", family: "elec_calc", year: 3, mode: "component",
+    requires: ["elec_symbol_match"], crossRequires: [READING_READY, ELEC_ADD],
+    generate: (r) => {
+      const r1 = r.int(10, 89), r2 = r.int(10, 89);
+      return {
+        prompt: `${r1} Ω + ${r2} Ω i serie =`, answer: int(r1 + r2),
+        steps: [`I serie adderas motstånden: ${r1} + ${r2} = ${r1 + r2} Ω`],
+      };
+    },
+  }),
+];
+
 /* ═══ export ══════════════════════════════════════════════════════════ */
 
-export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8, ...tierSpelling, ...tierEnglish];
+export const SKILLS: Skill[] = [...tierGround, ...tier0, ...tier1, ...tier2, ...tierDecimals, ...tier3, ...tier4, ...tier5, ...tier6, ...tier7, ...tier8, ...tierSpelling, ...tierEnglish, ...tierElectronics];
 
 export const BY_CODE = new Map(SKILLS.map((s) => [s.code, s]));
 

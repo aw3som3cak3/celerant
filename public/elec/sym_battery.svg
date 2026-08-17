@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER battery/cell schematic symbol (long + short plates). Needs real art. -->
+  <line x1="12" y1="60" x2="50" y2="60" stroke="#444" stroke-width="3"/>
+  <line x1="50" y1="38" x2="50" y2="82" stroke="#444" stroke-width="3"/>
+  <line x1="62" y1="48" x2="62" y2="72" stroke="#444" stroke-width="3"/>
+  <line x1="62" y1="60" x2="108" y2="60" stroke="#444" stroke-width="3"/>
+  <text x="44" y="30" font-size="14" text-anchor="middle" fill="#444">+</text>
+  <text x="70" y="30" font-size="16" text-anchor="middle" fill="#444">−</text>
+</svg>

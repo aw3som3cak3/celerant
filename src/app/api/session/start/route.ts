@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
 const Body = z.object({
   playerId: z.string().min(1),
   again: z.boolean().optional(),
-  subject: z.enum(['maths', 'spelling', 'english']).optional(), // an explicit single-subject entry (e.g. a map deep-link)
+  subject: z.enum(['maths', 'spelling', 'english', 'electronics']).optional(), // an explicit single-subject entry (e.g. a map deep-link)
   headphones: z.boolean().optional(), // the mixed-Öva "har du hörlurar?" answer — audio subjects join only when true
 });
 

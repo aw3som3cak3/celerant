@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- CORRECT model: current is the SAME all the way round — equal arrows before and after the LED. -->
+  <rect x="20" y="24" width="80" height="72" rx="4" fill="none" stroke="#555" stroke-width="4"/>
+  <line x1="14" y1="52" x2="26" y2="52" stroke="#333" stroke-width="6"/>
+  <line x1="16" y1="66" x2="24" y2="66" stroke="#333" stroke-width="3"/>
+  <circle cx="100" cy="60" r="11" fill="#ffe100" stroke="#d4a800" stroke-width="2"/>
+  <!-- four EQUAL arrows around the loop -->
+  <g stroke="#1e88e5" stroke-width="3" fill="#1e88e5">
+    <line x1="50" y1="24" x2="66" y2="24"/><polygon points="66,24 60,20 60,28"/>
+    <line x1="100" y1="70" x2="100" y2="84"/><polygon points="100,84 96,78 104,78"/>
+    <line x1="66" y1="96" x2="50" y2="96"/><polygon points="50,96 56,92 56,100"/>
+    <line x1="20" y1="70" x2="20" y2="56"/><polygon points="20,56 16,62 24,62"/>
+  </g>
+</svg>

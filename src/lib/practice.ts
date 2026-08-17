@@ -129,7 +129,13 @@ export type NextItem = {
 // has never met it (see selector `introduceCodes`). Grade-based seeding marks them fluent for an
 // older child, so without this they'd be perpetually skipped. Safe to leave entries here after
 // every child has met them (the never-seen check makes it a no-op); prune when tidying.
-const INTRODUCE_SKILLS: ReadonlySet<string> = new Set(['double_within_20', 'half_within_20']);
+export const INTRODUCE_SKILLS: ReadonlySet<string> = new Set([
+  'double_within_20', 'half_within_20',
+  // Electronics slice 1 (brand-new to EVERY player, so grade-seeding marks them fluent and they'd be
+  // perpetually skipped): introduce the recognition + model rungs once, the double/half pattern. The
+  // calc rungs are NOT listed — they are cross-gated on maths and meet the child through the graph.
+  'elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match',
+]);
 
 export type NextOpts = {
   stretch?: boolean; // shift the success target 0.80 -> 0.65

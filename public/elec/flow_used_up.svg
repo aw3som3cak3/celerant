@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- MISCONCEPTION: current "used up" (cookie-monster) — big arrow before the LED, tiny after. -->
+  <rect x="20" y="24" width="80" height="72" rx="4" fill="none" stroke="#555" stroke-width="4"/>
+  <line x1="14" y1="52" x2="26" y2="52" stroke="#333" stroke-width="6"/>
+  <line x1="16" y1="66" x2="24" y2="66" stroke="#333" stroke-width="3"/>
+  <circle cx="100" cy="60" r="11" fill="#ffe100" stroke="#d4a800" stroke-width="2"/>
+  <!-- BIG arrow entering the LED (top), TINY arrow leaving (bottom) -->
+  <g stroke="#e53935" fill="#e53935">
+    <line x1="44" y1="24" x2="70" y2="24" stroke-width="6"/><polygon points="70,24 60,17 60,31"/>
+    <line x1="70" y1="96" x2="62" y2="96" stroke-width="2"/><polygon points="62,96 66,93 66,99"/>
+  </g>
+</svg>

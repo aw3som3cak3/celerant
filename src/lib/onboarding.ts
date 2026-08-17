@@ -80,7 +80,7 @@ export function seedGradeFor(chosenGrade: number): number {
 // are untouched — only the GRADE handed to the seed is subject-aware (threaded through replay +
 // buildStates). A per-child "English level" can later raise this above the beginner floor.
 export const ENGLISH_SEED_GRADE = 0;
-export function subjectSeedGrade(schoolYear: number, subject: 'maths' | 'spelling' | 'english'): number {
+export function subjectSeedGrade(schoolYear: number, subject: 'maths' | 'spelling' | 'english' | 'electronics'): number {
   return subject === 'english' ? ENGLISH_SEED_GRADE : seedGradeFor(schoolYear);
 }
 

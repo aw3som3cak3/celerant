@@ -111,6 +111,15 @@ const EXACT: Record<string, string> = {
   lin_a_paren_x_plus_b: 'a(x + b) = c',
   lin_x_both_sides: 'x på båda sidor',
   lin_paren_both_sides: 'parentes, båda sidor',
+  // Electronics (subject: 'electronics') — slice 1 "Tänd en lysdiod".
+  elec_loop: 'sluten krets',
+  elec_not_consumed: 'strömmen förbrukas inte',
+  elec_polarity: 'lysdiodens plus och minus',
+  elec_id_parts: 'känn igen delarna',
+  elec_symbol_match: 'symbol → del',
+  elec_resistor_pick: 'välj motståndet',
+  elec_colour_value: 'färgkoder → ohm',
+  elec_series_add: 'motstånd i serie',
 };
 
 export function skillLabel(code: string): string {

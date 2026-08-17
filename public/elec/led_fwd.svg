@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- CORRECT polarity: long leg to + — the LED lights. -->
+  <line x1="12" y1="40" x2="12" y2="80" stroke="#333" stroke-width="5"/>
+  <text x="12" y="30" font-size="16" text-anchor="middle" fill="#333">+</text>
+  <line x1="12" y1="60" x2="40" y2="60" stroke="#666" stroke-width="3"/><!-- long leg -->
+  <circle cx="60" cy="60" r="16" fill="#ffe100" stroke="#d4a800" stroke-width="2"/>
+  <line x1="76" y1="60" x2="96" y2="60" stroke="#666" stroke-width="3"/><!-- short leg -->
+  <line x1="100" y1="44" x2="100" y2="76" stroke="#333" stroke-width="5"/>
+  <text x="100" y="30" font-size="18" text-anchor="middle" fill="#333">−</text>
+  <g stroke="#ffcf00" stroke-width="3" stroke-linecap="round">
+    <line x1="60" y1="40" x2="60" y2="32"/><line x1="46" y1="46" x2="40" y2="40"/><line x1="74" y1="46" x2="80" y2="40"/>
+  </g>
+</svg>

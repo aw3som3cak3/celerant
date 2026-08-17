@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER resistor schematic symbol (zig-zag). Needs real art. -->
+  <polyline points="12,60 34,60 40,46 52,74 64,46 76,74 86,60 108,60"
+    fill="none" stroke="#444" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>
+</svg>

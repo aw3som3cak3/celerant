@@ -19,15 +19,15 @@ export type WordPool = { practice: readonly string[]; holdout: readonly string[]
 // spelling_t1c, plus the p-band — keeps writing out of reach until she can decode/recognise. So
 // spelling is offered to EVERYONE, headphone-gated; the ladder + band decide who's ready for what.
 export function mixedSubjectsFor(opts: {
-  explicit?: 'maths' | 'spelling' | 'english';
+  explicit?: 'maths' | 'spelling' | 'english' | 'electronics';
   headphones?: boolean;
   schoolYear?: number;
-}): ('maths' | 'spelling' | 'english')[] {
+}): ('maths' | 'spelling' | 'english' | 'electronics')[] {
   if (opts.explicit) return [opts.explicit];
   // Build the active SET (no longer a hardcoded pair). Maths always; the audio subjects only with
   // headphones — Swedish spelling for everyone, English once the child reads/writes some (the
   // readiness gate). The graph + p-band still decide who's ready for what within each subject.
-  const subjects: ('maths' | 'spelling' | 'english')[] = ['maths'];
+  const subjects: ('maths' | 'spelling' | 'english' | 'electronics')[] = ['maths'];
   if (opts.headphones) {
     subjects.push('spelling');
     if (englishReady(opts.schoolYear ?? 0)) subjects.push('english');

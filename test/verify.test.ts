@@ -70,10 +70,12 @@ const verifyItem = (it: Item): Result => {
     return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
   }
 
-  // Word-prompt maths (a Swedish operation word, not a symbolic expression): "n/d av q",
-  // "Förkorta …", and the mental-math "dubbla X" / "hälften av X". Not evaluable as an
-  // expression, so verify what applies — the final step states the answer.
-  if (/av|Förkorta|dubbla|hälften/.test(prompt)) {
+  // Word-prompt maths (a Swedish operation word, not a bare symbolic expression): "n/d av q",
+  // "Förkorta …", the mental-math "dubbla X" / "hälften av X", and the ELECTRONICS calc rungs
+  // whose arithmetic is wrapped in electronics words/units ("Motstånd: (Vs − Vled) / I =",
+  // "R1 Ω + R2 Ω i serie ="). Not evaluable as a bare expression, so verify what applies — the
+  // final step states the answer.
+  if (/av|Förkorta|dubbla|hälften|Motstånd|serie|Ω/.test(prompt)) {
     return steps.at(-1)?.includes(String(v)) ? { ok: true } : { ok: false, why: 'final step omits answer' };
   }
 

@@ -723,7 +723,7 @@ export type SessionRunRow = {
   ended_at: number | null;
   ended_early: number;
   started_at: number;
-  subject: 'maths' | 'spelling' | 'english';
+  subject: 'maths' | 'spelling' | 'english' | 'electronics';
   subjects: string | null; // JSON array of active subjects for a MIXED session; NULL = single (use `subject`)
 };
 
@@ -731,8 +731,8 @@ export function createSessionRun(
   playerId: string,
   target: number,
   now: number,
-  subject: 'maths' | 'spelling' | 'english' = 'maths',
-  subjects?: readonly ('maths' | 'spelling' | 'english')[], // pass the SET for a mixed Öva; omit for single-subject
+  subject: 'maths' | 'spelling' | 'english' | 'electronics' = 'maths',
+  subjects?: readonly ('maths' | 'spelling' | 'english' | 'electronics')[], // pass the SET for a mixed Öva; omit for single-subject
 ): number {
   // An accidental open with no answered question is NOT a session (a wrong icon +
   // "tillbaka"). Clear the player's prior empty, still-open runs so they never

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- MISCONCEPTION: clashing currents — both terminals wire to the SAME LED leg; arrows collide. LED dark. -->
+  <polyline points="20,30 100,30 100,52" fill="none" stroke="#555" stroke-width="4"/>
+  <polyline points="20,90 100,90 100,68" fill="none" stroke="#555" stroke-width="4"/>
+  <line x1="14" y1="34" x2="26" y2="34" stroke="#333" stroke-width="6"/>
+  <line x1="14" y1="86" x2="26" y2="86" stroke="#333" stroke-width="6"/>
+  <circle cx="100" cy="60" r="12" fill="#c9c9c9" stroke="#999" stroke-width="2"/>
+  <!-- two arrows meeting head-on at the LED -->
+  <g stroke="#e53935" stroke-width="3" fill="#e53935">
+    <line x1="60" y1="30" x2="86" y2="30"/><polygon points="86,30 79,26 79,34"/>
+    <line x1="60" y1="90" x2="86" y2="90"/><polygon points="86,90 79,86 79,94"/>
+  </g>
+</svg>

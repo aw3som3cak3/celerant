@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- MISCONCEPTION: unipolar / one-wire — only ONE connection, so no loop. LED dark. -->
+  <!-- top wire connects, bottom wire is MISSING (dashed gap) -->
+  <polyline points="20,24 100,24 100,48" fill="none" stroke="#555" stroke-width="4"/>
+  <polyline points="20,96 20,24" fill="none" stroke="#555" stroke-width="4"/>
+  <line x1="20" y1="96" x2="70" y2="96" stroke="#bbb" stroke-width="4" stroke-dasharray="5 6"/>
+  <line x1="14" y1="52" x2="26" y2="52" stroke="#333" stroke-width="6"/>
+  <line x1="16" y1="66" x2="24" y2="66" stroke="#333" stroke-width="3"/>
+  <circle cx="100" cy="60" r="12" fill="#c9c9c9" stroke="#999" stroke-width="2"/>
+</svg>

@@ -153,6 +153,10 @@ export function ChoiceStage({
               i < arr.length - 1 ? [part, <span key={i} className="sentence-blank" aria-label="lucka" />] : [part],
             )}
           </div>
+        ) : prompt.show === 'elec' ? (
+          // ELECTRONICS: an optional schematic/part image (symbol-match); absent ⇒ question-only
+          // (the model-vs-misconception items, whose options carry the circuit pictures).
+          prompt.art ? <img className="choice-pic elec-prompt" src={`/elec/${prompt.art}.svg`} alt="" draggable={false} /> : null
         ) : prompt.show === 'group' ? (
           <div className="ground-prompt">
             <Objects kind={prompt.kind} n={prompt.a} />
@@ -252,6 +256,12 @@ export function ChoiceStage({
               // English print bridge (Phase D): tap the printed word you heard.
               <button key={i} className="ground-option word" onClick={() => pick(o.value)} disabled={disabled} type="button">
                 <span className="word-option">{o.value}</span>
+              </button>
+            ) : o.render === 'elec' ? (
+              // ELECTRONICS: tap the part / schematic / circuit image (/elec/<art>.svg). The
+              // model-tier distractors are the documented misconceptions authored as `art`s.
+              <button key={i} className="ground-option picture elec" onClick={() => pick(o.value)} disabled={disabled} type="button">
+                <img className="choice-pic" src={`/elec/${o.art}.svg`} alt="" draggable={false} />
               </button>
             ) : null,
           )}
