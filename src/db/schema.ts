@@ -475,4 +475,23 @@ CREATE TABLE IF NOT EXISTS acquisition_state (
   PRIMARY KEY (player_id, skill_code)
 );
 
+-- electronics_capability (docs/electronics-subject-plan.md §2b; boundary §1). A flat, DURABLE,
+-- θ-INERT fact per (child, capability): the equipment/safety capabilities a child has acquired
+-- (elec_cap_owns_breadboard, elec_cap_tier_3v, elec_cap_tier_5v, elec_cap_soldering) and one
+-- build_<id>_done per completed build. Granted on ADULT confirmation (an adult is already in the
+-- loop via the build alert). THE HARD RULE (same class as the motivational layer above): replay()
+-- never reads this table, and no selector / θ / rate / gate / ledger path ever reads it — a build
+-- capability is the making of a thing, never a measurement. Unlike the ability/acquisition_state
+-- CACHES it is NOT rebuilt by replay: it is a source-of-truth durable fact (an adult said so), so
+-- dropping a row LOSES data (it changes no θ, but it un-grants a real capability). First grant wins
+-- (idempotent); a completed build is permanent.
+CREATE TABLE IF NOT EXISTS electronics_capability (
+  player_id  TEXT NOT NULL REFERENCES player(id),
+  capability TEXT NOT NULL,          -- 'elec_cap_*' | 'build_<id>_done'
+  granted_at INTEGER NOT NULL,
+  source     TEXT NOT NULL,          -- 'adult_confirm' | 'build:<build_id>'
+  PRIMARY KEY (player_id, capability)
+);
+CREATE INDEX IF NOT EXISTS idx_electronics_capability_player ON electronics_capability(player_id, granted_at);
+
 `;

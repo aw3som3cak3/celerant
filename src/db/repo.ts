@@ -1602,6 +1602,42 @@ export function recentSkillOutcomes(playerId: string, codes: string[], perSkill:
   return out;
 }
 
+// ── ELECTRONICS build capabilities (durable, θ-INERT facts) ─────────────────
+// docs/electronics-subject-plan.md §2b; boundary §1. Flat per-(child, capability) records granted
+// on ADULT confirmation. THE HARD RULE: no replay / selector / θ / rate / gate path reads these —
+// a capability is the making of a thing, never a measurement. These writes are the ONLY thing this
+// subsystem persists; they touch none of the ledger tables above.
+
+export type ElectronicsCapabilityRow = { capability: string; granted_at: number; source: string };
+
+// Every capability this child owns, as a set of codes (for the readiness detector's equipment/tier
+// clauses). One query per readiness pass.
+export function electronicsCapabilities(playerId: string): Set<string> {
+  const rows = getDb()
+    .prepare('SELECT capability FROM electronics_capability WHERE player_id = ?')
+    .all(playerId) as { capability: string }[];
+  return new Set(rows.map((r) => r.capability));
+}
+
+export function electronicsCapabilityRows(playerId: string): ElectronicsCapabilityRow[] {
+  return getDb()
+    .prepare('SELECT capability, granted_at, source FROM electronics_capability WHERE player_id = ? ORDER BY granted_at')
+    .all(playerId) as ElectronicsCapabilityRow[];
+}
+
+// Grant one capability (adult-confirmed). Idempotent — FIRST grant wins, so a re-confirm never
+// rewrites the source/time of an existing durable fact. Returns true iff a new row was written.
+export function grantElectronicsCapability(playerId: string, capability: string, source: string, now: number): boolean {
+  const info = getDb()
+    .prepare(
+      `INSERT INTO electronics_capability (player_id, capability, granted_at, source)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(player_id, capability) DO NOTHING`,
+    )
+    .run(playerId, capability, now, source);
+  return info.changes > 0;
+}
+
 // --- pre-registration (evidence-and-theses.md §3) ---------------------------
 
 export type PreregRow = {
