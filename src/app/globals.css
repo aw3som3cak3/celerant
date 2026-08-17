@@ -1858,3 +1858,53 @@ table.plain-table th {
 .model-budget { display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
 .model-goods { display: flex; gap: 1rem; }
 .model-budget-outcome { font-size: 1.4rem; font-weight: 800; margin: 0; color: #3a2f28; }
+
+/* ── COMPOSITION tier — "Bygg en krets" (CircuitStage). Reuses the picture-book scene look. ── */
+.krets-stage { display: flex; flex-direction: column; align-items: center; gap: 0.9rem; width: 100%; max-width: 480px; margin: 0 auto; }
+.krets-title { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 0.2rem 0; line-height: 1.35; }
+.krets-hint { font-size: 1.05rem; color: var(--ink-soft); text-align: center; margin: 0; max-width: 420px; }
+
+/* the series loop — a rounded track of parts; a soft glow when the lamp lights (witness, no badge). */
+.krets-loop {
+  min-height: 130px; width: 100%;
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0.9rem;
+  background: #fbf6ec; border: 3px solid #3a2f28; border-radius: 20px; padding: 1rem; margin: 0.2rem 0;
+  transition: box-shadow 250ms ease, background 250ms ease;
+}
+.krets-loop.lit { background: #fff7d6; box-shadow: 0 0 24px 4px rgba(255, 204, 0, 0.5); }
+.krets-part { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: none; background: none; }
+.krets-batt { position: relative; }
+.krets-plus { position: absolute; top: -6px; right: -4px; font-weight: 800; color: #b5432f; }
+.krets-resistors { flex-direction: row; gap: 0.4rem; min-width: 60px; }
+.krets-led { cursor: default; }
+.krets-led:not(:disabled) { cursor: pointer; }
+.krets-led.reversed { transform: scaleX(-1); opacity: 0.85; }
+.krets-slot { font-size: 1.6rem; color: var(--faint); font-weight: 800; }
+
+/* the open gap the "close the loop" puzzle snaps shut */
+.krets-gap {
+  min-width: 52px; min-height: 52px; font-size: 1.5rem; border-radius: 50%;
+  border: 2px dashed #b5432f; background: var(--bg); cursor: pointer;
+}
+.krets-gap.closed { border-style: solid; border-color: #2e7d32; }
+
+/* the combine tray — real banded resistors to pick */
+.krets-tray { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; }
+.krets-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  border: 2px solid var(--accent); border-radius: 12px; background: var(--bg); color: var(--ink);
+  padding: 0.4rem 0.6rem; font-size: 0.95rem; font-variant-numeric: tabular-nums;
+}
+.krets-chip.picked { border-color: #2e7d32; box-shadow: 0 0 0 3px rgba(46, 125, 50, 0.18); }
+.krets-chip:disabled { opacity: 0.4; cursor: default; }
+.krets-sum { font-size: 1.05rem; margin: 0; text-align: center; font-variant-numeric: tabular-nums; }
+
+.krets-verdict { display: flex; flex-direction: column; align-items: center; gap: 0.7rem; text-align: center; }
+.krets-verdict p { font-size: 1.1rem; margin: 0; max-width: 420px; }
+.krets-verdict.ok p { color: #2e7d32; font-weight: 700; }
+.krets-verdict.soft p { color: var(--ink-soft); }
+
+.krets-locked { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 0.5rem; opacity: 0.9; }
+
+/* fallback shown before the wokwi custom elements register (or in a no-custom-element env) */
+.wokwi-fallback { display: inline-flex; align-items: center; justify-content: center; min-width: 40px; font-size: 1.2rem; }

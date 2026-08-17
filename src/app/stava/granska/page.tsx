@@ -46,6 +46,7 @@ export default function GranskaHub() {
     { icon: '🔤', label: 'Ordstege — stavning + engelska (rule-walk + cue-fade)', href: '/acquisition-demo' },
     { icon: '🍕', label: 'Modell — matematisk modellering (pizza)', href: '/model-demo' },
     { icon: '💡', label: 'Elektronik — slice 1 (platshållarbilder + modelldistraktorer)', href: '/elektronik-demo' },
+    { icon: '🔌', label: 'Bygg en krets — komposition (snäpp ihop, riktiga färgband)', href: '/krets-demo' },
     { icon: '🐛', label: 'Trasiga frågor (fel/idk-logg)', href: '/stava/fragor' },
   ];
   // Outstanding first; a done surface (0 kvar) sinks to the bottom. Demos keep their order.
