@@ -185,3 +185,18 @@ resistor present / series sum hits the target. Authored puzzle variants: *combin
 
 **Guardrails:** witness, not reward — "✓ kretsen är hel, lampan lyser"; a miss softens and re-serves, no
 red X, no points. Gate the surface to the **test family** initially, like the other demos.
+
+### 7.1 ONE interaction across all rungs (difficulty from problems, not from relearning the UI)
+**Design rule (settled 2026-08-17):** electronics uses a *single* interaction — **tap a part, it snaps into
+the circuit** — from the first LED to the hardest rung. Difficulty scales through the *problems*, never
+through a new way to operate the screen. A child never has to relearn the interface to face a harder circuit.
+- **Lower rungs:** one series loop — light the LED / combine to a value / fix polarity (shipped).
+- **Higher rungs, same gesture:** more components in series, choose or compute values, a second LED, current
+  through each — still tap-to-place, still auto-connects.
+- **Parallel branches** are the one topology a 1-D series line can't express, so they need a 2-D canvas
+  (potentially `<wokwi-breadboard>`). Even there the gesture stays identical — tap parts, they snap in; the
+  board is just a bigger canvas. It is a *visual skin over the same interaction*, introduced only when the
+  content demands a branch.
+- **Never required:** hand-dragging a wire from pin to pin. Pin-accurate manual wiring is exactly the
+  "learn a new way to interact" to avoid; keep auto-connect as the always-interaction. (The library's
+  `pinInfo` may still be used to draw wires *automatically* — the child never routes them.)
