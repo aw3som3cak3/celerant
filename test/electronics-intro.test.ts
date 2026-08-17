@@ -15,7 +15,7 @@ import { selectItem, type SelState } from '@/lib/selector';
 // The electronics recognition + model rungs are brand-new to EVERY player, so grade-seeding marks
 // them fluent and they'd be perpetually skipped (the double/half problem). They must be on the
 // introduce list so established players actually meet them.
-const NEW_CONTENT = ['elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match'];
+const NEW_CONTENT = ['elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match', 'elec_breadboard'];
 
 describe('electronics — novel-intro seed guard', () => {
   it('every recognition + model rung is on INTRODUCE_SKILLS', () => {
@@ -23,7 +23,7 @@ describe('electronics — novel-intro seed guard', () => {
   });
 
   it('the calculation rungs are NOT introduced (they reach the child through the maths gate)', () => {
-    for (const code of ['elec_resistor_pick', 'elec_colour_value', 'elec_series_add']) {
+    for (const code of ['elec_resistor_pick', 'elec_colour_value']) {
       expect(INTRODUCE_SKILLS.has(code), code).toBe(false);
     }
   });

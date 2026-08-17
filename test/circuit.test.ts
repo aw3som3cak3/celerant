@@ -111,7 +111,7 @@ describe('scenario registry integrity', () => {
     const ids = CIRCUIT_GOALS.map((g) => g.id);
     expect(ids).toEqual(['series_320', 'close_loop', 'flip_led']);
     const spends = CIRCUIT_GOALS.map((g) => g.spends);
-    expect(spends).toEqual(['elec_series_add', 'elec_loop', 'elec_polarity']);
+    expect(spends).toEqual(['elec_resistor_pick', 'elec_loop', 'elec_polarity']);
   });
 
   it('goalById round-trips and is undefined for an unknown id', () => {

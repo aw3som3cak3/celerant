@@ -23,13 +23,13 @@ describe('electronics build ↔ skill-graph integration (the A/B seam)', () => {
   it('slice-1 wires all 8 documented skills (no rung dropped)', () => {
     expect([...SLICE1_SKILL_PREREQS].sort()).toEqual(
       [
+        'elec_breadboard',
         'elec_colour_value',
         'elec_id_parts',
         'elec_loop',
         'elec_not_consumed',
         'elec_polarity',
         'elec_resistor_pick',
-        'elec_series_add',
         'elec_symbol_match',
       ].sort(),
     );

@@ -134,7 +134,7 @@ export const INTRODUCE_SKILLS: ReadonlySet<string> = new Set([
   // Electronics slice 1 (brand-new to EVERY player, so grade-seeding marks them fluent and they'd be
   // perpetually skipped): introduce the recognition + model rungs once, the double/half pattern. The
   // calc rungs are NOT listed — they are cross-gated on maths and meet the child through the graph.
-  'elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match',
+  'elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match', 'elec_breadboard',
 ]);
 
 export type NextOpts = {

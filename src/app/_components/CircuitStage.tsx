@@ -17,7 +17,7 @@ import { WokwiResistor, WokwiLed } from './WokwiPart';
 // pure rule check over the assembled loop, never a simulation.
 //
 // SNAP-TOGETHER, dead simple, one gesture per puzzle (goal.interaction):
-//   combine — tap two resistors so their REAL colour bands add up to the target (elec_series_add)
+//   combine — tap two resistors so their REAL colour bands add up to the target (elec_resistor_pick)
 //   close   — tap the open gap to snap the ring shut so the lamp lights (elec_loop)
 //   flip    — tap the LED to turn it the right way round (elec_polarity)
 //

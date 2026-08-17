@@ -117,9 +117,9 @@ const EXACT: Record<string, string> = {
   elec_polarity: 'lysdiodens plus och minus',
   elec_id_parts: 'känn igen delarna',
   elec_symbol_match: 'symbol → del',
+  elec_breadboard: 'kopplingsdäckets hål',
   elec_resistor_pick: 'välj motståndet',
   elec_colour_value: 'färgkoder → ohm',
-  elec_series_add: 'motstånd i serie',
 };
 
 export function skillLabel(code: string): string {

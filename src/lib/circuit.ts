@@ -71,9 +71,9 @@ export function hasKind(goal: CircuitGoal, circuit: Circuit, kind: PartKind): bo
   return placedParts(goal, circuit).some((p) => p.kind === kind);
 }
 
-// THE COMBINE MODEL: two resistors in series add up. This is the same arithmetic elec_series_add
-// trains — the bands the child reads are literally two parts of one larger value. Pure sum of every
-// placed resistor's ohms.
+// THE COMBINE MODEL: two resistors in series add up. Series addition lives HERE, inside the krets
+// composition (§5) — there is no standalone elec_series_add skill; the bands the child reads are
+// literally two parts of one larger value. Pure sum of every placed resistor's ohms.
 export function seriesSum(goal: CircuitGoal, circuit: Circuit): number {
   return placedParts(goal, circuit).reduce((sum, p) => (p.kind === 'resistor' ? sum + (p.ohms ?? 0) : sum), 0);
 }
@@ -121,7 +121,8 @@ export function validate(goal: CircuitGoal, circuit: Circuit): Judgement {
 
 /* ═══ THE THREE AUTHORED PUZZLES ═════════════════════════════════════════════ */
 
-// 1 · COMBINE — "Kombinera två motstånd till 320 Ω" (spends elec_series_add). The battery + LED are
+// 1 · COMBINE — "Kombinera två motstånd till 320 Ω" (spends elec_resistor_pick; series addition is
+// the composition itself, §5, not a standalone skill). The battery + LED are
 // pre-placed and closed; the child taps resistors so their REAL bands add up to 320. 100 + 220 is
 // the intended pair; 120 and 470 are the tempting-but-wrong tray extras.
 const R100: Part = { id: 'r100', kind: 'resistor', ohms: 100 };
@@ -135,7 +136,7 @@ const combineGoal: CircuitGoal = {
   id: 'series_320',
   title: 'Kombinera två motstånd till 320 Ω',
   hint: 'Snäpp ihop två motstånd så färgbanden tillsammans blir 320 Ω.',
-  spends: 'elec_series_add',
+  spends: 'elec_resistor_pick',
   interaction: 'combine',
   tray: [BATT, LED, R100, R220, R120, R470],
   targetOhms: 320,

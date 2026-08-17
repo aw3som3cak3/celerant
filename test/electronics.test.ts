@@ -10,9 +10,13 @@ import path from 'node:path';
 // gates — while proving the engine stayed subject-blind (no electronics logic outside skills.ts).
 
 const MODEL = ['elec_loop', 'elec_not_consumed', 'elec_polarity'];
-const RECOG = ['elec_id_parts', 'elec_symbol_match'];
-const CALC = ['elec_resistor_pick', 'elec_colour_value', 'elec_series_add'];
+const RECOG = ['elec_id_parts', 'elec_symbol_match', 'elec_breadboard'];
+const CALC = ['elec_resistor_pick', 'elec_colour_value'];
 const ALL = [...MODEL, ...RECOG, ...CALC];
+// Reading-gated rungs: the text-heavy model/produced-value skills. NOT the pictorial recognition
+// rungs (elec_id_parts, elec_breadboard), which a pre-reader must be able to reach (§1a, §8.4).
+const NOT_READING_GATED = ['elec_id_parts', 'elec_breadboard'];
+const READING_GATED = ALL.filter((c) => !NOT_READING_GATED.includes(c));
 
 describe('electronics — the 8 in-app skills (fixed contract)', () => {
   it('all eight codes exist and carry subject: electronics', () => {
@@ -57,22 +61,26 @@ describe('electronics — accuracy vs fluency split', () => {
 });
 
 describe('electronics — cross-subject maths gates (crossRequires)', () => {
-  it('elec_resistor_pick consumes division + subtraction', () => {
+  it('elec_resistor_pick consumes MULTIPLICATION + subtraction (×50 rule, §3) — NOT division', () => {
     const cr = skillByCode('elec_resistor_pick').crossRequires ?? [];
-    expect(cr).toContain('div_mixed');
+    expect(cr).toContain('mult_mixed');
     expect(cr).toContain('sub_within_10');
+    expect(cr).not.toContain('div_mixed'); // the ×50 rule replaced (V−Vled)/I
+  });
+  it('elec_resistor_pick is model-gated: requires elec_loop (model before Ohm\'s law, §8.1)', () => {
+    expect(skillByCode('elec_resistor_pick').requires).toContain('elec_loop');
   });
   it('elec_colour_value consumes place-value / powers of ten', () => {
     expect(skillByCode('elec_colour_value').crossRequires ?? []).toContain('mult_by_powers_of_ten');
   });
-  it('elec_series_add consumes addition', () => {
-    expect(skillByCode('elec_series_add').crossRequires ?? []).toContain('add_2d_carry');
+  it('the text-heavy rungs are reading-gated (Swedish instructions, §3)', () => {
+    for (const code of READING_GATED) expect(skillByCode(code).crossRequires ?? [], code).toContain('spelling_t1c');
   });
-  it('every electronics rung is reading-gated (Swedish instructions, §3)', () => {
-    for (const code of ALL) expect(skillByCode(code).crossRequires ?? [], code).toContain('spelling_t1c');
+  it('the pictorial recognition rungs are NOT reading-gated (pre-reader reachable, §8.4)', () => {
+    for (const code of NOT_READING_GATED) expect(skillByCode(code).crossRequires ?? [], code).not.toContain('spelling_t1c');
   });
   it('the gated maths codes all exist in the maths graph', () => {
-    for (const c of ['div_mixed', 'sub_within_10', 'mult_by_powers_of_ten', 'add_2d_carry']) {
+    for (const c of ['mult_mixed', 'sub_within_10', 'mult_by_powers_of_ten']) {
       expect(BY_CODE.get(c)?.subject, c).toBe('maths');
     }
   });
@@ -132,23 +140,14 @@ describe('electronics — model distractors ARE the documented misconceptions', 
 });
 
 describe('electronics — calculation content is clean whole-number arithmetic', () => {
-  it('elec_resistor_pick answers R = (Vs − Vled)/I with a whole resistor, subtraction within 10', () => {
+  it('elec_resistor_pick answers R = (Vs − Vled) × 50, clean integers, subtraction within 10 (§3)', () => {
     for (let i = 0; i < 200; i++) {
       const it = generateCanon('elec_resistor_pick', makeRng((i * 2246822519) >>> 0));
-      const m = it.prompt.match(/\((\d+) − (\d+)\) \/ (\d+)/)!;
-      const vs = +m[1], vled = +m[2], iCur = +m[3];
-      expect(vs - vled).toBeGreaterThanOrEqual(0);
+      const m = it.prompt.match(/\((\d+) − (\d+)\) × 50/)!;
+      const vs = +m[1], vled = +m[2], drop = vs - vled;
+      expect(drop).toBeGreaterThan(0); // supply above the LED drop
       expect(vs).toBeLessThanOrEqual(10); // subtraction stays within sub_within_10
-      expect((vs - vled) % iCur).toBe(0); // exact division
-      expect(it.answer).toBe(String((vs - vled) / iCur));
-    }
-  });
-
-  it('elec_series_add totals two resistors', () => {
-    for (let i = 0; i < 50; i++) {
-      const it = generateCanon('elec_series_add', makeRng((i * 22695477 + 1) >>> 0));
-      const m = it.prompt.match(/(\d+) Ω \+ (\d+) Ω/)!;
-      expect(it.answer).toBe(String(+m[1] + +m[2]));
+      expect(it.answer).toBe(String(drop * 50)); // the ×50 rule → a whole-ten resistor
     }
   });
 

@@ -1418,9 +1418,8 @@ const tierEnglish: Skill[] = [
 // Images are simple placeholder SVGs under /public/elec (see report — all need real art). The build
 // handoff (build_light_led_coin) and the durable-capability/alert surface are a LATER slice (§5.3);
 // nothing here touches selector/θ/gate/ledger (A11 boundary).
-const ELEC_DIV = "div_mixed"; // "consumes division"
+const ELEC_MULT = "mult_mixed"; // the ×50 multiplication rule (volt över × 50, §3)
 const ELEC_SUB = "sub_within_10"; // the small subtraction Vsupply − Vled
-const ELEC_ADD = "add_2d_carry"; // two-digit addition (series total)
 const ELEC_PLACE = "mult_by_powers_of_ten"; // place value / powers of ten (colour bands)
 
 const ELEC_PARTS = [
@@ -1435,6 +1434,12 @@ const ELEC_SYMBOLS = [
   { part: "resistor", sv: "motstånd", sym: "sym_resistor", art: "resistor" },
   { part: "battery", sv: "batteri", sym: "sym_battery", art: "battery" },
 ] as const;
+
+// Breadboard-topology art (elec_breadboard, §1a). Each is a small board with a group of holes lit;
+// the OK arts light one connected terminal strip, the BAD arts light holes that are NOT joined
+// (across the centre channel, a whole column, or scattered rows). PLACEHOLDER SVGs in public/elec/.
+const ELEC_BB_OK = ["bb_row_a", "bb_row_b"] as const; // one terminal strip → connected (correct)
+const ELEC_BB_BAD = ["bb_cross", "bb_column", "bb_scatter"] as const; // different rows/rails → not connected
 
 // Swedish resistor colour code (index === digit). svart=0 … vit=9; the multiplier band's colour digit
 // IS the power of ten (svart ×10^0, brun ×10^1) — that is the place-value link elec_colour_value trains.
@@ -1497,9 +1502,10 @@ const tierElectronics: Skill[] = [
 
   // ── RECOGNITION tier (fluency via the recognition crossing) ──
   S({
-    // Identify LED / resistor / battery / breadboard from an image.
+    // Identify LED / resistor / battery / breadboard from an image. NOT reading-gated (§1a, §8.4):
+    // pure picture recognition should be reachable by a pre-reader — no crossRequires.
     code: "elec_id_parts", subject: "electronics", family: "elec_recog", year: 1, mode: "component", format: "choice",
-    requires: [], crossRequires: [READING_READY],
+    requires: [], crossRequires: [],
     generate: (r) => {
       const target = r.pick(ELEC_PARTS);
       return {
@@ -1529,23 +1535,47 @@ const tierElectronics: Skill[] = [
       };
     },
   }),
+  S({
+    // Breadboard topology (E6, §1a): which holes are electrically connected? The correct option
+    // highlights a single terminal strip (a short row that IS joined under the board); the distractors
+    // highlight holes across the centre channel or in different rows/rails (NOT joined). Recognition /
+    // fluency-aimed, gated on the loop model (you read a breadboard once you know current needs a ring).
+    code: "elec_breadboard", subject: "electronics", family: "elec_recog", year: 2, mode: "component", format: "choice",
+    requires: ["elec_loop"], crossRequires: [],
+    generate: (r) => {
+      const ok = r.pick([...ELEC_BB_OK]);
+      const bad = shuffle(r, [...ELEC_BB_BAD]).slice(0, 2);
+      return {
+        prompt: "", answer: { kind: "word", text: ok },
+        steps: ["Hålen i samma korta rad sitter ihop under plattan — strömmen når mellan dem. Mittspåret bryter."],
+        choice: {
+          prompt: { show: "elec" },
+          question: "Vilka hål på kopplingsdäcket sitter ihop?",
+          options: shuffle(r, [ok, ...bad].map((art) => elecOpt(art))),
+        },
+      };
+    },
+  }),
 
   // ── CALCULATION tier (fluency, numpad; cross-gated on maths AND gated on the model tier) ──
   S({
-    // Current-limiting resistor: R = (Vsupply − Vled) / I. Slice-1 supply is a coin cell (≈3 V) — the
-    // build agent owns higher tiers. Whole-number arithmetic: Vled=2 and (Vsupply, I) chosen so the
-    // subtraction stays within 10 and the division is exact. crossRequires subtraction + division.
+    // Size the series resistor with the ×50 RULE (§3): R ≈ (Vsupply − Vled) × 50, since 1 ÷ 0.02 A ≈
+    // 50 Ω/V for a ~20 mA LED. Multiplication ON PURPOSE — reachable for a kid who can multiply but
+    // not yet divide with decimals, and the concrete payoff for the mult tables. Clean small integers:
+    // Vled 2 (red LED) or 3 (blue/white), Vsupply above it so the drop is 1..7 volt → a whole-ten
+    // resistor (e.g. 3 − 2 = 1 → 50 Ω; 5 − 2 = 3 → 150 Ω). Subtraction stays within 10 (Vsupply ≤ 10).
+    // MODEL-GATED (requires elec_loop): you cannot size a resistor before you understand the circuit.
+    // crossRequires subtraction + mult_mixed (NOT division — that was the v1 regression).
     code: "elec_resistor_pick", subject: "electronics", family: "elec_calc", year: 5, mode: "component",
-    requires: ["elec_symbol_match"], crossRequires: [READING_READY, ELEC_SUB, ELEC_DIV],
+    requires: ["elec_symbol_match", "elec_loop"], crossRequires: [READING_READY, ELEC_SUB, ELEC_MULT],
     generate: (r) => {
-      const vled = 2;
-      const { vs, i, q } = until(
-        () => { const I = r.int(1, 4), Q = r.int(1, 8), diff = I * Q; return { vs: vled + diff, i: I, q: Q }; },
-        (v) => v.vs <= 10,
-      );
+      const vled = r.pick([2, 3]); // red LED ~2 V, blue/white ~3 V
+      const drop = r.int(1, 7); // volt över motståndet — subtraction stays within 10 (Vsupply ≤ 10)
+      const vs = vled + drop; // supply above the LED's forward drop
+      const ohms = drop * 50; // the ×50 rule → a whole-ten resistor
       return {
-        prompt: `Motstånd: (${vs} − ${vled}) / ${i} =`, answer: int(q),
-        steps: [`Spänning över motståndet: ${vs} − ${vled} = ${vs - vled}`, `${vs - vled} / ${i} = ${q}`],
+        prompt: `Motstånd: (${vs} − ${vled}) × 50 =`, answer: int(ohms),
+        steps: [`Volt över motståndet: ${vs} − ${vled} = ${drop}`, `${drop} × 50 = ${ohms} (Ω)`],
       };
     },
   }),
@@ -1565,18 +1595,9 @@ const tierElectronics: Skill[] = [
       };
     },
   }),
-  S({
-    // Two resistors in SERIES add up. crossRequires addition.
-    code: "elec_series_add", subject: "electronics", family: "elec_calc", year: 3, mode: "component",
-    requires: ["elec_symbol_match"], crossRequires: [READING_READY, ELEC_ADD],
-    generate: (r) => {
-      const r1 = r.int(10, 89), r2 = r.int(10, 89);
-      return {
-        prompt: `${r1} Ω + ${r2} Ω i serie =`, answer: int(r1 + r2),
-        steps: [`I serie adderas motstånden: ${r1} + ${r2} = ${r1 + r2} Ω`],
-      };
-    },
-  }),
+  // NOTE: elec_series_add was REMOVED (§2, §8.3) — it re-skinned addition (graph clutter). Series
+  // addition now lives INSIDE the "Kombinera till 320 Ω" krets composition (src/lib/circuit.ts),
+  // which spends elec_resistor_pick, not a standalone skill.
 ];
 
 /* ═══ export ══════════════════════════════════════════════════════════ */

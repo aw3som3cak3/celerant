@@ -73,9 +73,9 @@ export const SLICE1_SKILL_PREREQS = [
   'elec_polarity',
   'elec_id_parts',
   'elec_symbol_match',
+  'elec_breadboard',
   'elec_resistor_pick',
   'elec_colour_value',
-  'elec_series_add',
 ] as const;
 
 // ── The registry ────────────────────────────────────────────────────────────────────────────
