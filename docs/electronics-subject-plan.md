@@ -1,5 +1,11 @@
 # Electronics — implementation plan (the fourth subject, the first *downstream* one)
 
+> ⚠️ **SUPERSEDED (2026-08-17)** by `docs/electronics-native-spec.md` (the Celerant-native, STEAM-
+> sourced, sanity-checked graph). This doc is kept as the record of the first slice that shipped;
+> its skill list is stale (e.g. `elec_series_add` was since removed, `elec_breadboard` added, and
+> `elec_resistor_pick` re-gated to the ×50 multiplication rule). The boundary framing here was also
+> reframed: the physical builds live in the **STEAM** project (`../steam`), see `steam-project` memory.
+
 Status: PLAN (2026-08-17), for build. Scoped to the fluency + training layers that live **inside
 celerant**. The physical-build layer lives in a separate webapp Erik already runs; the contract
 between the two is `docs/electronics-celerant-boundary.md` — read that alongside this.

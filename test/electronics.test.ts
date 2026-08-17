@@ -86,19 +86,22 @@ describe('electronics — cross-subject maths gates (crossRequires)', () => {
   });
 });
 
-describe('electronics — the model tier gates every calculation skill (§1a)', () => {
-  it('no calc skill is reachable until all three model skills are met', () => {
-    for (const code of CALC) {
+describe('electronics — model-gating is on the Ohm\'s-law skill only (§8, flat graph)', () => {
+  it('elec_resistor_pick (Ohm\'s law) sits above the circuit model — model before Ohm\'s law', () => {
+    expect(ancestors('elec_resistor_pick').has('elec_loop')).toBe(true);
+  });
+  it('recognition/lookup skills are NOT dragged behind the model tier', () => {
+    // Reading a colour code or a schematic symbol is a LOOKUP, not an application of the circuit
+    // model — so they gate on recognition (id_parts), never on loop/not_consumed/polarity. Only the
+    // quantitative skill (resistor_pick) needs the model gate.
+    for (const code of ['elec_colour_value', 'elec_symbol_match']) {
       const anc = ancestors(code);
-      for (const m of MODEL) expect(anc.has(m), `${code} must depend on ${m}`).toBe(true);
+      expect(anc.has('elec_id_parts'), `${code} gates on recognition`).toBe(true);
+      expect(anc.has('elec_loop'), `${code} must NOT be model-gated`).toBe(false);
     }
   });
-  it('symbol_match (recognition) also sits above the whole model tier', () => {
-    const anc = ancestors('elec_symbol_match');
-    for (const m of MODEL) expect(anc.has(m), m).toBe(true);
-  });
   it('the model tier itself needs no other subject-content but reading', () => {
-    // elec_loop is the subject root: no intra-subject prerequisite.
+    // elec_loop is a subject root: no intra-subject prerequisite.
     expect(skillByCode('elec_loop').requires).toEqual([]);
   });
 });

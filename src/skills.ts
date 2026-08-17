@@ -1488,7 +1488,7 @@ const tierElectronics: Skill[] = [
     // Polarity: an LED has a + and − leg and lights ONE way — a fact, drilled as a right-vs-reversed
     // discrimination (the reversed LED is the errorless distractor).
     code: "elec_polarity", subject: "electronics", family: "elec_model", year: 1, mode: "component", format: "choice",
-    requires: ["elec_not_consumed"], crossRequires: [READING_READY],
+    requires: ["elec_loop"], crossRequires: [READING_READY],
     generate: (r) => ({
       prompt: "", answer: { kind: "word", text: "led_fwd" },
       steps: ["Lysdioden lyser bara åt ett håll: långa benet mot plus (+)."],
@@ -1519,10 +1519,10 @@ const tierElectronics: Skill[] = [
     },
   }),
   S({
-    // Match a schematic SYMBOL → the physical part. Gated on id_parts AND the whole model tier
-    // (elec_polarity ⇒ not_consumed ⇒ loop), so "the model comes first" holds (§1a).
+    // Match a schematic SYMBOL → the physical part. Recognition, so gated on id_parts only — reading a
+    // symbol is a lookup, not an application of the circuit model (§1a: flat, no model chain).
     code: "elec_symbol_match", subject: "electronics", family: "elec_recog", year: 2, mode: "component", format: "choice",
-    requires: ["elec_id_parts", "elec_polarity"], crossRequires: [READING_READY],
+    requires: ["elec_id_parts"], crossRequires: [READING_READY],
     generate: (r) => {
       const target = r.pick(ELEC_SYMBOLS);
       return {
@@ -1565,9 +1565,10 @@ const tierElectronics: Skill[] = [
     // Vled 2 (red LED) or 3 (blue/white), Vsupply above it so the drop is 1..7 volt → a whole-ten
     // resistor (e.g. 3 − 2 = 1 → 50 Ω; 5 − 2 = 3 → 150 Ω). Subtraction stays within 10 (Vsupply ≤ 10).
     // MODEL-GATED (requires elec_loop): you cannot size a resistor before you understand the circuit.
-    // crossRequires subtraction + mult_mixed (NOT division — that was the v1 regression).
+    // Recognition-gated too (elec_id_parts — you must know a resistor). Schematic-reading is NOT a
+    // prerequisite for sizing (§8). crossRequires subtraction + mult_mixed (NOT division — v1 regression).
     code: "elec_resistor_pick", subject: "electronics", family: "elec_calc", year: 5, mode: "component",
-    requires: ["elec_symbol_match", "elec_loop"], crossRequires: [READING_READY, ELEC_SUB, ELEC_MULT],
+    requires: ["elec_loop", "elec_id_parts"], crossRequires: [READING_READY, ELEC_SUB, ELEC_MULT],
     generate: (r) => {
       const vled = r.pick([2, 3]); // red LED ~2 V, blue/white ~3 V
       const drop = r.int(1, 7); // volt över motståndet — subtraction stays within 10 (Vsupply ≤ 10)
@@ -1585,7 +1586,7 @@ const tierElectronics: Skill[] = [
     // just test — via the existing reveal mechanism; see the report on why the self-fading acquisition
     // scaffold is deferred for a numpad rung). crossRequires place-value / powers of ten.
     code: "elec_colour_value", subject: "electronics", family: "elec_calc", year: 4, mode: "component",
-    requires: ["elec_id_parts", "elec_polarity"], crossRequires: [READING_READY, ELEC_PLACE],
+    requires: ["elec_id_parts"], crossRequires: [READING_READY, ELEC_PLACE],
     generate: (r) => {
       const d1 = r.int(1, 9), d2 = r.int(0, 9), m = r.int(0, 1); // first digit never 0; multiplier ×1 or ×10
       const value = (d1 * 10 + d2) * 10 ** m;
