@@ -82,8 +82,11 @@ export function CircuitStage({ goal, onDone }: { goal: CircuitGoal; onDone?: () 
       <p className="krets-title">{goal.title}</p>
       <p className="krets-hint">{goal.hint}</p>
 
-      {/* ── THE LOOP: a single series ring of parts. ── */}
+      {/* ── THE LOOP: parts sit ON a wire ring; left/bottom/right runs return to the battery so it
+          reads as one closed circuit. The series row masks the ring's top run between parts. ── */}
       <div className={`krets-loop ${lit ? 'lit' : ''}`}>
+        <div className="krets-ring">
+        <div className="krets-series">
         <div className="krets-part krets-batt" aria-label="batteri">
           <img src="/elec/battery.svg" alt="" width={54} height={54} draggable={false} />
           <span className="krets-plus">+</span>
@@ -115,6 +118,8 @@ export function CircuitStage({ goal, onDone }: { goal: CircuitGoal; onDone?: () 
         >
           <WokwiLed on={lit} />
         </button>
+        </div>
+        </div>
       </div>
 
       {/* ── THE COMBINE TRAY: real banded resistors to snap in. ── */}
