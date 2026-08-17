@@ -23,43 +23,56 @@ import { __setFluentMeasuredLookup } from '@/lib/electronics-fluency-seam';
 const NOW = Date.UTC(2026, 7, 17);
 const TRE = KORKORT_BY_ID.get('tre_volt')!;
 
-// A stub fluency lookup for the PURE derivation: fluent && measured only for the given code set.
-function fluencyOf(fluentMeasured: Set<string>): FluencyOf {
-  return (code) => ({ fluent: fluentMeasured.has(code), measured: fluentMeasured.has(code) });
+// The typed (sprintable) electronics codes; the rest (loop/polarity/id_parts/symbol/breadboard) are
+// choice, so `measured` is unreachable for them and their bar is `fluent && met`.
+const MEASURABLE = new Set(['elec_resistor_pick', 'elec_colour_value']);
+const FEM = KORKORT_BY_ID.get('fem_volt')!;
+
+// A stub FluencyOf where `codes` are DEMONSTRATED: a typed code reaches fluent+measured, a choice code
+// reaches fluent+met (the strongest a tap can show). Everything else is not fluent.
+function demonstrated(codes: Set<string>): FluencyOf {
+  return (code) => {
+    const measurable = MEASURABLE.has(code);
+    const on = codes.has(code);
+    return { fluent: on, measured: on && measurable, met: on, measurable };
+  };
 }
 
 describe('körkort state derivation (pure, θ-inert)', () => {
-  it('LOCKED when a fluencyRequire is only met, not fluent', () => {
-    // elec_loop fluent+measured, but elec_polarity NOT fluent (merely met on the couch).
-    const f: FluencyOf = (code) => ({ fluent: code === 'elec_loop', measured: code === 'elec_loop' });
-    expect(korkortState(TRE, f, new Set())).toBe('locked');
+  it('LOCKED when a fluencyRequire is not fluent', () => {
+    const f: FluencyOf = (code) => ({ fluent: code === 'elec_loop', measured: false, met: true, measurable: false });
+    expect(korkortState(TRE, f, new Set())).toBe('locked'); // elec_polarity not fluent
   });
 
-  it('LOCKED when fluent but the rate is only provisional (not measured)', () => {
-    // The whole point: fluent on screen is not enough — the bench needs a MEASURED rate.
-    const f: FluencyOf = () => ({ fluent: true, measured: false });
-    expect(korkortState(TRE, f, new Set())).toBe('locked');
+  it('a CHOICE prerequisite needs fluent && MET — a grade-seed (fluent but never attempted) is not enough', () => {
+    // loop/polarity never sprint, so `measured` is unreachable; the seeded≠demonstrated guard is `met`.
+    const seedOnly: FluencyOf = () => ({ fluent: true, measured: false, met: false, measurable: false });
+    expect(korkortState(TRE, seedOnly, new Set())).toBe('locked');
   });
 
-  it('TODO when every fluencyRequire is fluent && measured and the capability is not yet granted', () => {
-    const f = fluencyOf(new Set(TRE.fluencyRequires));
-    expect(korkortState(TRE, f, new Set())).toBe('todo');
+  it('TODO once its CHOICE prerequisites are fluent && met (measured is unreachable for a tap)', () => {
+    expect(korkortState(TRE, demonstrated(new Set(TRE.fluencyRequires)), new Set())).toBe('todo');
+  });
+
+  it('a MEASURABLE (typed) prerequisite needs fluent && MEASURED — fluent+met alone is not enough', () => {
+    // fem_volt has typed skills (resistor_pick, colour_value); fluent+met but provisional ⇒ LOCKED.
+    const metNotMeasured: FluencyOf = (code) => ({ fluent: true, measured: false, met: true, measurable: MEASURABLE.has(code) });
+    expect(korkortState(FEM, metNotMeasured, new Set())).toBe('locked');
+    // Typed skills measured + breadboard (choice) met ⇒ TODO.
+    expect(korkortState(FEM, demonstrated(new Set(FEM.fluencyRequires)), new Set())).toBe('todo');
   });
 
   it('EARNED once the granted capability is owned (derives purely from the capability fact)', () => {
-    const f = fluencyOf(new Set(TRE.fluencyRequires));
-    expect(korkortState(TRE, f, new Set([TRE.grants]))).toBe('earned');
+    expect(korkortState(TRE, demonstrated(new Set(TRE.fluencyRequires)), new Set([TRE.grants]))).toBe('earned');
   });
 
   it('EARNED wins even if fluency data later regresses', () => {
-    const f = fluencyOf(new Set()); // nothing fluent anymore
-    expect(korkortState(TRE, f, new Set([TRE.grants]))).toBe('earned');
+    expect(korkortState(TRE, demonstrated(new Set()), new Set([TRE.grants]))).toBe('earned');
   });
 
   it('todoKorkort lists exactly the ready-but-unearned körkort', () => {
-    const f = fluencyOf(new Set(TRE.fluencyRequires));
-    const todo = todoKorkort(f, new Set());
-    expect(todo.map((k) => k.id)).toEqual(['tre_volt']);
+    const f = demonstrated(new Set(TRE.fluencyRequires));
+    expect(todoKorkort(f, new Set()).map((k) => k.id)).toEqual(['tre_volt']);
     // Grant it → it drops off the todo list (now earned).
     expect(todoKorkort(f, new Set([TRE.grants])).map((k) => k.id)).toEqual([]);
   });
@@ -107,10 +120,11 @@ describe('körkort wiring: statuses, shelf, phase-1 reveal', () => {
     const fam = repo.createFamily(`k-${Math.random().toString(36).slice(2)}`, 'x:y', 'x:z', NOW);
     pid = repo.createPlayer(fam, 'mouse', 3, NOW);
     replay(pid);
-    // Default: all of tre_volt's requirements fluent && measured; nothing else.
+    // Default: all of tre_volt's requirements demonstrated. loop/polarity are CHOICE (not measurable),
+    // so demonstrated = fluent && met.
     __setFluentMeasuredLookup((_p, code) => {
-      const on = new Set<string>(TRE.fluencyRequires);
-      return { fluent: on.has(code), measured: on.has(code) };
+      const on = new Set<string>(TRE.fluencyRequires).has(code);
+      return { fluent: on, measured: false, met: on, measurable: false };
     });
   });
   afterEach(() => {

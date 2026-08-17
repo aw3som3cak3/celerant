@@ -26,7 +26,7 @@ export type KorkortDef = {
   id: string;
   namn: string; // Swedish display name (e.g. "3 volt")
   tier: VoltageTier; // the voltage tier this körkort certifies (matches the capability it grants)
-  fluencyRequires: readonly string[]; // ALL must be fluent && measured before the körkort is a TODO
+  fluencyRequires: readonly string[]; // ALL must be demonstrated (§ korkortState) before the körkort is a TODO
   grants: CapabilityCode; // the durable capability granted on master approval (climbs the eltrappan)
   prov: string; // what the child physically shows the master ("the test")
   kitBom: readonly BomLine[]; // the Grundkittet etc. — pre-packed for the bench
@@ -114,19 +114,23 @@ export const KORKORT_BY_ID: ReadonlyMap<string, KorkortDef> = new Map(KORKORT.ma
 export type KorkortState = 'locked' | 'todo' | 'earned';
 
 // The fluency facts the derivation needs, as PLAIN DATA (never the FluencySignal type — that lives
-// behind the engine). `measured` is `confidence === 'measured'`: the couch made it AUTOMATIC, so the
-// bench may use it unsupervised. Merely `met`/`provisional` is deliberately NOT enough.
-export type KorkortFluency = { fluent: boolean; measured: boolean };
+// behind the engine). `fluent` = the gate is open; `measured` = confidence 'measured' (a real sprint);
+// `met` = actually attempted (not seed-only); `measurable` = a typed skill that CAN be sprinted.
+export type KorkortFluency = { fluent: boolean; measured: boolean; met: boolean; measurable: boolean };
 export type FluencyOf = (code: string) => KorkortFluency;
 
 // Derive one körkort's state from the child's fluency facts + owned capabilities. Pure: same inputs →
 // same output, no I/O, no engine. EARNED wins (a granted capability is durable, even if fluency data
-// later shifts); otherwise TODO iff every requirement is fluent && measured; else LOCKED.
+// later shifts); else TODO iff every requirement is DEMONSTRATED; else LOCKED.
 export function korkortState(korkort: KorkortDef, fluencyOf: FluencyOf, owned: ReadonlySet<string>): KorkortState {
   if (owned.has(korkort.grants)) return 'earned';
   const allReady = korkort.fluencyRequires.every((code) => {
     const f = fluencyOf(code);
-    return f.fluent && f.measured;
+    // DEMONSTRATED, not grade-seeded. `fluent` (gate open) is necessary. Then: a MEASURABLE (typed)
+    // skill must have a MEASURED rate (a real crossing); a CHOICE skill — which never sprints, so
+    // `measured` is unreachable — needs at least `met` (actually attempted). The bench prov proves the
+    // physical competence the screen can't measure.
+    return f.fluent && (f.measurable ? f.measured : f.met);
   });
   return allReady ? 'todo' : 'locked';
 }

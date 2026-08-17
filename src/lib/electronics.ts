@@ -98,8 +98,9 @@ export function buildAlerts(playerId: string): BuildAlert[] {
 }
 
 // ── KÖRKORT wiring (docs/electronics-korkort-flow.md) ───────────────────────────────────────────
-// The consumer side of the PURE körkort derivation: it binds the fluency seam (fluent && measured)
-// and the child's owned capabilities to `korkortState`, so the shelf + the phase-1 reveal can render
+// The consumer side of the PURE körkort derivation: it binds the fluency seam (measurability-aware —
+// typed skills need measured, choice skills need met) and the child's owned capabilities to
+// `korkortState`, so the shelf + the phase-1 reveal can render
 // LOCKED / TODO / EARNED. No new record backs EARNED — it derives from the `elec_cap_tier_*`
 // capability the existing adult-approval already grants (confirmBuildComplete). θ-inert: reads the
 // fluency signal beside the engine, writes nothing.

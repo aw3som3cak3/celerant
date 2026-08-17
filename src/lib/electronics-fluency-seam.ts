@@ -1,5 +1,6 @@
 import 'server-only';
 import { fluencySignal } from './fluency-signal';
+import { BY_CODE } from '@/skills';
 
 // ── THE SINGLE INTEGRATION POINT: electronics readiness ↔ the fluency signal ────────────────────
 //
@@ -32,18 +33,22 @@ export function __setFluencyMetLookup(fn: MetLookup | null): void {
   lookup = fn ?? REAL_LOOKUP;
 }
 
-// ── KÖRKORT seam: the fluent && measured axes ────────────────────────────────────────────────────
-// The build LADDER reads `met` (exposure — "may try at the bench"). A KÖRKORT is stricter: its phase-1
-// TODO fires only when the skill is FLUENT (the gate is open) AND the rate was MEASURED (confidence),
-// i.e. the couch made it AUTOMATIC — STEAM's rule that the bench uses what the couch made reflexive. A
-// merely `met`/`provisional` skill is NOT enough to send a child to build unsupervised. Same seam
-// shape as `met`: real wiring reads `fluencySignal`, a test setter swaps it.
-export type FluentMeasured = { fluent: boolean; measured: boolean };
+// ── KÖRKORT seam: the fluency axes, measurability-aware ──────────────────────────────────────────
+// The build LADDER reads `met` (exposure — "may try at the bench"). A KÖRKORT is stricter, but the
+// right bar DEPENDS ON THE SKILL: a TYPED/produced skill can be sprinted, so it must reach `fluent &&
+// measured` (a real crossing — the couch made it reflexive). A CHOICE/recognition skill NEVER sprints,
+// so `measured` is unreachable for it (STEAM's "a choice node never reaches the bench threshold"); its
+// ceiling is `fluent && met` — the gate is open AND it was actually attempted, not merely grade-seeded.
+// `measurable` (typed, i.e. NOT format 'choice') tells the derivation which bar applies. Real wiring
+// reads `fluencySignal` + the skill's format; a test setter swaps it.
+export type FluentMeasured = { fluent: boolean; measured: boolean; met: boolean; measurable: boolean };
 export type FluentLookup = (playerId: string, code: string) => FluentMeasured;
 
 const REAL_FLUENT: FluentLookup = (playerId, code) => {
   const s = fluencySignal(playerId, code);
-  return { fluent: s.fluent, measured: s.confidence === 'measured' };
+  const skill = BY_CODE.get(code);
+  const measurable = skill != null && skill.format !== 'choice'; // typed skills sprint → 'measured' reachable
+  return { fluent: s.fluent, measured: s.confidence === 'measured', met: s.met, measurable };
 };
 
 let fluentLookup: FluentLookup = REAL_FLUENT;
