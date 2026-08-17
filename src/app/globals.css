@@ -1868,33 +1868,26 @@ table.plain-table th {
 .krets-title { font-size: 1.25rem; font-weight: 700; text-align: center; margin: 0.2rem 0; line-height: 1.35; }
 .krets-hint { font-size: 1.05rem; color: var(--ink-soft); text-align: center; margin: 0; max-width: 420px; }
 
-/* the series loop — parts sit ON a rectangular WIRE whose left/bottom/right runs return to the
-   battery, so it reads as one closed circuit (not floating parts). Soft glow when the lamp lights. */
+/* the closed loop — parts strung on a TOP wire run joined by real wire segments, with a U-shaped
+   return (left/bottom/right) carrying the wire back to the battery. Parts sit ON the wire with NO
+   frame (transparent) — the way the wokwi parts are meant to be shown, connected pin-to-pin. */
 .krets-loop {
   position: relative;
-  min-height: 168px; width: 100%;
+  min-height: 172px; width: 100%;
   display: flex; align-items: center; justify-content: center;
-  background: #fbf6ec; border: 3px solid #3a2f28; border-radius: 20px; padding: 2rem 1.1rem 1.3rem; margin: 0.2rem 0;
+  background: #fbf6ec; border: 3px solid #3a2f28; border-radius: 20px; padding: 1.7rem 1.2rem 1.4rem; margin: 0.2rem 0;
   transition: box-shadow 250ms ease, background 250ms ease;
 }
 .krets-loop.lit { background: #fff7d6; box-shadow: 0 0 24px 4px rgba(255, 204, 0, 0.5); }
 
-/* the wire: a rounded rectangle track. Its TOP run is masked by the parts (each part's background
-   hides the wire behind it), so the wire visibly enters/leaves every component and connects them. */
-.krets-ring {
-  position: relative;
-  width: min(430px, 100%); height: 104px;
-  border: 5px solid #7a8790; border-radius: 16px;
-}
-.krets-loop.lit .krets-ring { border-color: #d9a300; box-shadow: 0 0 16px rgba(217, 163, 0, 0.45); }
-.krets-series {
-  position: absolute; top: 0; left: 0; right: 0;
-  transform: translateY(-50%);
-  display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
-}
+.krets-circuit { position: relative; width: min(430px, 100%); height: 96px; }
+.krets-return { position: absolute; inset: 0; border: 5px solid #7a8790; border-top: none; border-radius: 0 0 16px 16px; }
+.krets-loop.lit .krets-return { border-color: #d9a300; box-shadow: 0 0 16px rgba(217, 163, 0, 0.4); }
+.krets-series { position: absolute; top: 0; left: 0; right: 0; transform: translateY(-50%); display: flex; align-items: center; }
+.krets-wire { flex: 1 1 auto; min-width: 10px; height: 5px; background: #7a8790; border-radius: 3px; }
+.krets-loop.lit .krets-wire { background: #d9a300; }
 
-.krets-part { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0 7px; border: none; background: #fbf6ec; }
-.krets-loop.lit .krets-part { background: #fff7d6; }
+.krets-part { position: relative; z-index: 1; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: none; background: none; }
 .krets-batt { position: relative; }
 .krets-plus { position: absolute; top: -6px; right: -4px; font-weight: 800; color: #b5432f; }
 .krets-resistors { flex-direction: row; gap: 0.4rem; min-width: 60px; }

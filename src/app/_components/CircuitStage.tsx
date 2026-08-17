@@ -82,43 +82,52 @@ export function CircuitStage({ goal, onDone }: { goal: CircuitGoal; onDone?: () 
       <p className="krets-title">{goal.title}</p>
       <p className="krets-hint">{goal.hint}</p>
 
-      {/* ── THE LOOP: parts sit ON a wire ring; left/bottom/right runs return to the battery so it
-          reads as one closed circuit. The series row masks the ring's top run between parts. ── */}
+      {/* ── THE LOOP: parts strung on a top wire run (real <span.krets-wire> segments between them),
+          with a U-shaped return carrying the wire back to the battery — one closed circuit. Parts are
+          transparent (no frame): they sit ON the wire, connected lead-to-lead. ── */}
       <div className={`krets-loop ${lit ? 'lit' : ''}`}>
-        <div className="krets-ring">
-        <div className="krets-series">
-        <div className="krets-part krets-batt" aria-label="batteri">
-          <img src="/elec/battery.svg" alt="" width={54} height={54} draggable={false} />
-          <span className="krets-plus">+</span>
-        </div>
+        <div className="krets-circuit">
+          <div className="krets-return" />
+          <div className="krets-series">
+            <span className="krets-wire" />
+            <div className="krets-part krets-batt" aria-label="batteri">
+              <img src="/elec/battery.svg" alt="" width={46} height={46} draggable={false} />
+              <span className="krets-plus">+</span>
+            </div>
+            <span className="krets-wire" />
 
-        {/* resistor(s): the combine puzzle shows the picked pair (bands adding up); the others show
-            the fixed resistor. */}
-        <div className="krets-part krets-resistors">
-          {goal.interaction === 'combine'
-            ? ui.picks.map((id) => <WokwiResistor key={id} ohms={partById(goal, id)?.ohms ?? 0} />)
-            : resistors.map((r) => <WokwiResistor key={r.id} ohms={r.ohms ?? 0} />)}
-          {goal.interaction === 'combine' && ui.picks.length === 0 && <span className="krets-slot">?</span>}
-        </div>
+            {/* resistor(s): the combine puzzle shows the picked pair (bands adding up); the others
+                show the fixed resistor. */}
+            <div className="krets-part krets-resistors">
+              {goal.interaction === 'combine'
+                ? ui.picks.map((id) => <WokwiResistor key={id} ohms={partById(goal, id)?.ohms ?? 0} />)
+                : resistors.map((r) => <WokwiResistor key={r.id} ohms={r.ohms ?? 0} />)}
+              {goal.interaction === 'combine' && ui.picks.length === 0 && <span className="krets-slot">?</span>}
+            </div>
+            <span className="krets-wire" />
 
-        {/* the gap the close puzzle snaps shut */}
-        {goal.interaction === 'close' && (
-          <button type="button" className={`krets-gap ${ui.closed ? 'closed' : ''}`} onClick={snapClosed} aria-label="snäpp ihop">
-            {ui.closed ? '🔗' : '✂'}
-          </button>
-        )}
+            {/* the gap the close puzzle snaps shut — a break in the wire run */}
+            {goal.interaction === 'close' && (
+              <>
+                <button type="button" className={`krets-gap ${ui.closed ? 'closed' : ''}`} onClick={snapClosed} aria-label="snäpp ihop">
+                  {ui.closed ? '🔗' : '✂'}
+                </button>
+                <span className="krets-wire" />
+              </>
+            )}
 
-        {/* the LED — tappable in the flip puzzle */}
-        <button
-          type="button"
-          className={`krets-part krets-led ${!circuit.ledForward ? 'reversed' : ''}`}
-          onClick={goal.interaction === 'flip' ? flip : undefined}
-          disabled={goal.interaction !== 'flip'}
-          aria-label={goal.interaction === 'flip' ? 'vänd lysdioden' : 'lysdiod'}
-        >
-          <WokwiLed on={lit} />
-        </button>
-        </div>
+            {/* the LED — tappable in the flip puzzle */}
+            <button
+              type="button"
+              className={`krets-part krets-led ${!circuit.ledForward ? 'reversed' : ''}`}
+              onClick={goal.interaction === 'flip' ? flip : undefined}
+              disabled={goal.interaction !== 'flip'}
+              aria-label={goal.interaction === 'flip' ? 'vänd lysdioden' : 'lysdiod'}
+            >
+              <WokwiLed on={lit} />
+            </button>
+            <span className="krets-wire" />
+          </div>
         </div>
       </div>
 
