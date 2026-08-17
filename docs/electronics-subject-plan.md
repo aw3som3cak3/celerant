@@ -158,3 +158,30 @@ reason about it — it shouldn't.
   Start where a short can't start a fire. `elec_resistor_pick` takes the tier's voltage (3 V, then 5 V).
 - **Schematic reading:** **3-symbol matching** for slice 1 (reuses ChoiceStage). A full-schematic reader
   is a later, larger surface — deliberately not forked now.
+
+## 7. In-app composition — *"Bygg en krets"* (combine, don't just code)
+The recognition + colour skills alone risk teaching electronics as *coding* (recall the band value) rather
+than *building*. This rung is the screen-side **composition** for electronics — the mirror of the physical
+build, and (per the PhET evidence) the on-screen rehearsal that makes the hardware build faster. It is a
+standalone, θ-inert surface like the modelling tier — it *reads* fluency to gate itself but never feeds θ.
+
+**Interaction: snap-together (settled 2026-08-17).** A parts tray (battery, resistors, LED) whose pieces
+tap/snap into a single series loop — real combining, no breadboard grid or free wiring (that's a later
+rung). The kid sees **real resistor colour bands** on each part, and when two resistors snap together the
+bands are visibly two parts of one larger value.
+
+**Rendering: `@wokwi/elements` (MIT web components).** `<wokwi-resistor value>` draws the correct bands
+*from the value* — real, data-driven, not hand-painted — plus `<wokwi-led>`, `<wokwi-breadboard>`, battery.
+Self-contained SVG, no network (CSP/offline-safe). This also **retires the 14 placeholder SVGs** where a
+live part is better. In Next these are client-only (dynamic import, `ssr:false`, register on mount).
+*Not* a simulator — we validate topology ourselves (below); we deliberately do **not** pull in a SPICE
+sim (Falstad CircuitJS) or a logic-gate sim (CircuitVerse) — wrong tool, and overwhelming for a 6-year-old.
+
+**Validation: rule-based topology, "the scene is the answer key"** (reuse the modelling `validate()` shape,
+not a simulation): complete loop (battery + LED present, closed) · LED polarity correct · a current-limiting
+resistor present / series sum hits the target. Authored puzzle variants: *combine two resistors to make
+320 Ω* (spends `elec_series_add`, bands add up), *complete the loop so the lamp lights* (spends `elec_loop`),
+*put the LED the right way* (spends `elec_polarity`).
+
+**Guardrails:** witness, not reward — "✓ kretsen är hel, lampan lyser"; a miss softens and re-serves, no
+red X, no points. Gate the surface to the **test family** initially, like the other demos.
