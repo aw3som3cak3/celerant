@@ -1767,9 +1767,13 @@ table.plain-table th {
 .model-slot.active { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(58, 90, 120, 0.18); }
 .model-slot.locked { border-style: solid; border-color: var(--line); }
 .model-slot.result { border: 2px solid var(--line); color: var(--ink-soft); font-style: italic; }
-.model-ops { display: flex; gap: 0.3rem; }
+.model-ops { display: flex; gap: 0.3rem; border-radius: 12px; padding: 3px; }
+.model-ops.awaiting { box-shadow: 0 0 0 2px rgba(58, 90, 120, 0.22); animation: model-op-pulse 1.6s ease-in-out infinite; }
+@keyframes model-op-pulse { 0%, 100% { box-shadow: 0 0 0 2px rgba(58, 90, 120, 0.18); } 50% { box-shadow: 0 0 0 4px rgba(58, 90, 120, 0.34); } }
+@media (prefers-reduced-motion: reduce) { .model-ops.awaiting { animation: none; } }
 .model-op { min-width: 46px; min-height: 46px; font-size: 1.4rem; padding: 0; }
 .model-op.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.model-need { color: var(--accent); font-size: 0.95rem; margin-top: 0.4rem; text-align: center; }
 
 /* The visible calculator — the arithmetic is done FOR the child; she watches. */
 .model-calc { display: flex; flex-direction: column; gap: 0.6rem; font-size: 1.5rem; font-variant-numeric: tabular-nums; min-height: 4rem; }

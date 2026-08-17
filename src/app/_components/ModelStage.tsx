@@ -150,7 +150,9 @@ export function ModelStage({ problem, onDone }: { problem: ModellingProblem; onD
   // ── ASSEMBLE: build the model. Pick the operations, and at L2 which quantities to use. ──
   if (phase === 'assemble') {
     const opRow = (i: number) => (
-      <div className="model-ops" role="group" aria-label="räknesätt">
+      // An unchosen row pulses (`awaiting`) so it's clear EACH step needs a räknesätt — the two-step
+      // pizza otherwise lets a child pick the first op and wonder why "Räkna ut" stays greyed.
+      <div className={`model-ops ${rowOp[i] == null ? 'awaiting' : ''}`} role="group" aria-label="räknesätt">
         {OPS.map((o) => (
           <button key={o} className={`numpad-key model-op ${rowOp[i] === o ? 'on' : ''}`} onClick={() => setRowOp((prev) => prev.map((v, k) => (k === i ? o : v)))} type="button">
             {o}
@@ -205,6 +207,15 @@ export function ModelStage({ problem, onDone }: { problem: ModellingProblem; onD
         </div>
 
         <button className="primary" disabled={!modelReady} onClick={runCompute}>Räkna ut →</button>
+        {!modelReady && (
+          <p className="model-need">
+            {firstA == null || rowB.some((b) => b == null)
+              ? 'Fyll i alla tal först.'
+              : rowCount > 1
+                ? 'Välj ett räknesätt (× ÷ + −) i varje steg.'
+                : 'Välj ett räknesätt (× ÷ + −).'}
+          </p>
+        )}
       </div>
     );
   }
