@@ -113,8 +113,88 @@ Both choice/recognition → fluency-aimed; both on the INTRODUCE list. Placehold
 open vs closed) flagged for real art. Then author the **larmet** build (skill_prereqs: `elec_loop`,
 `elec_power_source`, `elec_breadboard`, `elec_switch`, `elec_symbol_match`; tier `5v`; kit + kid/adult
 instructions), and — if it fits the existing snap-together mechanic — a krets "switch" puzzle (does the lamp
-light with the switch open or closed?). This does NOT unlock *nattlampan* (still needs the sensor/measurement
-family — a separate, larger slice). Engine-untouched; θ-inert builds; same guardrails.
+light with the switch open or closed?). This does NOT unlock *nattlampan* (still needs the sensor family — §10).
+Engine-untouched; θ-inert builds; same guardrails.
+
+## 10. Slice 3 — *nattlampan*: the "sense and respond" jump
+*Nattlampan* — a lamp that turns on when it gets dark — is the build where electronics stops being "light
+things up on purpose" and becomes "sense the world and respond." STEAM files it at the top of the branch and
+bundles a lot around it (E11 safety, E12/E14 measuring, E16 sensor, E17 analog/digital, E22 drive-a-load,
+plus programming). **The sanity-check finding: the BUILD is only two skills away — the rest is enrichment
+around it, not a gate on it.**
+
+### 10.1 What the build actually needs (the minimal core)
+A basic analog night-light is: a **light sensor (LDR)** whose resistance rises in the dark → a **transistor**
+that uses that small change to switch a **LED** on, from a battery. So the genuinely new understanding is:
+- **`elec_sensor`** (E16) — a sensor's value tracks the world (darker → the light sensor reads "less light").
+- **`elec_transistor`** (E22) — a *small* signal controls a *bigger* current (a transistor as a tap: a light
+  touch on the handle lets a lot through). This is the one genuinely hard concept in the branch.
+
+Everything else the build uses already exists (`elec_loop`, `elec_power_source`, `elec_breadboard`,
+`elec_symbol_match`). Both new skills are **verkligheten**-judged in STEAM, so — per §0 — the *concept /
+recognition is screen-taught* (ChoiceStage) and the *doing is the witnessed bench build*.
+
+| Celerant code | STEAM | skill (screen concept) | surface | requires | crossRequires |
+|---|---|---|---|---|---|
+| `elec_sensor` ✦new | E16 | a light sensor's value changes with light (dark → less) | ChoiceStage | `elec_breadboard` | READING_READY |
+| `elec_transistor` ✦new | E22 | a small signal switches a bigger current (the tap) | ChoiceStage | `elec_sensor` | READING_READY |
+
+### 10.2 The build + the academic gate
+**`build_nattlampan`** — `voltage_tier: '5v'`; `skill_prereqs: [elec_loop, elec_power_source, elec_breadboard,
+elec_symbol_match, elec_sensor, elec_transistor]`; `equipment_prereqs: [elec_cap_owns_breadboard]`; `grants: []`
+(5 V leaf, like larmet). Kit = LDR + NPN transistor + LED + resistor + 5 V source + breadboard; kid+adult
+instructions.
+**Academic cross-gate:** the sensor *decides* by comparing against a threshold ("is it dark *enough*?"), so
+`elec_sensor` (or the build) `crossRequires` a maths **comparison** skill — candidate `more_or_less`. This is
+the nattlampan version of the "downstream gate": comparison stops being a worksheet and becomes *why the lamp
+knows it's night*.
+
+So slice 3's core is **2 screen skills + 1 build + 1 academic edge** — a tight slice, the same size as E4/E8.
+
+### 10.3 Deferred enrichments (valuable, but NOT gating nattlampan)
+STEAM bundles these because they're the "work unsupervised and debug" competence — but the *build* doesn't
+require them. Each is its own optional future slice:
+- **Measurement family** — `elec_measure_voltage` (E12, voltmeter *across*) and `elec_measure_current` (E14,
+  ammeter *in series*). E14 carries a real documented misconception (kids put the ammeter across, like a
+  voltmeter) → author it as a ChoiceStage where "across" is the tempting wrong answer, exactly like the loop
+  misconceptions. This is the "measure and debug" slice.
+- **`elec_analog_digital`** (E17, maskin — cleanly screen-ownable): continuous vs on/off. Useful once a build
+  has a digital sensor/microcontroller; a purely analog nattlampa doesn't need it.
+- **Safety körkort `el_och_strom`** (E11) — the third eltrappan rung (work station-independent). `elec_safety`
+  is its screen priming; the körkort is earned by an adult-approved safety *prov*. **One machinery note:** the
+  eltrappan today models tiers as *voltage* (coin/3v/5v/soldering) and körkort as *capabilities granted by a
+  build completion*. `el_och_strom` (and `lödning`) are competence körkort earned by a prov **directly**, not
+  by finishing a build — so the `/electronics` adult-confirm needs a small new action: "approve körkort prov →
+  grant its capability" (today confirm only grants tier caps on build completion). That's the one non-content
+  change this whole family needs, and it's small + θ-inert.
+
+### 10.4 Sanity notes (research + Celerant)
+- **Age tier.** Sensors and especially transistors are STEAM's *konstruktör/uppfinnare* level. These skills sit
+  high (behind fem_volt + comparison), so the youngest never see them — correct, and the graph enforces it.
+- **Transistor is the hard one.** Lean on the *tap/valve* analogy (a small turn controls a big flow); keep the
+  screen skill to recognition + that one model, and let the bench build carry the wiring (base/collector/emitter
+  is a witnessed thing, not a screen thing).
+- **Keep the slice honest.** Resist pulling the whole measurement family in "because STEAM lists it" — the
+  build needs sensor + transistor; ship those, defer the rest (the graph-trim lesson).
+- **Threshold for a körkort on choice skills** — if a future körkort gates on these (concept/choice) skills,
+  use the measurability rule already in place (`fluent && met` for choice, not `measured`).
+
+### 10.5 Build order
+1. **Core (this slice):** `elec_sensor`, `elec_transistor` (INTRODUCE-listed, placeholder art), + `build_nattlampan`
+   + the comparison cross-edge. Unlocks the flagship "responds to dark" build. Small, engine-untouched.
+2. **Measurement slice:** `elec_measure_voltage`, `elec_measure_current` (misconception-driven) — the debug
+   competence.
+3. **Safety/el_och_strom körkort:** `elec_safety` + the prov-grants-capability machinery + the körkort.
+4. **`elec_analog_digital`:** whenever a digital/microcontroller build arrives.
+
+### 10.6 Open decisions for review
+- **Comparison gate:** `more_or_less` (foundational, reachable) vs a stronger comparison skill — which best
+  says "knows dark-enough"? (Lean: `more_or_less`.)
+- **Does nattlampan require the safety körkort?** STEAM puts it at el_och_strom; I've scoped it to fem_volt +
+  sensor/transistor so it's buildable without first shipping the safety-körkort machinery. Keep it at fem_volt
+  (build now) or gate it behind el_och_strom (ship §10.3 safety first)? (Lean: fem_volt now.)
+- **Transistor depth:** recognition + the tap analogy only (recommended), or also which-leg-is-which (drifts
+  toward pinout, which we deferred)? (Lean: analogy only; legs are a witnessed bench detail.)
 
 ## 6. Pedagogy adopted from STEAM
 - **Fundamentals used backwards** — a grund is *what a child gets stuck without*. STEAM's electronics
