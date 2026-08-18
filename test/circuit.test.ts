@@ -107,11 +107,23 @@ describe('seriesSum — the snap/combine model (two resistors add up)', () => {
 });
 
 describe('scenario registry integrity', () => {
-  it('exactly the three authored puzzles, each spending a real electronics skill', () => {
+  it('the authored puzzles, each spending a real electronics skill', () => {
     const ids = CIRCUIT_GOALS.map((g) => g.id);
-    expect(ids).toEqual(['series_320', 'close_loop', 'flip_led']);
+    expect(ids).toEqual(['series_320', 'series_300', 'series_440', 'series_690', 'close_loop', 'flip_led']);
     const spends = CIRCUIT_GOALS.map((g) => g.spends);
-    expect(spends).toEqual(['elec_resistor_pick', 'elec_loop', 'elec_polarity']);
+    expect(spends).toEqual([
+      'elec_resistor_pick', // combine — series-sum to 320
+      'elec_resistor_pick', // combine — series-sum to 300
+      'elec_resistor_pick', // combine — series-sum to 440 (two of the same value)
+      'elec_resistor_pick', // combine — series-sum to 690
+      'elec_loop', // close — snap the open ring shut
+      'elec_polarity', // flip — turn the LED the right way
+    ]);
+    // every puzzle spends one of the real electronics skill codes
+    const real = new Set(['elec_resistor_pick', 'elec_loop', 'elec_polarity']);
+    for (const g of CIRCUIT_GOALS) expect(real.has(g.spends), g.id).toBe(true);
+    // the only interactions ever used are the three existing gestures (no new interaction type)
+    for (const g of CIRCUIT_GOALS) expect(['combine', 'close', 'flip']).toContain(g.interaction);
   });
 
   it('goalById round-trips and is undefined for an unknown id', () => {
@@ -129,11 +141,17 @@ describe('scenario registry integrity', () => {
     }
   });
 
-  it('the combine target is reachable from the tray (a real pairing sums to it)', () => {
-    const g = combine;
-    const rs = g.tray.filter((p) => p.kind === 'resistor').map((p) => p.ohms ?? 0);
-    const pairs = rs.flatMap((a, i) => rs.slice(i + 1).map((b) => a + b));
-    expect(pairs).toContain(g.targetOhms);
+  it('every combine target is reachable from its tray by EXACTLY ONE pairing (unique answer)', () => {
+    const combines = CIRCUIT_GOALS.filter((g) => g.interaction === 'combine');
+    expect(combines.length).toBeGreaterThanOrEqual(4); // the four authored combine puzzles
+    for (const g of combines) {
+      const rs = g.tray.filter((p) => p.kind === 'resistor').map((p) => p.ohms ?? 0);
+      const pairs = rs.flatMap((a, i) => rs.slice(i + 1).map((b) => a + b));
+      // reachable…
+      expect(pairs, g.id).toContain(g.targetOhms);
+      // …and by a SINGLE pairing, so a distractor pair can never also "solve" it
+      expect(pairs.filter((s) => s === g.targetOhms), g.id).toHaveLength(1);
+    }
   });
 });
 
