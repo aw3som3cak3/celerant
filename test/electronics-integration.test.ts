@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { BUILDS, BUILDS_BY_ID, SLICE1_SKILL_PREREQS, LJUSSLINGAN_SKILL_PREREQS } from '@/lib/electronics-builds';
+import { BUILDS, BUILDS_BY_ID, SLICE1_SKILL_PREREQS, LJUSSLINGAN_SKILL_PREREQS, LARMET_SKILL_PREREQS } from '@/lib/electronics-builds';
 import { BY_CODE } from '@/skills';
 
 // The A/B seam: the build ladder (agent B) references electronics skills (agent A) by string code.
@@ -39,6 +39,26 @@ describe('electronics build ↔ skill-graph integration (the A/B seam)', () => {
     for (const code of LJUSSLINGAN_SKILL_PREREQS) {
       expect(SLICE1_SKILL_PREREQS as readonly string[]).toContain(code);
     }
+  });
+
+  it('larmet is authored, at the 5 V tier, and every one of its 5 skills is a real electronics skill', () => {
+    const b = BUILDS_BY_ID.get('build_larmet');
+    expect(b, 'build_larmet should be authored').toBeDefined();
+    expect(b!.voltage_tier).toBe('5v');
+    // E1·E4·E6·E8·E9 — incl. the two NEW slice-2 skills (power source, switch)
+    expect([...b!.skill_prereqs].sort()).toEqual(
+      ['elec_breadboard', 'elec_loop', 'elec_power_source', 'elec_switch', 'elec_symbol_match'].sort(),
+    );
+    for (const code of b!.skill_prereqs) {
+      const skill = BY_CODE.get(code);
+      expect(skill, `larmet references missing skill "${code}"`).toBeDefined();
+      expect(skill?.subject).toBe('electronics');
+    }
+    // the named const matches the build's prereqs (one source of truth)
+    expect([...b!.skill_prereqs]).toEqual([...LARMET_SKILL_PREREQS]);
+    // a 5 V leaf build: the fem_volt körkort owns the tier climb, so the build grants nothing
+    expect(b!.grants).toEqual([]);
+    expect(b!.equipment_prereqs).toContain('elec_cap_owns_breadboard');
   });
 
   it('slice-1 wires all 8 documented skills (no rung dropped)', () => {

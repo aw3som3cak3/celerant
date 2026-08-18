@@ -1441,6 +1441,21 @@ const ELEC_SYMBOLS = [
 const ELEC_BB_OK = ["bb_row_a", "bb_row_b"] as const; // one terminal strip → connected (correct)
 const ELEC_BB_BAD = ["bb_cross", "bb_column", "bb_scatter"] as const; // different rows/rails → not connected
 
+// Power sources (elec_power_source, E4/§9). Each art is a thing that CAN drive a circuit; the
+// distractors are real parts that cannot (an LED/resistor/breadboard is not a source). PLACEHOLDER
+// SVGs in public/elec/ (src_*), flagged for real art.
+const ELEC_SOURCES = [
+  { key: "coincell", sv: "knappcell", art: "src_coincell" }, // CR2032 coin cell
+  { key: "aa_pack", sv: "batterihållare", art: "src_aa_pack" }, // 2×AA holder
+  { key: "usb", sv: "USB-uttag", art: "src_usb" }, // USB power
+] as const;
+const ELEC_NON_SOURCES = ["led", "resistor", "breadboard"] as const; // real parts, but NOT a source
+
+// Switch open/closed (elec_switch, E8/§9). A closed brytare completes the loop → the lamp lights; an
+// open one breaks it → dark. Right-vs-wrong discrimination, like polarity. PLACEHOLDER SVGs (sw_*).
+const ELEC_SWITCH_LIT = "sw_closed"; // brytaren stängd → slingan sluten → lampan lyser (correct)
+const ELEC_SWITCH_DARK = "sw_open"; // brytaren öppen → slingan bruten → släckt
+
 // Swedish resistor colour code (index === digit). svart=0 … vit=9; the multiplier band's colour digit
 // IS the power of ten (svart ×10^0, brun ×10^1) — that is the place-value link elec_colour_value trains.
 const ELEC_COLOURS = ["svart", "brun", "röd", "orange", "gul", "grön", "blå", "violett", "grå", "vit"] as const;
@@ -1555,6 +1570,44 @@ const tierElectronics: Skill[] = [
         },
       };
     },
+  }),
+  S({
+    // Power source (E4, §9): a circuit needs a SOURCE — recognise one (coin cell / AA pack / USB)
+    // against real parts that can't power it (an LED/resistor/breadboard is not a source). Recognition
+    // / fluency-aimed, gated on the loop model (you look for a source once you know current needs a
+    // ring to drive). Reading-gated (READING_READY) — the question names the källa in Swedish.
+    code: "elec_power_source", subject: "electronics", family: "elec_recog", year: 2, mode: "component", format: "choice",
+    requires: ["elec_loop"], crossRequires: [READING_READY],
+    generate: (r) => {
+      const src = r.pick(ELEC_SOURCES);
+      const bad = shuffle(r, [...ELEC_NON_SOURCES]).slice(0, 2);
+      return {
+        prompt: "", answer: { kind: "word", text: src.art },
+        steps: [`En ${src.sv} ger ström — kretsen behöver en strömkälla för att lampan ska lysa.`],
+        choice: {
+          prompt: { show: "elec" },
+          question: "Vilken kan driva kretsen?",
+          options: shuffle(r, [src.art, ...bad].map((art) => elecOpt(art))),
+        },
+      };
+    },
+  }),
+  S({
+    // Switch (E8, §9): a brytare/knapp opens & closes the loop. Concept-via-recognition (like
+    // elec_loop's model discrimination): pick the picture where the lamp lights — the CLOSED switch
+    // completes the ring; the OPEN one breaks it. Gated on breadboard topology (a switch is wired into
+    // a board), reading-gated (the question is text). Two-option right-vs-wrong, like polarity.
+    code: "elec_switch", subject: "electronics", family: "elec_model", year: 2, mode: "component", format: "choice",
+    requires: ["elec_breadboard"], crossRequires: [READING_READY],
+    generate: (r) => ({
+      prompt: "", answer: { kind: "word", text: ELEC_SWITCH_LIT },
+      steps: ["En stängd brytare sluter slingan — då går strömmen runt och lampan lyser. En öppen brytare bryter slingan, så det blir släckt."],
+      choice: {
+        prompt: { show: "elec" },
+        question: "I vilken bild lyser lampan? (en stängd brytare sluter slingan)",
+        options: shuffle(r, [elecOpt(ELEC_SWITCH_LIT), elecOpt(ELEC_SWITCH_DARK)]),
+      },
+    }),
   }),
 
   // ── CALCULATION tier (fluency, numpad; cross-gated on maths AND gated on the model tier) ──

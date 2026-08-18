@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER power source: CR2032 coin cell (elec_power_source). Needs real art. -->
+  <circle cx="60" cy="60" r="42" fill="#d9dde2" stroke="#8b9199" stroke-width="3"/>
+  <circle cx="60" cy="60" r="30" fill="#eef1f4" stroke="#b6bcc4" stroke-width="2"/>
+  <text x="60" y="54" font-size="22" text-anchor="middle" fill="#555" font-weight="bold">+</text>
+  <text x="60" y="80" font-size="13" text-anchor="middle" fill="#777">3V</text>
+</svg>

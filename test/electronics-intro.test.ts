@@ -15,7 +15,11 @@ import { selectItem, type SelState } from '@/lib/selector';
 // The electronics recognition + model rungs are brand-new to EVERY player, so grade-seeding marks
 // them fluent and they'd be perpetually skipped (the double/half problem). They must be on the
 // introduce list so established players actually meet them.
-const NEW_CONTENT = ['elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match', 'elec_breadboard'];
+const NEW_CONTENT = [
+  'elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match', 'elec_breadboard',
+  // slice 2 (§9): power sources + switches are brand-new recognition/concept rungs too
+  'elec_power_source', 'elec_switch',
+];
 
 describe('electronics — novel-intro seed guard', () => {
   it('every recognition + model rung is on INTRODUCE_SKILLS', () => {

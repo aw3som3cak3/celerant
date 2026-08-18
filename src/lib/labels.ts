@@ -120,6 +120,9 @@ const EXACT: Record<string, string> = {
   elec_breadboard: 'kopplingsdäckets hål',
   elec_resistor_pick: 'välj motståndet',
   elec_colour_value: 'färgkoder → ohm',
+  // Electronics slice 2 (§9) — power sources + switches (unlock larmet).
+  elec_power_source: 'strömkälla',
+  elec_switch: 'brytaren öppen/stängd',
 };
 
 export function skillLabel(code: string): string {

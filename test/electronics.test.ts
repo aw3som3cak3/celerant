@@ -12,6 +12,9 @@ import path from 'node:path';
 const MODEL = ['elec_loop', 'elec_not_consumed', 'elec_polarity'];
 const RECOG = ['elec_id_parts', 'elec_symbol_match', 'elec_breadboard'];
 const CALC = ['elec_resistor_pick', 'elec_colour_value'];
+// Slice 2 (§9): power sources (E4) + switches (E8) — NOT part of the fixed 8-skill slice-1 contract,
+// so kept out of ALL below; covered by their own block (they unlock the larmet build).
+const SLICE2 = ['elec_power_source', 'elec_switch'];
 const ALL = [...MODEL, ...RECOG, ...CALC];
 // Reading-gated rungs: the text-heavy model/produced-value skills. NOT the pictorial recognition
 // rungs (elec_id_parts, elec_breadboard), which a pre-reader must be able to reach (§1a, §8.4).
@@ -161,6 +164,60 @@ describe('electronics — calculation content is clean whole-number arithmetic',
       const [c1, c2, cm] = it.prompt.replace(' =', '').split(' ');
       const value = (map[c1] * 10 + map[c2]) * 10 ** map[cm];
       expect(it.answer).toBe(String(value));
+    }
+  });
+});
+
+describe('electronics — slice 2: power sources (E4) + switches (E8), §9', () => {
+  it('both new skills exist, carry subject:electronics, and are choice (never sprinted)', () => {
+    for (const code of SLICE2) {
+      const s = BY_CODE.get(code);
+      expect(s, `missing skill ${code}`).toBeTruthy();
+      expect(s!.subject, code).toBe('electronics');
+      expect(s!.format, code).toBe('choice');
+      expect(s!.sprintable, code).toBe(false);
+    }
+  });
+
+  it('elec_power_source requires the loop model and is reading-gated (recognise a source)', () => {
+    const s = skillByCode('elec_power_source');
+    expect(s.requires).toContain('elec_loop');
+    expect(s.crossRequires ?? []).toContain('spelling_t1c');
+  });
+
+  it('elec_switch requires breadboard topology and is reading-gated (open vs closed)', () => {
+    const s = skillByCode('elec_switch');
+    expect(s.requires).toContain('elec_breadboard');
+    expect(s.crossRequires ?? []).toContain('spelling_t1c');
+  });
+
+  it('the graph stays acyclic through the two new rungs', () => {
+    for (const code of SLICE2) expect(ancestors(code).has(code), code).toBe(false);
+  });
+
+  it('each generates a choice whose correct answer is a shown, gradeable option', () => {
+    for (const code of SLICE2) {
+      for (let i = 0; i < 20; i++) {
+        const it = generateCanon(code, makeRng((i * 22409 + 5) >>> 0));
+        const values = it.choice!.options.map((o) => String(o.value));
+        expect(values, code).toContain(it.answer);
+        expect(grade(it.answer, it.answer), code).toBe(true);
+      }
+    }
+  });
+
+  it('every art the two new generators emit has a matching /public/elec/<art>.svg', () => {
+    const root = path.join(process.cwd(), 'public', 'elec');
+    for (const code of SLICE2) {
+      for (let i = 0; i < 30; i++) {
+        const it = generateCanon(code, makeRng((i * 6364136223 + 13) >>> 0));
+        if (it.choice!.prompt.show === 'elec' && it.choice!.prompt.art) {
+          expect(existsSync(path.join(root, `${it.choice!.prompt.art}.svg`)), it.choice!.prompt.art).toBe(true);
+        }
+        for (const o of it.choice!.options) {
+          if ('art' in o) expect(existsSync(path.join(root, `${(o as { art: string }).art}.svg`)), (o as { art: string }).art).toBe(true);
+        }
+      }
     }
   });
 });

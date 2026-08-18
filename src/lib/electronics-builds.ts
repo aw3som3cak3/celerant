@@ -97,6 +97,21 @@ export const LJUSSLINGAN_SKILL_PREREQS = [
   'elec_symbol_match',
 ] as const;
 
+// LARMET (an alarm) — STEAM's larmet composite (grunder E1·E4·E6·E8·E9), ported native (§9). Press a
+// button → the lamp/buzzer sounds. Its five skills draw on the slice-2 additions (power source E4,
+// switch E8) plus the loop, breadboard, and schematic-symbol grunder. A 5 V build: it needs the
+// resistor+breadboard tier the fem_volt körkort opens. NOTE: these are NOT all a subset of
+// SLICE1_SKILL_PREREQS — elec_power_source (E4) and elec_switch (E8) are the two NEW slice-2 skills,
+// referenced by string exactly like the rest (the A/B seam is fluency-`met`, code-by-string).
+// E1 → elec_loop · E4 → elec_power_source · E6 → elec_breadboard · E8 → elec_switch · E9 → elec_symbol_match
+export const LARMET_SKILL_PREREQS = [
+  'elec_loop',
+  'elec_power_source',
+  'elec_breadboard',
+  'elec_switch',
+  'elec_symbol_match',
+] as const;
+
 // ── The registry ────────────────────────────────────────────────────────────────────────────
 // Slice 1: ONE rung live — light an LED + resistor on a coin cell. The coin tier is the floor, so
 // no tier capability gates it; it needs the 8 skills `met` and an owned breadboard. Completing it
@@ -154,6 +169,39 @@ export const BUILDS: readonly BuildDef[] = [
         'Koppla lysdiodens kort-ben (−) till minus-skenan.',
         'Gör likadant med alla fyra lamporna, en i taget, i en rad bredvid varandra.',
         'Alla fyra ska lysa. Lyser någon inte? Vänd just den lysdioden — den lyser bara åt ett håll.',
+      ],
+    },
+  },
+  // LARMET — an alarm: press a button → a lamp lights (the slice-2 payoff, §9). A 5 V build, so its
+  // tier opens only once the `fem_volt` körkort has granted `elec_cap_tier_5v` (the ladder climb is
+  // the prov's, never a build's) and it needs an owned breadboard. GRANTS NOTHING — a 5 V leaf, same
+  // precedent as ljusslingan at 3 V. Five skill_prereqs, incl. the two new slice-2 skills
+  // (elec_power_source, elec_switch); all reference real registered codes by string (the A/B seam).
+  {
+    id: 'build_larmet',
+    name: 'Larmet — tryck på knappen så tänds lampan',
+    voltage_tier: '5v',
+    skill_prereqs: LARMET_SKILL_PREREQS,
+    equipment_prereqs: ['elec_cap_owns_breadboard'],
+    grants: [], // a 5 V leaf build — the fem_volt körkort owns the climb to 5 V, not this build
+    kit_bom: [
+      { qty: 1, part: 'lysdiod (LED)' },
+      { qty: 1, part: '220 Ω motstånd' },
+      { qty: 1, part: 'tryckknapp (brytare)' },
+      { qty: 1, part: 'batterihållare 4×AA (ca 5 V) + fyra AA-batterier' },
+      { qty: 1, part: 'kopplingsplatta (breadboard)' },
+      { qty: 6, part: 'kopplingstrådar (jumpers)' },
+    ],
+    instructions: {
+      kid_adult: [
+        'Sätt kopplingsplattan framför dig med en vuxen bredvid.',
+        'Dra en tråd från batterihållarens plus (+) till plus-skenan, och från minus (−) till minus-skenan — batteriet är kretsens strömkälla.',
+        'Sätt tryckknappen (brytaren) på plattan så att den kan bryta och sluta slingan.',
+        'Koppla plus-skenan till knappens ena ben.',
+        'Koppla knappens andra ben till ett 220 Ω motstånd, och motståndet vidare till lysdiodens plus-ben (det långa) — precis som i kretsschemat.',
+        'Koppla lysdiodens kort-ben (−) till minus-skenan.',
+        'Tryck på knappen: nu sluts slingan och lampan ska lysa. Släpp — brytaren öppnar slingan och lampan slocknar.',
+        'Lyser den inte när du trycker? Vänd lysdioden — den lyser bara åt ett håll.',
       ],
     },
   },

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER power source: 2xAA battery holder (elec_power_source). Needs real art. -->
+  <rect x="16" y="40" width="88" height="40" rx="6" fill="#2b2f36" stroke="#14161a" stroke-width="3"/>
+  <rect x="24" y="48" width="32" height="24" rx="3" fill="#c9ccd1"/>
+  <rect x="64" y="48" width="32" height="24" rx="3" fill="#c9ccd1"/>
+  <text x="40" y="65" font-size="14" text-anchor="middle" fill="#555" font-weight="bold">+</text>
+  <text x="80" y="65" font-size="14" text-anchor="middle" fill="#555" font-weight="bold">−</text>
+  <!-- leads -->
+  <line x1="16" y1="52" x2="6" y2="52" stroke="#c0392b" stroke-width="4"/>
+  <line x1="16" y1="68" x2="6" y2="68" stroke="#2c3e50" stroke-width="4"/>
+</svg>
