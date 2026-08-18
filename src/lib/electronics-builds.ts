@@ -78,6 +78,19 @@ export const SLICE1_SKILL_PREREQS = [
   'elec_colour_value',
 ] as const;
 
+// LJUSSLINGAN (light chain) — STEAM's "Grundkittets egen komposit" (grunder E1·E3·E6·E9), ported
+// native. The Celerant cut DROPS STEAM's E24 chip (`läsa ett chip` / 4017 sequencer) and its E8
+// restart-button: those grunder are NOT built yet, so the composite is authored as the FOUR-LAMP
+// CHAIN that all light — not the sequencer. Its four skills are a SUBSET of the 8 (a lighter build
+// than the coin rung): closed loop, LED polarity, breadboard topology, and reading the schematic
+// symbol.  E1 → elec_loop · E3 → elec_polarity · E6 → elec_breadboard · E9 → elec_symbol_match
+export const LJUSSLINGAN_SKILL_PREREQS = [
+  'elec_loop',
+  'elec_polarity',
+  'elec_breadboard',
+  'elec_symbol_match',
+] as const;
+
 // ── The registry ────────────────────────────────────────────────────────────────────────────
 // Slice 1: ONE rung live — light an LED + resistor on a coin cell. The coin tier is the floor, so
 // no tier capability gates it; it needs the 8 skills `met` and an owned breadboard. Completing it
@@ -106,6 +119,39 @@ export const BUILDS: readonly BuildDef[] = [
         'Koppla en tråd från batteriets plus (+) till motståndets andra ände.',
         'Koppla en tråd från batteriets minus (−) till lysdiodens kort-ben (−).',
         'Lysdioden ska lysa. Om inte: vänd på lysdioden — den lyser bara åt ett håll.',
+      ],
+    },
+  },
+  // LJUSSLINGAN — the four-lamp light chain (§5). A 3 V build: its tier opens only once the coin rung
+  // has granted `elec_cap_tier_3v`, and it needs an owned breadboard. GRANTS NOTHING that climbs the
+  // eltrappan: the next tier (5 V) is earned at the bench through the `fem_volt` körkort prov
+  // (electronics-korkort.ts), which owns the `elec_cap_tier_5v` grant — a build shouldn't preempt it.
+  // ljusslingan witnesses a real competence at the 3 V tier without moving the ladder. Maps cleanly to
+  // the existing `tre_volt` körkort (same tier); no new körkort authored.
+  {
+    id: 'build_ljusslingan',
+    name: 'Ljusslingan — en kedja av fyra lampor',
+    voltage_tier: '3v',
+    skill_prereqs: LJUSSLINGAN_SKILL_PREREQS,
+    equipment_prereqs: ['elec_cap_owns_breadboard'],
+    grants: [], // a 3 V leaf build — the fem_volt körkort owns the climb to 5 V, not this build
+    kit_bom: [
+      { qty: 4, part: 'lysdioder (LED) i fyra färger' },
+      { qty: 4, part: '220 Ω motstånd' },
+      { qty: 1, part: 'batterihållare 2×AA (3 V) + två AA-batterier' },
+      { qty: 1, part: 'kopplingsplatta (breadboard)' },
+      { qty: 6, part: 'kopplingstrådar (jumpers)' },
+    ],
+    instructions: {
+      kid_adult: [
+        'Sätt kopplingsplattan framför dig med en vuxen bredvid.',
+        'Dra en tråd från batterihållarens plus (+) till plus-skenan, och från minus (−) till minus-skenan.',
+        'Ta första lysdioden: det långa benet är plus (+), det korta är minus (−).',
+        'Sätt ett 220 Ω motstånd före varje lysdiod så den inte lyser för hårt.',
+        'Koppla motståndet till plus-skenan och lysdiodens plus-ben i samma rad — precis som i kretsschemat.',
+        'Koppla lysdiodens kort-ben (−) till minus-skenan.',
+        'Gör likadant med alla fyra lamporna, en i taget, i en rad bredvid varandra.',
+        'Alla fyra ska lysa. Lyser någon inte? Vänd just den lysdioden — den lyser bara åt ett håll.',
       ],
     },
   },

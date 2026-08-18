@@ -39,7 +39,7 @@ export type Interaction = 'combine' | 'close' | 'flip';
 
 // One authored puzzle. The rules it enforces ARE its answer key; each puzzle SPENDS one real
 // electronics skill (its `spends` code), which is what gates the surface. Authored (not RNG-built):
-// there are three, each proving a different rule.
+// several snap-together puzzles across three interactions — four combine targets, one close, one flip.
 export type CircuitGoal = {
   id: string;
   title: string; // the Swedish instruction / situation
@@ -129,6 +129,8 @@ const R100: Part = { id: 'r100', kind: 'resistor', ohms: 100 };
 const R220: Part = { id: 'r220', kind: 'resistor', ohms: 220 };
 const R120: Part = { id: 'r120', kind: 'resistor', ohms: 120 };
 const R470: Part = { id: 'r470', kind: 'resistor', ohms: 470 };
+const R180: Part = { id: 'r180', kind: 'resistor', ohms: 180 };
+const R330: Part = { id: 'r330', kind: 'resistor', ohms: 330 };
 const BATT: Part = { id: 'batt', kind: 'battery' };
 const LED: Part = { id: 'led', kind: 'led' };
 
@@ -146,6 +148,67 @@ const combineGoal: CircuitGoal = {
   needClosed: true,
   needPolarity: true,
   solution: { placed: ['batt', 'r100', 'r220', 'led'], ledForward: true, closed: true },
+};
+
+// MORE COMBINE TARGETS (§5) — same snap-together mechanic, same spent skill (elec_resistor_pick),
+// each a DIFFERENT whole-ten sum the child reaches by reading two real colour-band values. Each tray
+// admits EXACTLY ONE pairing that hits the target (the distractors' other sums all miss), so a wrong
+// snap softens and re-serves via validate()'s `wrong_sum` — never a red X.
+
+// 120 + 180 = 300. Distractors (100, 220) can't reach it: 120+100=220, 180+100=280, 180+220=400,
+// 100+220=320 — only 120+180 lands on 300.
+const combine300: CircuitGoal = {
+  id: 'series_300',
+  title: 'Kombinera två motstånd till 300 Ω',
+  hint: 'Snäpp ihop två motstånd så färgbanden tillsammans blir 300 Ω.',
+  spends: 'elec_resistor_pick',
+  interaction: 'combine',
+  tray: [BATT, LED, R120, R180, R100, R220],
+  targetOhms: 300,
+  needBattery: true,
+  needLed: true,
+  needResistor: true,
+  needClosed: true,
+  needPolarity: true,
+  solution: { placed: ['batt', 'r120', 'r180', 'led'], ledForward: true, closed: true },
+};
+
+// 220 + 220 = 440 — TWO OF THE SAME value (two distinct tray ids, same band pattern). Distractors
+// (100, 330): 220+100=320, 220+330=550, 100+330=430 — only the pair of 220s makes 440.
+const R220A: Part = { id: 'r220a', kind: 'resistor', ohms: 220 };
+const R220B: Part = { id: 'r220b', kind: 'resistor', ohms: 220 };
+const combine440: CircuitGoal = {
+  id: 'series_440',
+  title: 'Kombinera två motstånd till 440 Ω',
+  hint: 'Snäpp ihop två lika motstånd så färgbanden tillsammans blir 440 Ω.',
+  spends: 'elec_resistor_pick',
+  interaction: 'combine',
+  tray: [BATT, LED, R220A, R220B, R100, R330],
+  targetOhms: 440,
+  needBattery: true,
+  needLed: true,
+  needResistor: true,
+  needClosed: true,
+  needPolarity: true,
+  solution: { placed: ['batt', 'r220a', 'r220b', 'led'], ledForward: true, closed: true },
+};
+
+// 220 + 470 = 690 — a larger target. Distractors (100, 330): 220+100=320, 220+330=550, 470+100=570,
+// 470+330=800, 100+330=430 — only 220+470 reaches 690.
+const combine690: CircuitGoal = {
+  id: 'series_690',
+  title: 'Kombinera två motstånd till 690 Ω',
+  hint: 'Snäpp ihop två motstånd så färgbanden tillsammans blir 690 Ω.',
+  spends: 'elec_resistor_pick',
+  interaction: 'combine',
+  tray: [BATT, LED, R220, R470, R100, R330],
+  targetOhms: 690,
+  needBattery: true,
+  needLed: true,
+  needResistor: true,
+  needClosed: true,
+  needPolarity: true,
+  solution: { placed: ['batt', 'r220', 'r470', 'led'], ledForward: true, closed: true },
 };
 
 // 2 · CLOSE — "Slut kretsen så lampan lyser" (spends elec_loop). Everything is placed and the right
@@ -187,6 +250,13 @@ const polarityGoal: CircuitGoal = {
 
 // The scenario registry — so the demo enumerates the puzzles and a future promotion can look one up
 // (mirrors modelling's SCENARIOS).
-export const CIRCUIT_GOALS: readonly CircuitGoal[] = [combineGoal, loopGoal, polarityGoal] as const;
+export const CIRCUIT_GOALS: readonly CircuitGoal[] = [
+  combineGoal,
+  combine300,
+  combine440,
+  combine690,
+  loopGoal,
+  polarityGoal,
+] as const;
 
 export const goalById = (id: string): CircuitGoal | undefined => CIRCUIT_GOALS.find((g) => g.id === id);
