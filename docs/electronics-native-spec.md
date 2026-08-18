@@ -137,7 +137,7 @@ recognition is screen-taught* (ChoiceStage) and the *doing is the witnessed benc
 | Celerant code | STEAM | skill (screen concept) | surface | requires | crossRequires |
 |---|---|---|---|---|---|
 | `elec_sensor` ✦new | E16 | a light sensor's value changes with light (dark → less) | ChoiceStage | `elec_breadboard` | READING_READY |
-| `elec_transistor` ✦new | E22 | a small signal switches a bigger current (the tap) | ChoiceStage | `elec_sensor` | READING_READY |
+| `elec_transistor` ✦new | E22 | a small signal switches a bigger current (the tap) **+ which leg is which (base/collector/emitter)** | ChoiceStage | `elec_sensor` | READING_READY |
 
 ### 10.2 The build + the academic gate
 **`build_nattlampan`** — `voltage_tier: '5v'`; `skill_prereqs: [elec_loop, elec_power_source, elec_breadboard,
@@ -187,14 +187,15 @@ require them. Each is its own optional future slice:
 3. **Safety/el_och_strom körkort:** `elec_safety` + the prov-grants-capability machinery + the körkort.
 4. **`elec_analog_digital`:** whenever a digital/microcontroller build arrives.
 
-### 10.6 Open decisions for review
-- **Comparison gate:** `more_or_less` (foundational, reachable) vs a stronger comparison skill — which best
-  says "knows dark-enough"? (Lean: `more_or_less`.)
-- **Does nattlampan require the safety körkort?** STEAM puts it at el_och_strom; I've scoped it to fem_volt +
-  sensor/transistor so it's buildable without first shipping the safety-körkort machinery. Keep it at fem_volt
-  (build now) or gate it behind el_och_strom (ship §10.3 safety first)? (Lean: fem_volt now.)
-- **Transistor depth:** recognition + the tap analogy only (recommended), or also which-leg-is-which (drifts
-  toward pinout, which we deferred)? (Lean: analogy only; legs are a witnessed bench detail.)
+### 10.6 Decisions (settled 2026-08-18)
+- **Comparison gate = `more_or_less`.** `elec_sensor` crossRequires it — foundational, reachable, and it
+  carries the "comparison is why the lamp knows it's night" downstream story.
+- **Build at fem_volt, now.** `build_nattlampan` is a 5 V build needing sensor + transistor; it does NOT wait
+  on the safety-körkort machinery (§10.3 stays a later, separate slice).
+- **Transistor includes which-leg-is-which.** `elec_transistor` teaches the tap analogy (small signal → big
+  current) AND identifying base/collector/emitter. Scope note: this is transistor-leg identification *inside*
+  `elec_transistor`, NOT a revival of the general E24 chip-pinout skill (still deferred). Author both aspects
+  as ChoiceStage items (the model discrimination + a "which leg is the base?" recognition).
 
 ## 6. Pedagogy adopted from STEAM
 - **Fundamentals used backwards** — a grund is *what a child gets stuck without*. STEAM's electronics
