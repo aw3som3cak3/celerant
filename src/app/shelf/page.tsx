@@ -50,7 +50,7 @@ function Shelf() {
             .filter((k) => k.state === 'earned')
             .map((k) => (
               <div key={k.id} className="diploma korkort korkort-earned" title={k.prov}>
-                <span className="diploma-medal" aria-hidden><Emoji e="🎖️" /></span>
+                <span className="diploma-medal" aria-hidden><Emoji e="🪪" /></span>
                 <span className="diploma-skill">Körkort: {k.namn}</span>
                 <span className="diploma-tag">godkänt</span>
               </div>

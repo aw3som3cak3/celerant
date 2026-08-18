@@ -172,7 +172,7 @@ function KorkortStrip({ korkort }: { korkort: Korkort[] }) {
   const KSTATE: Record<Korkort['state'], string> = {
     locked: 'låst',
     todo: 'redo för prov',
-    earned: '🎖️ godkänt körkort',
+    earned: '🪪 godkänt körkort',
   };
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
