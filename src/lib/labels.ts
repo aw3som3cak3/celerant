@@ -123,6 +123,9 @@ const EXACT: Record<string, string> = {
   // Electronics slice 2 (§9) — power sources + switches (unlock larmet).
   elec_power_source: 'strömkälla',
   elec_switch: 'brytaren öppen/stängd',
+  // Electronics slice 3 (§10) — sensor + transistor (unlock nattlampan, the "sense and respond" jump).
+  elec_sensor: 'ljussensorns värde',
+  elec_transistor: 'transistorn (kranen)',
 };
 
 export function skillLabel(code: string): string {

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER elec_transistor DISTRACTOR: blocks everything — no flow at all (wrong model). Needs real art. -->
+  <rect x="34" y="40" width="52" height="18" rx="4" fill="#b6bcc4" stroke="#8b9199" stroke-width="3"/>
+  <rect x="52" y="24" width="16" height="18" fill="#8b9199"/>
+  <line x1="60" y1="24" x2="60" y2="14" stroke="#c0392b" stroke-width="4"/>
+  <!-- no stream — a barred/stop mark below the tap -->
+  <circle cx="58" cy="84" r="18" fill="none" stroke="#c0392b" stroke-width="4"/>
+  <line x1="46" y1="72" x2="70" y2="96" stroke="#c0392b" stroke-width="4"/>
+  <text x="58" y="112" font-size="11" text-anchor="middle" fill="#333">ingen ström</text>
+</svg>

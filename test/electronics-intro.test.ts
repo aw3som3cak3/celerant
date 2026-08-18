@@ -19,6 +19,8 @@ const NEW_CONTENT = [
   'elec_loop', 'elec_not_consumed', 'elec_polarity', 'elec_id_parts', 'elec_symbol_match', 'elec_breadboard',
   // slice 2 (§9): power sources + switches are brand-new recognition/concept rungs too
   'elec_power_source', 'elec_switch',
+  // slice 3 (§10): the nattlampan sensor + transistor concept rungs — brand-new, must be introduced too
+  'elec_sensor', 'elec_transistor',
 ];
 
 describe('electronics — novel-intro seed guard', () => {

@@ -139,6 +139,10 @@ export const INTRODUCE_SKILLS: ReadonlySet<string> = new Set([
   // Electronics slice 2 (power sources + switches, §9) — same seeded≠demonstrated reasoning: brand-new
   // recognition/concept rungs, so introduce them once too.
   'elec_power_source', 'elec_switch',
+  // Electronics slice 3 (sensor + transistor, §10) — the nattlampan "sense and respond" jump: brand-new
+  // concept rungs, introduced once (they sit high, behind fem_volt + comparison, so the youngest never
+  // meet them — the graph enforces the age tier, §10.4).
+  'elec_sensor', 'elec_transistor',
 ]);
 
 export type NextOpts = {
