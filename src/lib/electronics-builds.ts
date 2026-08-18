@@ -112,6 +112,25 @@ export const LARMET_SKILL_PREREQS = [
   'elec_symbol_match',
 ] as const;
 
+// NATTLAMPAN (a lamp that turns on when it gets dark) — STEAM's nattlampa, ported native (§10). The
+// "sense and respond" jump: electronics stops being "light things up on purpose" and becomes "sense
+// the world and respond." Its SIX skills add the two NEW slice-3 grunder (light sensor E16, transistor
+// E22) on top of the loop, power source, breadboard, and schematic-symbol grunder the build already
+// uses. A 5 V build: it needs the resistor+breadboard tier the fem_volt körkort opens. The academic
+// cross-gate (comparison → why the lamp knows it's night) lives on elec_sensor's crossRequires
+// (more_or_less), reached through the skill graph — not duplicated here. All referenced by string (the
+// A/B seam is fluency-`met`, code-by-string, a FIXED CONTRACT).
+// E1 → elec_loop · E4 → elec_power_source · E6 → elec_breadboard · E9 → elec_symbol_match ·
+// E16 → elec_sensor · E22 → elec_transistor
+export const NATTLAMPAN_SKILL_PREREQS = [
+  'elec_loop',
+  'elec_power_source',
+  'elec_breadboard',
+  'elec_symbol_match',
+  'elec_sensor',
+  'elec_transistor',
+] as const;
+
 // ── The registry ────────────────────────────────────────────────────────────────────────────
 // Slice 1: ONE rung live — light an LED + resistor on a coin cell. The coin tier is the floor, so
 // no tier capability gates it; it needs the 8 skills `met` and an owned breadboard. Completing it
@@ -202,6 +221,42 @@ export const BUILDS: readonly BuildDef[] = [
         'Koppla lysdiodens kort-ben (−) till minus-skenan.',
         'Tryck på knappen: nu sluts slingan och lampan ska lysa. Släpp — brytaren öppnar slingan och lampan slocknar.',
         'Lyser den inte när du trycker? Vänd lysdioden — den lyser bara åt ett håll.',
+      ],
+    },
+  },
+  // NATTLAMPAN — a lamp that turns on when it gets dark (the slice-3 flagship, §10): the "sense and
+  // respond" build. A 5 V build, so its tier opens only once the `fem_volt` körkort has granted
+  // `elec_cap_tier_5v` (the ladder climb is the prov's, never a build's) and it needs an owned
+  // breadboard. GRANTS NOTHING — a 5 V leaf, same precedent as larmet/ljusslingan (§10.2). Six
+  // skill_prereqs, incl. the two new slice-3 skills (elec_sensor, elec_transistor); all reference real
+  // registered codes by string (the A/B seam). The comparison academic-gate rides on elec_sensor.
+  {
+    id: 'build_nattlampan',
+    name: 'Nattlampan — lampan tänds när det blir mörkt',
+    voltage_tier: '5v',
+    skill_prereqs: NATTLAMPAN_SKILL_PREREQS,
+    equipment_prereqs: ['elec_cap_owns_breadboard'],
+    grants: [], // a 5 V leaf build — the fem_volt körkort owns the climb to 5 V, not this build
+    kit_bom: [
+      { qty: 1, part: 'ljussensor (LDR / fotomotstånd)' },
+      { qty: 1, part: 'NPN-transistor (t.ex. BC547)' },
+      { qty: 1, part: 'lysdiod (LED)' },
+      { qty: 2, part: 'motstånd (ett till lysdioden, ett till sensorn)' },
+      { qty: 1, part: 'batterihållare 4×AA (ca 5 V) + fyra AA-batterier' },
+      { qty: 1, part: 'kopplingsplatta (breadboard)' },
+      { qty: 6, part: 'kopplingstrådar (jumpers)' },
+    ],
+    instructions: {
+      kid_adult: [
+        'Sätt kopplingsplattan framför dig med en vuxen bredvid.',
+        'Dra en tråd från batterihållarens plus (+) till plus-skenan, och från minus (−) till minus-skenan — batteriet är kretsens strömkälla.',
+        'Sätt ljussensorn (LDR) och ett motstånd i en rad så att de delar på spänningen: sensorn mot plus, motståndet mot minus. Punkten mellan dem är sensorns värde — det ändras när det blir mörkare.',
+        'Sätt NPN-transistorn på plattan. Den har tre ben: bas (styrbenet), kollektor och emitter.',
+        'Koppla sensorns mittpunkt till transistorns bas (styrbenet) — den lilla signalen som styr.',
+        'Koppla lysdiodens plus-ben (det långa) via sitt motstånd till plus-skenan, och lysdiodens andra sida till transistorns kollektor — precis som i kretsschemat.',
+        'Koppla transistorns emitter till minus-skenan.',
+        'Skugga sensorn med handen så det blir mörkt: sensorns värde ändras, transistorn släpper fram strömmen och lampan tänds. Lys på sensorn igen — lampan slocknar.',
+        'Lyser den inte när du skuggar? Vänd lysdioden (den lyser bara åt ett håll) och kontrollera att basen sitter på rätt ben.',
       ],
     },
   },

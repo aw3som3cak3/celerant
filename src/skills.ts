@@ -1421,6 +1421,8 @@ const tierEnglish: Skill[] = [
 const ELEC_MULT = "mult_mixed"; // the ×50 multiplication rule (volt över × 50, §3)
 const ELEC_SUB = "sub_within_10"; // the small subtraction Vsupply − Vled
 const ELEC_PLACE = "mult_by_powers_of_ten"; // place value / powers of ten (colour bands)
+const ELEC_COMPARE = "more_or_less"; // slice-3 comparison gate — the sensor DECIDES by comparing vs a
+//   threshold ("är det mörkt NOG?"); comparison is WHY the lamp knows it's night (§10.2, §10.6).
 
 const ELEC_PARTS = [
   { key: "led", sv: "lysdiod", art: "led" },
@@ -1455,6 +1457,21 @@ const ELEC_NON_SOURCES = ["led", "resistor", "breadboard"] as const; // real par
 // open one breaks it → dark. Right-vs-wrong discrimination, like polarity. PLACEHOLDER SVGs (sw_*).
 const ELEC_SWITCH_LIT = "sw_closed"; // brytaren stängd → slingan sluten → lampan lyser (correct)
 const ELEC_SWITCH_DARK = "sw_open"; // brytaren öppen → slingan bruten → släckt
+
+// Light sensor (elec_sensor, E16/§10). An LDR's value tracks the world: darker → it reads LESS light
+// (its resistance rises in the dark). Two arts — a low/high sensor reading — so the correct pick tracks
+// the direction of the change, never a fixed answer. PLACEHOLDER SVGs in public/elec/ (sensor_*).
+const ELEC_SENSOR_LESS = "sensor_less"; // mindre ljus (dark → the reading drops)
+const ELEC_SENSOR_MORE = "sensor_more"; // mer ljus (light → the reading rises)
+
+// Transistor (elec_transistor, E22/§10). TWO authored aspects (§10.6): the TAP-ANALOGY model (a small
+// signal controls a big current — a light touch on the tap lets a lot through) and WHICH-LEG-IS-WHICH
+// (base/collector/emitter — leg identification INSIDE this skill, NOT the deferred E24 chip-pinout).
+// PLACEHOLDER SVGs in public/elec/ (tr_*): a tap/valve illustration + a transistor with labelled legs.
+const ELEC_TR_TAP_OK = "tr_tap_ok"; // a small turn → a big flow (the correct model)
+const ELEC_TR_TAP_BAD = ["tr_tap_block", "tr_tap_equal"] as const; // blocks all / no gain (wrong models)
+const ELEC_TR_BASE = "tr_leg_base"; // the base = the small STYRBEN (correct leg)
+const ELEC_TR_LEGS_BAD = ["tr_leg_collector", "tr_leg_emitter"] as const; // the other two legs
 
 // Swedish resistor colour code (index === digit). svart=0 … vit=9; the multiplier band's colour digit
 // IS the power of ten (svart ×10^0, brun ×10^1) — that is the place-value link elec_colour_value trains.
@@ -1608,6 +1625,67 @@ const tierElectronics: Skill[] = [
         options: shuffle(r, [elecOpt(ELEC_SWITCH_LIT), elecOpt(ELEC_SWITCH_DARK)]),
       },
     }),
+  }),
+
+  // ── SENSE-AND-RESPOND tier (slice 3, §10) — the nattlampan jump: sense the world, then respond ──
+  S({
+    // Light sensor (E16, §10.1): a sensor's value tracks the world — darker → the LDR reads LESS light
+    // (its resistance rises in the dark). Concept-via-recognition (like elec_loop/elec_switch): pick the
+    // reading that matches the change. Direction is randomised so the answer is never fixed. Gated on
+    // breadboard topology (a sensor is wired into a board). Reading-gated AND — the point of the slice —
+    // crossRequires more_or_less: the sensor DECIDES by COMPARING against a threshold ("är det mörkt
+    // NOG?"), so comparison is why the lamp knows it's night (§10.2, §10.6, the downstream-gate story).
+    code: "elec_sensor", subject: "electronics", family: "elec_model", year: 3, mode: "component", format: "choice",
+    requires: ["elec_breadboard"], crossRequires: [READING_READY, ELEC_COMPARE],
+    generate: (r) => {
+      const darker = r.int(0, 1) === 0; // darker → less light; lighter → more light
+      const answer = darker ? ELEC_SENSOR_LESS : ELEC_SENSOR_MORE;
+      return {
+        prompt: "", answer: { kind: "word", text: answer },
+        steps: ["Ljussensorn (LDR) känner av världen: när det blir mörkare läser den av MINDRE ljus. Sedan jämför den mot en tröskel — 'är det mörkt NOG?' — och det är därför lampan vet att det är natt."],
+        choice: {
+          prompt: { show: "elec" },
+          question: darker
+            ? "Det blir mörkare — vad visar ljussensorns värde?"
+            : "Det blir ljusare — vad visar ljussensorns värde?",
+          options: shuffle(r, [elecOpt(ELEC_SENSOR_LESS), elecOpt(ELEC_SENSOR_MORE)]),
+        },
+      };
+    },
+  }),
+  S({
+    // Transistor (E22, §10.1) — the one genuinely hard concept in the branch. TWO authored aspects
+    // (§10.6), one per generated item: (a) the TAP-ANALOGY model — a small signal controls a bigger
+    // current (a light touch on the tap lets a lot through); (b) WHICH-LEG-IS-WHICH — identify the base
+    // (styrbenet) vs collector/emitter. The leg question is transistor-leg identification INSIDE this
+    // skill, NOT a revival of the deferred general E24 chip-pinout skill. Gated on the sensor (the
+    // nattlampa's sensor feeds the transistor's base). Reading-gated; concept/choice, never sprinted.
+    code: "elec_transistor", subject: "electronics", family: "elec_model", year: 4, mode: "component", format: "choice",
+    requires: ["elec_sensor"], crossRequires: [READING_READY],
+    generate: (r) => {
+      if (r.int(0, 1) === 0) {
+        // (b) WHICH-LEG-IS-WHICH — base vs collector vs emitter (leg identification, §10.6)
+        return {
+          prompt: "", answer: { kind: "word", text: ELEC_TR_BASE },
+          steps: ["Transistorn har tre ben: bas (styrbenet), kollektor och emitter. Basen är det lilla styrbenet — en liten ström in på basen styr den stora strömmen mellan kollektor och emitter."],
+          choice: {
+            prompt: { show: "elec" },
+            question: "Vilket ben är basen (styrbenet)?",
+            options: shuffle(r, [ELEC_TR_BASE, ...ELEC_TR_LEGS_BAD].map((art) => elecOpt(art))),
+          },
+        };
+      }
+      // (a) TAP ANALOGY / model — a small signal switches a bigger current
+      return {
+        prompt: "", answer: { kind: "word", text: ELEC_TR_TAP_OK },
+        steps: ["Transistorn är som en kran: en liten signal på styrbenet släpper fram en mycket större ström — en lätt touch på handtaget släpper fram mycket vatten."],
+        choice: {
+          prompt: { show: "elec" },
+          question: "Vad gör transistorn?",
+          options: shuffle(r, [ELEC_TR_TAP_OK, ...ELEC_TR_TAP_BAD].map((art) => elecOpt(art))),
+        },
+      };
+    },
   }),
 
   // ── CALCULATION tier (fluency, numpad; cross-gated on maths AND gated on the model tier) ──

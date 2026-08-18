@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- PLACEHOLDER elec_transistor DISTRACTOR leg: the EMITTER (a right leg) highlighted. Needs real art. -->
+  <path d="M36 34 a24 24 0 0 1 48 0 z" fill="#3a3f47" stroke="#22262c" stroke-width="2"/>
+  <rect x="36" y="30" width="48" height="8" fill="#3a3f47"/>
+  <line x1="48" y1="38" x2="48" y2="96" stroke="#9aa0a8" stroke-width="4"/>
+  <line x1="60" y1="38" x2="60" y2="96" stroke="#9aa0a8" stroke-width="4"/>
+  <line x1="72" y1="38" x2="72" y2="96" stroke="#c0392b" stroke-width="6"/><!-- EMITTER highlighted -->
+  <circle cx="72" cy="96" r="6" fill="#c0392b"/>
+  <text x="72" y="114" font-size="10" text-anchor="middle" fill="#c0392b">emitter</text>
+</svg>

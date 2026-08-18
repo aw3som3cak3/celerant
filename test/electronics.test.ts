@@ -222,6 +222,82 @@ describe('electronics — slice 2: power sources (E4) + switches (E8), §9', () 
   });
 });
 
+describe('electronics — slice 3: sensor (E16) + transistor (E22), §10 (the nattlampan jump)', () => {
+  const SLICE3 = ['elec_sensor', 'elec_transistor'];
+
+  it('both new skills exist, carry subject:electronics, and are choice (never sprinted)', () => {
+    for (const code of SLICE3) {
+      const s = BY_CODE.get(code);
+      expect(s, `missing skill ${code}`).toBeTruthy();
+      expect(s!.subject, code).toBe('electronics');
+      expect(s!.format, code).toBe('choice');
+      expect(s!.sprintable, code).toBe(false);
+    }
+  });
+
+  it('elec_sensor requires breadboard, is reading-gated, AND cross-gates on comparison (more_or_less, §10.2)', () => {
+    const s = skillByCode('elec_sensor');
+    expect(s.requires).toContain('elec_breadboard');
+    expect(s.crossRequires ?? []).toContain('spelling_t1c');
+    expect(s.crossRequires ?? []).toContain('more_or_less'); // the comparison downstream-gate — why the lamp knows it's night
+    expect(BY_CODE.get('more_or_less')?.subject).toBe('maths'); // the gated code is real maths content
+  });
+
+  it('elec_transistor requires the sensor and is reading-gated (the sensor feeds the base)', () => {
+    const s = skillByCode('elec_transistor');
+    expect(s.requires).toContain('elec_sensor');
+    expect(s.crossRequires ?? []).toContain('spelling_t1c');
+  });
+
+  it('elec_transistor authors BOTH aspects: the tap-analogy model AND leg identification (§10.6)', () => {
+    const questions = new Set<string>();
+    const arts = new Set<string>();
+    for (let i = 0; i < 60; i++) {
+      const it = generateCanon('elec_transistor', makeRng((i * 2654435761 + 17) >>> 0));
+      questions.add(it.choice!.question);
+      for (const o of it.choice!.options) if ('art' in o) arts.add((o as { art: string }).art);
+    }
+    // the tap-analogy model discrimination
+    expect([...questions].some((q) => /transistorn/i.test(q))).toBe(true);
+    expect(arts).toContain('tr_tap_ok');
+    // the which-leg-is-which recognition (base vs collector vs emitter)
+    expect([...questions].some((q) => /bas/i.test(q))).toBe(true);
+    expect(arts).toContain('tr_leg_base');
+    expect(arts).toContain('tr_leg_collector');
+    expect(arts).toContain('tr_leg_emitter');
+  });
+
+  it('the graph stays acyclic through the two new rungs', () => {
+    for (const code of SLICE3) expect(ancestors(code).has(code), code).toBe(false);
+  });
+
+  it('each generates a choice whose correct answer is a shown, gradeable option', () => {
+    for (const code of SLICE3) {
+      for (let i = 0; i < 30; i++) {
+        const it = generateCanon(code, makeRng((i * 22409 + 9) >>> 0));
+        const values = it.choice!.options.map((o) => String(o.value));
+        expect(values, code).toContain(it.answer);
+        expect(grade(it.answer, it.answer), code).toBe(true);
+      }
+    }
+  });
+
+  it('every art the two new generators emit has a matching /public/elec/<art>.svg', () => {
+    const root = path.join(process.cwd(), 'public', 'elec');
+    for (const code of SLICE3) {
+      for (let i = 0; i < 40; i++) {
+        const it = generateCanon(code, makeRng((i * 6364136223 + 19) >>> 0));
+        if (it.choice!.prompt.show === 'elec' && it.choice!.prompt.art) {
+          expect(existsSync(path.join(root, `${it.choice!.prompt.art}.svg`)), it.choice!.prompt.art).toBe(true);
+        }
+        for (const o of it.choice!.options) {
+          if ('art' in o) expect(existsSync(path.join(root, `${(o as { art: string }).art}.svg`)), (o as { art: string }).art).toBe(true);
+        }
+      }
+    }
+  });
+});
+
 describe('electronics — assets referenced by the generators exist', () => {
   it('every art name a generator emits has a matching /public/elec/<art>.svg', () => {
     const root = path.join(process.cwd(), 'public', 'elec');
