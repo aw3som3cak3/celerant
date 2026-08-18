@@ -29,7 +29,12 @@ export async function POST(req: NextRequest) {
   // A mixed Öva interleaves maths with spelling whenever the child has headphones — the ladder
   // (T0 floor → recognition → t1c → t2) + the p-band decide who's ready for what, so even the
   // youngest joins (starting at T0). An explicit subject (map deep-link) stays single.
-  const subjects = mixedSubjectsFor({ explicit: parsed.data.subject, headphones: parsed.data.headphones, schoolYear: player.school_year });
+  const subjects = mixedSubjectsFor({
+    explicit: parsed.data.subject,
+    headphones: parsed.data.headphones,
+    schoolYear: player.school_year,
+    electronics: repo.isTestFamilyPlayer(player.id), // test family only, for now (playable/vettable end to end)
+  });
   const subject = subjects[0];
   const target = player.session_target;
   const sessionId = repo.createSessionRun(player.id, target, now, subject, subjects);

@@ -22,6 +22,9 @@ export function mixedSubjectsFor(opts: {
   explicit?: 'maths' | 'spelling' | 'english' | 'electronics';
   headphones?: boolean;
   schoolYear?: number;
+  electronics?: boolean; // TEST FAMILY only (for now): electronics joins the mixed set so the whole
+  // fundamentals → fluency → körkort flow can be played/vetted end to end. Not audio, so no headphone
+  // gate; the graph (requires + crossRequires on maths/reading) + p-band still decide readiness.
 }): ('maths' | 'spelling' | 'english' | 'electronics')[] {
   if (opts.explicit) return [opts.explicit];
   // Build the active SET (no longer a hardcoded pair). Maths always; the audio subjects only with
@@ -32,6 +35,7 @@ export function mixedSubjectsFor(opts: {
     subjects.push('spelling');
     if (englishReady(opts.schoolYear ?? 0)) subjects.push('english');
   }
+  if (opts.electronics) subjects.push('electronics');
   return subjects;
 }
 
