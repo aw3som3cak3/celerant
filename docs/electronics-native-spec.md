@@ -98,6 +98,24 @@ The shipped krets (combine-to-320 Ω · close-the-loop · flip-the-LED) already 
 step, E1 and E3. **Series addition lives in the combine puzzle** (no standalone skill); gate that puzzle on
 `elec_resistor_pick`, not the removed `elec_series_add`.
 
+## 9. Slice 2 — power sources (E4) + switches (E8): unlock *larmet*
+The cheap, high-value next slice: two fundamentals that unlock *larmet* (press a button → it sounds/lights)
+and a whole family of "turns on when you press it" builds. Both are **verkligheten**-judged in STEAM — so,
+exactly like `elec_loop`, the **concept/recognition is screen-taught** and the **doing is a witnessed bench
+build**. Two new screen skills:
+
+| Celerant code | STEAM | skill | surface | requires | crossRequires |
+|---|---|---|---|---|---|
+| `elec_power_source` ✦new | E4 | recognise a source (cell / USB / pack) & that a circuit needs one | ChoiceStage | `elec_loop` | READING_READY |
+| `elec_switch` ✦new | E8 | a switch/button opens & closes the loop (which position lights it?) | ChoiceStage | `elec_breadboard` | READING_READY |
+
+Both choice/recognition → fluency-aimed; both on the INTRODUCE list. Placeholder art (source types; a switch
+open vs closed) flagged for real art. Then author the **larmet** build (skill_prereqs: `elec_loop`,
+`elec_power_source`, `elec_breadboard`, `elec_switch`, `elec_symbol_match`; tier `5v`; kit + kid/adult
+instructions), and — if it fits the existing snap-together mechanic — a krets "switch" puzzle (does the lamp
+light with the switch open or closed?). This does NOT unlock *nattlampan* (still needs the sensor/measurement
+family — a separate, larger slice). Engine-untouched; θ-inert builds; same guardrails.
+
 ## 6. Pedagogy adopted from STEAM
 - **Fundamentals used backwards** — a grund is *what a child gets stuck without*. STEAM's electronics
   stuck-table: nearly every failure is E6 (breadboard), E7 (no resistor → burnt LED), or a broken lead —
