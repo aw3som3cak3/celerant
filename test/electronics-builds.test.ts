@@ -47,12 +47,12 @@ describe('readiness detector', () => {
     expect(r.status).toBe('locked');
   });
 
-  it('coin build is LOCKED when the equipment prerequisite is unowned', () => {
-    allSkillsMet(); // every skill met…
+  it('coin build needs NO equipment — a bare throwie is ready on loop + polarity alone', () => {
+    allSkillsMet(); // loop + polarity are in the set
     const r = buildReadiness(pid, BUILDS_BY_ID.get(COIN)!, repo.electronicsCapabilities(pid));
     expect(r.skillsMet).toBe(true);
-    expect(r.equipmentOwned).toBe(false); // …but no breadboard
-    expect(r.status).toBe('locked');
+    expect(r.equipmentOwned).toBe(true); // no equipment_prereqs → trivially satisfied
+    expect(r.status).toBe('ready'); // ready without a breadboard (a CR2032 self-limits current)
   });
 
   it('coin build is READY when all skills met, equipment owned, and tier unlocked', () => {
@@ -74,8 +74,8 @@ describe('readiness detector', () => {
     expect(alerts[0].instructions.length).toBeGreaterThan(0);
   });
 
-  it('no alert fires while the build is not ready', () => {
-    allSkillsMet(); // but no breadboard
+  it('no alert fires while the build is not ready (a skill unmet)', () => {
+    metSet(new Set()); // no skills met → not ready
     expect(buildAlerts(pid)).toHaveLength(0);
   });
 });

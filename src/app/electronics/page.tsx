@@ -130,17 +130,37 @@ function BuildLadder() {
         </div>
       )}
 
-      {player && player.korkort.length > 0 && <KorkortStrip korkort={player.korkort} />}
-
-      {player?.ladder.map((row) => (
-        <BuildCard
-          key={row.buildId}
-          row={row}
-          adult={data.adult}
-          onComplete={() => confirmBuild(player.id, row.buildId)}
-          onConfirmEquipment={(cap) => confirmEquipment(player.id, cap)}
-        />
-      ))}
+      {/* Show only what a grownup can ACT on: körkort the child is ready to earn (todo/earned), and
+          builds where the SKILLS are done (ready to test, or just needing gear/tier confirmed). A
+          skills-locked card only listed raw codes and told the adult nothing, so it's hidden — the
+          child is simply still practising. */}
+      {(() => {
+        const visKorkort = player?.korkort.filter((k) => k.state !== 'locked') ?? [];
+        const visBuilds = player?.ladder.filter((row) => row.status !== 'locked' || row.skillsMet) ?? [];
+        if (visKorkort.length === 0 && visBuilds.length === 0) {
+          return (
+            <p className="muted" style={{ textAlign: 'center', maxWidth: 420, marginTop: '0.5rem' }}>
+              Inga körkort eller byggen redo än — barnet övar färdigheterna först. De dyker upp här när
+              barnet är redo att testas vid bänken.
+            </p>
+          );
+        }
+        return (
+          <>
+            {visKorkort.length > 0 && <KorkortStrip korkort={visKorkort} />}
+            {player &&
+              visBuilds.map((row) => (
+                <BuildCard
+                  key={row.buildId}
+                  row={row}
+                  adult={data.adult}
+                  onComplete={() => confirmBuild(player.id, row.buildId)}
+                  onConfirmEquipment={(cap) => confirmEquipment(player.id, cap)}
+                />
+              ))}
+          </>
+        );
+      })()}
     </div>
   );
 }

@@ -65,8 +65,9 @@ export type BuildDef = {
   };
 };
 
-// The 8 electronics skill codes the slice-1 build depends on — the FIXED CONTRACT (§2), referenced
-// by string. Named here once so the coin build (and tests) share one source of truth.
+// The 8 electronics skill codes the slice introduced — the FIXED CONTRACT (§2), referenced by string.
+// Named here once as the canonical set the tests + körkort validate against. NOTE: an individual
+// build requires only the SUBSET it actually needs (below) — not all 8.
 export const SLICE1_SKILL_PREREQS = [
   'elec_loop',
   'elec_not_consumed',
@@ -77,6 +78,11 @@ export const SLICE1_SKILL_PREREQS = [
   'elec_resistor_pick',
   'elec_colour_value',
 ] as const;
+
+// The coin rung is a BARE THROWIE: a CR2032 self-limits current, so no resistor and no breadboard —
+// the child just holds the LED's legs to the cell the right way round. That is exactly the tre_volt
+// prov ("light an LED on a coin cell, point out the + leg"), so the build needs only loop + polarity.
+export const COIN_SKILL_PREREQS = ['elec_loop', 'elec_polarity'] as const;
 
 // LJUSSLINGAN (light chain) — STEAM's "Grundkittets egen komposit" (grunder E1·E3·E6·E9), ported
 // native. The Celerant cut DROPS STEAM's E24 chip (`läsa ett chip` / 4017 sequencer) and its E8
@@ -100,25 +106,21 @@ export const BUILDS: readonly BuildDef[] = [
     id: 'build_light_led_coin',
     name: 'Tänd en lysdiod på ett knappcellsbatteri',
     voltage_tier: 'coin',
-    skill_prereqs: SLICE1_SKILL_PREREQS,
-    equipment_prereqs: ['elec_cap_owns_breadboard'],
+    skill_prereqs: COIN_SKILL_PREREQS, // a bare throwie — loop + polarity, no breadboard/resistor
+    equipment_prereqs: [],
     grants: ['elec_cap_tier_3v'], // clearing the coin rung opens the 3 V tier
     kit_bom: [
       { qty: 1, part: 'röd lysdiod (LED)' },
-      { qty: 1, part: '220 Ω motstånd' },
       { qty: 1, part: 'CR2032 knappcell + hållare' },
-      { qty: 1, part: 'liten kopplingsplatta (breadboard)' },
-      { qty: 2, part: 'kopplingstrådar (jumpers)' },
     ],
     instructions: {
       kid_adult: [
-        'Sätt kopplingsplattan framför dig med en vuxen bredvid.',
+        'Ta en lysdiod och en knappcell (CR2032) med en vuxen bredvid.',
         'Titta på lysdioden: det långa benet är plus (+), det korta är minus (−).',
-        'Tryck ner motståndet så det överbryggar mittspåret på plattan.',
-        'Koppla lysdiodens plus-ben till motståndet, i samma rad.',
-        'Koppla en tråd från batteriets plus (+) till motståndets andra ände.',
-        'Koppla en tråd från batteriets minus (−) till lysdiodens kort-ben (−).',
-        'Lysdioden ska lysa. Om inte: vänd på lysdioden — den lyser bara åt ett håll.',
+        'Kläm fast lysdiodens långa ben (+) mot batteriets plus-sida (den blanka, +).',
+        'Kläm fast det korta benet (−) mot batteriets andra sida (−).',
+        'Lysdioden ska lysa. Om inte: vänd på den — den lyser bara åt ett håll.',
+        'Visa en vuxen: peka på plusbenet och säg varför den lyser (strömmen går runt).',
       ],
     },
   },
