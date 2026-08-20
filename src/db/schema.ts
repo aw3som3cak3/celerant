@@ -494,4 +494,32 @@ CREATE TABLE IF NOT EXISTS electronics_capability (
 );
 CREATE INDEX IF NOT EXISTS idx_electronics_capability_player ON electronics_capability(player_id, granted_at);
 
+-- ── GROUPS (docs/groups.md) ────────────────────────────────────────────────
+-- A general group a child can belong to BEYOND their family (a patrol, a class, a club).
+-- Many-to-many via group_membership. The FAMILY is also a group the child belongs to, but it is
+-- NOT stored here: it is the anchor (auth, identity, the reward economy) and is SYNTHESISED as a
+-- kind='family' group by groupsForPlayer(). So the model is unified in the accessor without a risky
+-- refactor of family, and family can never be double-counted or accidentally deleted. The kind
+-- column is never 'family' here.
+CREATE TABLE IF NOT EXISTS member_group (
+  id          TEXT PRIMARY KEY,
+  kind        TEXT NOT NULL,              -- 'patrol' | 'class' | 'club' | … (never 'family')
+  name        TEXT NOT NULL,
+  created_at  INTEGER NOT NULL,
+  archived_at INTEGER
+);
+
+-- Membership: a player belongs to a member_group. A child in several groups has several rows.
+-- role seeds the future leader/member distinction (nothing reads it yet). Icons are unique only
+-- WITHIN a family, so two members of one group can share an icon — disambiguate by icon + family at
+-- render time (docs/groups.md §1); never enforce icon-uniqueness across a group.
+CREATE TABLE IF NOT EXISTS group_membership (
+  group_id  TEXT NOT NULL REFERENCES member_group(id),
+  player_id TEXT NOT NULL REFERENCES player(id),
+  role      TEXT NOT NULL DEFAULT 'member',  -- 'member' | 'leader' (future)
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (group_id, player_id)
+);
+CREATE INDEX IF NOT EXISTS idx_group_membership_player ON group_membership(player_id);
+
 `;

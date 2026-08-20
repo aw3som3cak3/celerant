@@ -210,6 +210,76 @@ export function iconsUsedInFamily(familyId: string): Set<string> {
 export function updatePlayerIcon(id: string, icon: string): void {
   getDb().prepare('UPDATE player SET icon = ? WHERE id = ?').run(icon, id);
 }
+
+// --- groups (docs/groups.md) -----------------------------------------------
+// A general group a child belongs to BEYOND their family (a patrol, a class, a club). The FAMILY is
+// surfaced as a group by groupsForPlayer(), SYNTHESISED from player.family_id — so "a child is in
+// several groups, and family is one" is true in the accessor, without storing family as a
+// member_group row (family stays the anchor: auth, identity, rewards). Icons are unique only WITHIN a
+// family, so a group can hold two children with the same icon; disambiguate by icon + family at
+// render time, never enforce icon-uniqueness across a group.
+
+export type Group = {
+  id: string;
+  kind: string; // 'family' (synthesised) | 'patrol' | 'class' | 'club' | …
+  name: string;
+  role?: string; // the player's role IN this group; undefined for the (virtual) family group
+};
+
+export function createGroup(kind: string, name: string, now: number): string {
+  if (kind === 'family') throw new Error("member_group.kind must not be 'family' (the family group is virtual)");
+  const id = randomUUID();
+  getDb().prepare('INSERT INTO member_group (id, kind, name, created_at) VALUES (?, ?, ?, ?)').run(id, kind, name, now);
+  return id;
+}
+
+export function addToGroup(groupId: string, playerId: string, now: number, role = 'member'): void {
+  getDb()
+    .prepare('INSERT OR IGNORE INTO group_membership (group_id, player_id, role, joined_at) VALUES (?, ?, ?, ?)')
+    .run(groupId, playerId, role, now);
+}
+
+export function removeFromGroup(groupId: string, playerId: string): void {
+  getDb().prepare('DELETE FROM group_membership WHERE group_id = ? AND player_id = ?').run(groupId, playerId);
+}
+
+// Members of a group, each WITH their family — so a roster can disambiguate a shared icon. Ordered by
+// join time. Set membership, never an ordering that carries rank (the disclosure guardrail).
+export type GroupMember = { playerId: string; icon: string; schoolYear: number; familyId: string; role: string };
+export function membersOfGroup(groupId: string): GroupMember[] {
+  return getDb()
+    .prepare(
+      `SELECT p.id AS playerId, p.icon AS icon, p.school_year AS schoolYear, p.family_id AS familyId, m.role AS role
+       FROM group_membership m JOIN player p ON p.id = m.player_id
+       WHERE m.group_id = ? ORDER BY m.joined_at`,
+    )
+    .all(groupId) as GroupMember[];
+}
+
+// The explicit (non-family) groups a player belongs to.
+export function memberGroupsForPlayer(playerId: string): Group[] {
+  return getDb()
+    .prepare(
+      `SELECT g.id AS id, g.kind AS kind, g.name AS name, m.role AS role
+       FROM group_membership m JOIN member_group g ON g.id = m.group_id
+       WHERE m.player_id = ? AND g.archived_at IS NULL ORDER BY g.created_at`,
+    )
+    .all(playerId) as Group[];
+}
+
+// EVERY group a child belongs to: the FAMILY group first (synthesised from player.family_id), then
+// their member_groups. The unified accessor behind "a child is in several groups, and family is one".
+export function groupsForPlayer(playerId: string): Group[] {
+  const player = playerById(playerId);
+  if (!player) return [];
+  const fam = familyById(player.family_id);
+  const familyGroup: Group = {
+    id: `family:${player.family_id}`,
+    kind: 'family',
+    name: fam?.icon_display || fam?.icon_pair || 'family',
+  };
+  return [familyGroup, ...memberGroupsForPlayer(playerId)];
+}
 export function updatePlayerYear(id: string, schoolYear: number): void {
   getDb().prepare('UPDATE player SET school_year = ? WHERE id = ?').run(schoolYear, id);
   replay(id, { schoolYear }); // re-seed and replay; evidence is preserved (§6.1)
