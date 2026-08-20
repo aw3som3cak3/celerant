@@ -55,6 +55,18 @@ when ready. **Idempotent on re-run:** a child that already has a `celerantId` is
 player). Authenticated like the fluency signal (a shared secret / provisioning token), and it is the ONLY
 write Celerant accepts from the club.
 
+### 2b′. Children who ALREADY have a Celerant player (existing-player mapping)
+Some club children are already Celerant players with real progress — **Erik's own family first of all** (the
+Obitz kids have θ, körkort, diplomas). For these, the import must **map to the existing `player.id`**, never
+provision a new family/player, or the child loses everything. So the import takes a supplied **override map**
+`{ clubChildId → existingPlayerId }`:
+- for a mapped child: set `child.celerant_id = existingPlayerId`, add that existing player to the STEAM-team
+  group, and do **nothing** to their family (Erik's family stays exactly as it is, already activated);
+- for every other child: provision fresh (§2b).
+The override map is **human-supplied** — the club has names, Celerant has icons, and only Erik knows which
+named child is which icon. The import never guesses a match from age/name; an unmapped child is treated as
+new. (This is also the general pattern for any future family that starts in Celerant before joining the club.)
+
 ### 2c. Parent activation flow
 The parent opens `activationUrl` → a Celerant page that: verifies the token, lets them **set the entry +
 parent PINs** and confirm/repick the family icon-pair and each child's icon, then stamps `activated_at`.
