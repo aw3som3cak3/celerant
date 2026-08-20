@@ -119,6 +119,12 @@ const MIGRATIONS = [
   // that predates this, so replay reproduces their θ byte-for-byte. Levels 0-2 also carry
   // warmup=1, which is what keeps a derived latency out of the fluency/aim path.
   'ALTER TABLE attempt ADD COLUMN acq_level INTEGER',
+  // Club bridge (docs/club-bridge.md §2a): a family activation state for PENDING (imported,
+  // parent-less) families. activation_token_hash is the SHA-256 of a one-time activation token;
+  // activated_at is NULL until a parent activates. Both NULL on every existing (normal) family, so
+  // no backfill is needed — a normal family is never pending.
+  'ALTER TABLE family ADD COLUMN activation_token_hash TEXT',
+  'ALTER TABLE family ADD COLUMN activated_at INTEGER',
 ];
 
 export function getDb(): Database.Database {
