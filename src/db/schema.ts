@@ -29,7 +29,14 @@ CREATE TABLE IF NOT EXISTS family (
   pin_hash     TEXT NOT NULL,
   parent_hash  TEXT NOT NULL,
   created_at   INTEGER NOT NULL,
-  deleted_at   INTEGER
+  deleted_at   INTEGER,
+  -- Club bridge (docs/club-bridge.md §2a): a family that exists BEFORE a parent claims it.
+  -- activation_token_hash is the SHA-256 of a one-time activation token (NULL for normal
+  -- families, which are never pending). activated_at is NULL until a parent activates. A family
+  -- is PENDING iff activation_token_hash IS NOT NULL AND activated_at IS NULL — a pending family
+  -- holds placeholder pin/parent hashes and cannot be logged into by PIN, only via its token.
+  activation_token_hash TEXT,
+  activated_at          INTEGER
 );
 
 -- A player is a single icon, unique within their family only.

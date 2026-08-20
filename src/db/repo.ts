@@ -1,5 +1,7 @@
 import 'server-only';
 import { randomUUID } from 'node:crypto';
+import { ICONS } from '@/icons';
+import { hashToken } from '@/lib/session';
 import { getDb } from './index';
 import { replay } from './replay';
 import { update, updateDecision, RATING_PERIOD_MS } from '@/model/elo';
@@ -90,6 +92,8 @@ export type FamilyRow = {
   parent_hash: string;
   created_at: number;
   deleted_at: number | null;
+  activation_token_hash: string | null; // SHA-256 of a one-time activation token; NULL for normal families
+  activated_at: number | null; // NULL until a parent activates a PENDING (imported) family
 };
 
 // The canonical key for a pair: sorted, so "a+b" and "b+a" collapse to one. The
@@ -106,6 +110,108 @@ export function createFamily(iconPair: string, pinHash: string, parentHash: stri
     .prepare('INSERT INTO family (id, icon_pair, icon_display, pin_hash, parent_hash, created_at) VALUES (?, ?, ?, ?, ?, ?)')
     .run(id, canonPair(iconPair), iconPair, pinHash, parentHash, now);
   return id;
+}
+
+// --- club bridge: PENDING (imported, parent-less) families -----------------
+// (docs/club-bridge.md §2) A family that exists BEFORE a parent claims it. It carries an
+// activation_token_hash and no real PINs (a sentinel that no real hash can equal), so it cannot be
+// logged into by PIN — only activated via its one-time token. A child in it can practise
+// immediately; the family VIEW is dormant until activation.
+
+// A placeholder for pin_hash/parent_hash on a pending family. A real hash is
+// "<saltHex>:<hashHex>" (session.ts hashPin), so this colon-free sentinel can NEVER equal a real
+// hash — verifyPin() returns false for it (its split on ':' yields no hash half). A pending family
+// therefore cannot be logged into by PIN, only through its activation token.
+export const PENDING_PIN_SENTINEL = 'PENDING';
+
+// Insert a PENDING family with the given canonical pair and activation-token hash. pin/parent hashes
+// are placeholders; activated_at is NULL. Uniqueness of icon_pair is the caller's job (the DB UNIQUE
+// backstops it) — provisionPendingFamily picks a free pair.
+export function createPendingFamily(iconPair: string, activationTokenHash: string, now: number): string {
+  const id = randomUUID();
+  getDb()
+    .prepare(
+      'INSERT INTO family (id, icon_pair, icon_display, pin_hash, parent_hash, created_at, activation_token_hash) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    )
+    .run(id, canonPair(iconPair), iconPair, PENDING_PIN_SENTINEL, PENDING_PIN_SENTINEL, now, activationTokenHash);
+  return id;
+}
+
+// A free icon pair: two distinct icon keys whose canonical pair is not already ANY family's
+// icon_pair (deleted ones included — the DB UNIQUE spans them). Deterministic scan of the icon pool.
+function freeIconPair(): string {
+  const taken = new Set(
+    (getDb().prepare('SELECT icon_pair FROM family').all() as { icon_pair: string }[]).map((r) => r.icon_pair),
+  );
+  const keys = ICONS.map((i) => i.key);
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      const pair = canonPair(`${keys[i]}+${keys[j]}`);
+      if (!taken.has(pair)) return pair;
+    }
+  }
+  throw new Error('no free icon pair available');
+}
+
+// Provision a pending family + one player per child. Mints a raw activation token (returned once),
+// stores only its SHA-256; picks a free icon_pair for the family and a DISTINCT free icon per child
+// (school_year clamped 0–9). The club app stores each playerId as child.celerantId and holds the raw
+// token to build the parent's activation link.
+export function provisionPendingFamily(
+  childSchoolYears: number[],
+  now: number,
+): { familyId: string; activationToken: string; playerIds: string[] } {
+  const activationToken = randomUUID() + randomUUID();
+  const familyId = createPendingFamily(freeIconPair(), hashToken(activationToken), now);
+  const fam = getDb().prepare('SELECT icon_pair FROM family WHERE id = ?').get(familyId) as { icon_pair: string };
+
+  // Distinct icons within the new family, none equal to the family's own pair icons.
+  const used = new Set<string>(fam.icon_pair.split('+'));
+  const playerIds: string[] = [];
+  for (const sy of childSchoolYears) {
+    const icon = ICONS.map((i) => i.key).find((k) => !used.has(k));
+    if (!icon) throw new Error('no free icon for a new player');
+    used.add(icon);
+    const clamped = Math.max(0, Math.min(9, Math.round(sy)));
+    playerIds.push(createPlayer(familyId, icon, clamped, now));
+  }
+  return { familyId, activationToken, playerIds };
+}
+
+// Activate a PENDING family: find it by SHA-256(rawToken) matching activation_token_hash while still
+// unactivated, set the real pin/parent hashes and activated_at (one-time — a second call finds
+// nothing), optionally repick the icon_pair (canonical; the DB UNIQUE enforces it stays unique).
+// Returns whether a family was activated.
+export function activateFamily(
+  rawToken: string,
+  pinHash: string,
+  parentHash: string,
+  now: number,
+  iconPair?: string,
+): boolean {
+  const fam = getDb()
+    .prepare('SELECT id FROM family WHERE activation_token_hash = ? AND activated_at IS NULL')
+    .get(hashToken(rawToken)) as { id: string } | undefined;
+  if (!fam) return false;
+  if (iconPair !== undefined) {
+    getDb()
+      .prepare('UPDATE family SET pin_hash = ?, parent_hash = ?, activated_at = ?, icon_pair = ?, icon_display = ? WHERE id = ?')
+      .run(pinHash, parentHash, now, canonPair(iconPair), iconPair, fam.id);
+  } else {
+    getDb()
+      .prepare('UPDATE family SET pin_hash = ?, parent_hash = ?, activated_at = ? WHERE id = ?')
+      .run(pinHash, parentHash, now, fam.id);
+  }
+  return true;
+}
+
+// A family is PENDING iff it has an activation token and has not been activated (docs/club-bridge §2a).
+export function isFamilyPending(familyId: string): boolean {
+  return (
+    getDb()
+      .prepare('SELECT 1 FROM family WHERE id = ? AND activation_token_hash IS NOT NULL AND activated_at IS NULL')
+      .get(familyId) != null
+  );
 }
 
 export function familyById(id: string): FamilyRow | undefined {
@@ -231,6 +337,15 @@ export function createGroup(kind: string, name: string, now: number): string {
   const id = randomUUID();
   getDb().prepare('INSERT INTO member_group (id, kind, name, created_at) VALUES (?, ?, ?, ?)').run(id, kind, name, now);
   return id;
+}
+
+// Find an existing (non-archived) group by kind + name — for "ensure the club group exists" callers
+// (the provisioning API) that create it only if absent. Oldest match wins if duplicates exist.
+export function groupByKindName(kind: string, name: string): string | undefined {
+  const r = getDb()
+    .prepare('SELECT id FROM member_group WHERE kind = ? AND name = ? AND archived_at IS NULL ORDER BY created_at LIMIT 1')
+    .get(kind, name) as { id: string } | undefined;
+  return r?.id;
 }
 
 export function addToGroup(groupId: string, playerId: string, now: number, role = 'member'): void {
