@@ -205,6 +205,72 @@ export function activateFamily(
   return true;
 }
 
+// Find the PENDING family a raw activation token authorises (docs/club-bridge §2c). Matches on the
+// SHA-256 of the token (never the raw token, never the id), still unactivated and not deleted — so a
+// spent (activated) or unknown token resolves to nothing and the page reveals no family. The token IS
+// the credential; no session is involved.
+export function pendingFamilyByToken(rawToken: string): FamilyRow | undefined {
+  return getDb()
+    .prepare(
+      'SELECT * FROM family WHERE activation_token_hash = ? AND activated_at IS NULL AND deleted_at IS NULL',
+    )
+    .get(hashToken(rawToken)) as FamilyRow | undefined;
+}
+
+// The result of a parent activation attempt — a discriminated union so the API can map each failure
+// to a status code without leaking which family (if any) a bad token pointed at.
+export type ActivateResult =
+  | { ok: true }
+  | { ok: false; error: 'invalid_token' | 'pair_taken' | 'child_icon' };
+
+// Parent activation, all-or-nothing (docs/club-bridge §2c). One transaction: re-find the pending
+// family by token; if an icon_pair change was asked for, verify the canonical pair is free (the DB
+// UNIQUE spans deleted families, so the check must too — excluding only THIS family); if child-icon
+// changes were asked for, verify each player is in this family and the resulting icon set stays
+// distinct within the family; then apply the icon changes and stamp the real PIN hashes + activated_at.
+// Every failure path returns BEFORE any write, so a rejected attempt leaves the pending family exactly
+// as it was (still non-PIN-loginnable). Callers validate PIN format / icon-key realness upstream; this
+// owns only the DB-dependent checks and the atomic write. One-time by construction (activateFamily
+// guards on activated_at).
+export function activateFamilyTx(opts: {
+  rawToken: string;
+  pinHash: string;
+  parentHash: string;
+  now: number;
+  iconPair?: string;
+  childIcons?: { playerId: string; icon: string }[];
+}): ActivateResult {
+  const db = getDb();
+  return db.transaction((): ActivateResult => {
+    const fam = db
+      .prepare('SELECT id FROM family WHERE activation_token_hash = ? AND activated_at IS NULL AND deleted_at IS NULL')
+      .get(hashToken(opts.rawToken)) as { id: string } | undefined;
+    if (!fam) return { ok: false, error: 'invalid_token' };
+
+    if (opts.iconPair !== undefined) {
+      const canon = canonPair(opts.iconPair);
+      const clash = db.prepare('SELECT 1 FROM family WHERE icon_pair = ? AND id != ?').get(canon, fam.id);
+      if (clash) return { ok: false, error: 'pair_taken' };
+    }
+
+    if (opts.childIcons && opts.childIcons.length > 0) {
+      // Start from the family's current icons, apply the requested overrides, then require the whole
+      // set to stay distinct. A playerId that isn't in this family is a bad request, not a match.
+      const byId = new Map(playersInFamily(fam.id, true).map((p) => [p.id, p.icon]));
+      for (const c of opts.childIcons) {
+        if (!byId.has(c.playerId)) return { ok: false, error: 'child_icon' };
+        byId.set(c.playerId, c.icon);
+      }
+      const icons = [...byId.values()];
+      if (new Set(icons).size !== icons.length) return { ok: false, error: 'child_icon' };
+      for (const c of opts.childIcons) updatePlayerIcon(c.playerId, c.icon);
+    }
+
+    const ok = activateFamily(opts.rawToken, opts.pinHash, opts.parentHash, opts.now, opts.iconPair);
+    return ok ? { ok: true } : { ok: false, error: 'invalid_token' };
+  })();
+}
+
 // A family is PENDING iff it has an activation token and has not been activated (docs/club-bridge §2a).
 export function isFamilyPending(familyId: string): boolean {
   return (

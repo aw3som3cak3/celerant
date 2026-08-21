@@ -63,6 +63,7 @@ export default function GranskaHub() {
     { icon: '🔊', label: 'Ljud (stavningsklipp)', href: '/stava/granska/ljud', kvar: audioKvar },
     { icon: '🖼️', label: 'Bilder (engelska + storlek/verb)', href: '/stava/granska-bilder', kvar: imageKvar },
     { icon: '🐛', label: 'Trasiga frågor (fel/idk-logg)', href: '/stava/fragor' },
+    { icon: '🔑', label: 'Aktiveringsflöde (test)', href: '/aktivera/test' },
   ];
   // (Removed as already vetted: 🍕 Modell/pizza and 🔤 Ordstege — reachable again on request.)
 
