@@ -53,22 +53,38 @@ export async function POST(req: NextRequest) {
   // Ensure the named club group exists (find by kind+name, else create it).
   const groupId = repo.groupByKindName('club', groupName) ?? repo.createGroup('club', groupName, now);
 
-  // Each household → one pending family; every new player joins the group. Aligned to input order.
+  // Icons ARE unique within a group (docs/groups.md §1). Build the set already used in the group and
+  // fold every icon this import adds into it, so the whole import stays group-distinct. Seed it with
+  // the group's current members (a re-run, or a group that already has members).
+  const avoid = repo.iconsUsedInGroup(groupId);
+
+  // Already-Celerant players (e.g. Erik's own kids) FIRST → just group membership, no new family. An
+  // existing player carries a fixed icon we can't reassign; if it already collides in the group, the
+  // human must resolve it (409 naming the player) — we never silently drop or duplicate them. On
+  // success their icon joins `avoid`, so the provisioned households route around it too.
+  const addedExisting: string[] = [];
+  for (const e of addExisting) {
+    const p = repo.playerById(e.playerId)!; // validated above
+    if (avoid.has(p.icon)) return json({ error: 'icon_collision_in_group', playerId: e.playerId }, 409);
+    repo.addToGroup(groupId, e.playerId, now);
+    avoid.add(p.icon);
+    addedExisting.push(e.playerId);
+  }
+
+  // Each household → one pending family whose child icons avoid the group set; every new player joins
+  // the group, and its icon folds into `avoid` so later households avoid it too. Aligned to input order.
   const householdsOut = households.map((h) => {
     const { familyId, activationToken, playerIds } = repo.provisionPendingFamily(
       h.children.map((c) => c.schoolYear),
       now,
+      avoid,
     );
-    for (const pid of playerIds) repo.addToGroup(groupId, pid, now);
+    for (const pid of playerIds) {
+      repo.addToGroup(groupId, pid, now);
+      avoid.add(repo.playerById(pid)!.icon);
+    }
     return { familyId, activationToken, players: playerIds };
   });
-
-  // Already-Celerant players (e.g. Erik's own kids) → just group membership, no new family.
-  const addedExisting: string[] = [];
-  for (const e of addExisting) {
-    repo.addToGroup(groupId, e.playerId, now);
-    addedExisting.push(e.playerId);
-  }
 
   return json({ groupId, households: householdsOut, addedExisting });
 }

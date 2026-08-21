@@ -22,7 +22,12 @@ export async function POST(req: NextRequest) {
 
   const { icon } = parsed.data;
   if (!BY_KEY.has(icon)) return json({ error: 'bad_icon' }, 400);
-  if (icon !== player.icon && repo.iconsUsedInFamily(player.family_id).has(icon)) {
+  // Icon must be free both WITHIN the family and WITHIN every group the child is in (docs/groups.md
+  // §1): changing an icon must not create a family OR a group collision.
+  if (
+    icon !== player.icon &&
+    (repo.iconsUsedInFamily(player.family_id).has(icon) || repo.groupIconsForPlayer(player.id).has(icon))
+  ) {
     return json({ error: 'icon_taken' }, 409);
   }
   repo.updatePlayerIcon(player.id, icon);

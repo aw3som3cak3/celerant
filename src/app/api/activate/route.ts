@@ -20,10 +20,15 @@ export function GET(req: NextRequest) {
   if (!token) return json({ ok: false });
   const fam = repo.pendingFamilyByToken(token);
   if (!fam) return json({ ok: false });
+  // Icons this child may NOT pick = taken within the family (excl self) ∪ taken by OTHER members of
+  // any group the child is in (docs/groups.md §1) — so the picker hides both, and a repick can't
+  // collide with a sibling OR another family in the STEAM-team.
+  const familyIcons = repo.iconsUsedInFamily(fam.id);
   const children = repo.playersInFamily(fam.id).map((p) => ({
     playerId: p.id,
     icon: p.icon,
     schoolYear: p.school_year,
+    exclude: [...new Set([...familyIcons, ...repo.groupIconsForPlayer(p.id)])].filter((k) => k !== p.icon),
   }));
   return json({ ok: true, iconPair: fam.icon_display || fam.icon_pair, children });
 }

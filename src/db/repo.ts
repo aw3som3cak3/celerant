@@ -157,19 +157,25 @@ function freeIconPair(): string {
 // stores only its SHA-256; picks a free icon_pair for the family and a DISTINCT free icon per child
 // (school_year clamped 0–9). The club app stores each playerId as child.celerantId and holds the raw
 // token to build the parent's activation link.
+//
+// `avoidIcons` (additive; default empty = original behaviour): child icons must be free within the new
+// family AND not in this set — the caller passes the icons already used by the group these children
+// join, so a whole import stays group-distinct (docs/groups.md §1). The family's own icon_pair is a
+// login key, not a group member, so it is NOT constrained by avoidIcons.
 export function provisionPendingFamily(
   childSchoolYears: number[],
   now: number,
+  avoidIcons: ReadonlySet<string> = new Set(),
 ): { familyId: string; activationToken: string; playerIds: string[] } {
   const activationToken = randomUUID() + randomUUID();
   const familyId = createPendingFamily(freeIconPair(), hashToken(activationToken), now);
   const fam = getDb().prepare('SELECT icon_pair FROM family WHERE id = ?').get(familyId) as { icon_pair: string };
 
-  // Distinct icons within the new family, none equal to the family's own pair icons.
+  // Distinct icons within the new family, none equal to the family's own pair icons, none in avoidIcons.
   const used = new Set<string>(fam.icon_pair.split('+'));
   const playerIds: string[] = [];
   for (const sy of childSchoolYears) {
-    const icon = ICONS.map((i) => i.key).find((k) => !used.has(k));
+    const icon = ICONS.map((i) => i.key).find((k) => !used.has(k) && !avoidIcons.has(k));
     if (!icon) throw new Error('no free icon for a new player');
     used.add(icon);
     const clamped = Math.max(0, Math.min(9, Math.round(sy)));
@@ -263,6 +269,11 @@ export function activateFamilyTx(opts: {
       }
       const icons = [...byId.values()];
       if (new Set(icons).size !== icons.length) return { ok: false, error: 'child_icon' };
+      // GROUP uniqueness (docs/groups.md §1): the child is already a group member (provisioning added
+      // them), so a repicked icon must not collide with OTHER members of any group the child is in.
+      for (const c of opts.childIcons) {
+        if (groupIconsForPlayer(c.playerId).has(c.icon)) return { ok: false, error: 'child_icon' };
+      }
       for (const c of opts.childIcons) updatePlayerIcon(c.playerId, c.icon);
     }
 
@@ -387,9 +398,11 @@ export function updatePlayerIcon(id: string, icon: string): void {
 // A general group a child belongs to BEYOND their family (a patrol, a class, a club). The FAMILY is
 // surfaced as a group by groupsForPlayer(), SYNTHESISED from player.family_id — so "a child is in
 // several groups, and family is one" is true in the accessor, without storing family as a
-// member_group row (family stays the anchor: auth, identity, rewards). Icons are unique only WITHIN a
-// family, so a group can hold two children with the same icon; disambiguate by icon + family at
-// render time, never enforce icon-uniqueness across a group.
+// member_group row (family stays the anchor: auth, identity, rewards). Icons are unique WITHIN a
+// family (DB UNIQUE + app checks), and — as of the group-icon-uniqueness slice — ALSO within a group:
+// a child cannot join (or change/set their icon into) a group where another member already uses it
+// (docs/groups.md §1). Enforced at addToGroup, provisioning, icon-change and activation; player_id
+// stays the true key, and a roster still disambiguates by icon + family for display.
 
 export type Group = {
   id: string;
@@ -414,7 +427,45 @@ export function groupByKindName(kind: string, name: string): string | undefined 
   return r?.id;
 }
 
+// Icons of every member of a group (optionally excluding one player — e.g. the one whose icon is
+// being (re)checked). The group-side equivalent of iconsUsedInFamily. Set membership, no ordering.
+export function iconsUsedInGroup(groupId: string, excludePlayerId?: string): Set<string> {
+  const sql = excludePlayerId
+    ? `SELECT p.icon AS icon FROM group_membership m JOIN player p ON p.id = m.player_id
+       WHERE m.group_id = ? AND m.player_id != ?`
+    : `SELECT p.icon AS icon FROM group_membership m JOIN player p ON p.id = m.player_id
+       WHERE m.group_id = ?`;
+  const args = excludePlayerId ? [groupId, excludePlayerId] : [groupId];
+  return new Set((getDb().prepare(sql).all(...args) as { icon: string }[]).map((r) => r.icon));
+}
+
+// The group-side exclusion set for a player's icon picker: every icon used by OTHER members across
+// ALL groups the player belongs to (the player themselves excluded). Union over the child's groups —
+// so a repicked icon that would collide in ANY of their groups is caught. Combine with
+// iconsUsedInFamily for the full "what can't I pick" set.
+export function groupIconsForPlayer(playerId: string): Set<string> {
+  const rows = getDb()
+    .prepare(
+      `SELECT DISTINCT p.icon AS icon
+       FROM group_membership me
+       JOIN group_membership other ON other.group_id = me.group_id AND other.player_id != me.player_id
+       JOIN player p ON p.id = other.player_id
+       WHERE me.player_id = ?`,
+    )
+    .all(playerId) as { icon: string }[];
+  return new Set(rows.map((r) => r.icon));
+}
+
+// Add a player to a group. GUARD (docs/groups.md §1): a child cannot join a group where another
+// member already uses their icon — icons are unique within a group, not just within a family. Callers
+// that might collide (a manual-join UI) must free the icon first; provisioning assigns group-distinct
+// icons so it never trips this. Idempotent: re-adding the same player is a no-op (self excluded from
+// the check, INSERT OR IGNORE).
 export function addToGroup(groupId: string, playerId: string, now: number, role = 'member'): void {
+  const player = playerById(playerId);
+  if (player && iconsUsedInGroup(groupId, playerId).has(player.icon)) {
+    throw new Error('icon_collision_in_group');
+  }
   getDb()
     .prepare('INSERT OR IGNORE INTO group_membership (group_id, player_id, role, joined_at) VALUES (?, ?, ?, ?)')
     .run(groupId, playerId, role, now);

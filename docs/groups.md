@@ -17,20 +17,34 @@ Collapsing that into a generic `group` row would touch every one of those. So we
 the anchor.** The group layer is additive, and the family appears as a group only through a unified
 read — see §2.
 
-## 1. The icon-identity finding (why groups need this thought)
+## 1. The icon-identity decision — icons ARE unique within a group
 Icon uniqueness is enforced **per family**, three layers deep, and it is solid:
 - the picker (`IconGrid` `exclude`) hides a sibling's icon — absent, not greyed;
 - both APIs (`POST /api/player`, `/api/player/icon`) return `409 icon_taken`;
 - the DB has `UNIQUE (family_id, icon)` as a hard backstop; `iconsUsedInFamily` counts *archived* kids
   too, matching the constraint (no app-check-passes-but-DB-throws gap); regression-tested.
 
-**But uniqueness is scoped to `family_id`.** Two children in *different* families can share an icon
-(each unique in their own family). The moment a group spans families, an icon alone is no longer a unique
-identifier inside that group. **The resolution: the icon is family-scoped *display*; the true key is
-`player.id`. In any cross-family (group) context, identity is `icon + family`** (e.g. "🍒 · 🐢🍦 family"),
-or a group-local label. We do **not** try to enforce icon-uniqueness across a group — families are made
-independently, so that would either block legitimate families or need cross-family coordination at
-creation. Not worth it; disambiguate at render time instead.
+The DB constraint is scoped to `family_id`, so two children in *different* families **could** technically
+share an icon — and the moment a group spans families (a STEAM-team, a class), that would put two "🍒"s in
+the same roster. **The decision (reversing the earlier "disambiguate at render time" note): an icon must
+be unique within a group too.** When a child joins a group, or changes/sets an icon while in one, and that
+icon is already used by another member, they **must pick a different one**. This is enforced at **every**
+point an icon is set:
+- **`addToGroup`** throws `icon_collision_in_group` if the joining player's icon is already used by a
+  member — callers (a future manual-join UI) must free the icon first;
+- **provisioning** (`provisionPendingFamily(…, avoidIcons)` + `/api/club/provision`) assigns
+  group-distinct icons across a whole import, and rejects an `addExisting` player whose fixed icon
+  already collides (`409 icon_collision_in_group`, naming the player — a human resolves it);
+- **icon-change** (`/api/player/icon`) rejects `409 icon_taken` if the new icon is in
+  `groupIconsForPlayer(playerId)`;
+- **activation** (`/api/activate`) hides group-taken icons in each child's picker and rejects a repick
+  that collides in the child's group.
+
+The exclusion sets: `iconsUsedInGroup(groupId, excludePlayerId?)` (a group's icons) and
+`groupIconsForPlayer(playerId)` (icons used by OTHER members across ALL the child's groups) — the
+group-side partners of `iconsUsedInFamily`. **`player.id` remains the true key**; a roster still shows
+`icon + family` (e.g. "🍒 · 🐢🍦 family") for human-readable display, but the icon alone is now a valid
+in-group identifier because collisions are prevented at write time.
 
 ## 2. The model — general groups + a synthesised family group
 ```
@@ -52,9 +66,11 @@ accidentally deleted or double-counted.
   several groups has several rows; `role` seeds the future leader/member distinction.
 
 ### Repo surface
-`createGroup(kind, name)` · `addToGroup(groupId, playerId, role?)` · `removeFromGroup(groupId, playerId)`
-· `membersOfGroup(groupId)` → players **with their family**, so a roster can disambiguate a shared icon ·
-`groupsForPlayer(playerId)` → `[familyGroup, …memberGroups]` · `memberGroupsForPlayer(playerId)`.
+`createGroup(kind, name)` · `addToGroup(groupId, playerId, role?)` — **guards icon-uniqueness**, throws
+`icon_collision_in_group` · `removeFromGroup(groupId, playerId)` · `membersOfGroup(groupId)` → players
+**with their family**, so a roster labels each by `icon + family` · `groupsForPlayer(playerId)` →
+`[familyGroup, …memberGroups]` · `memberGroupsForPlayer(playerId)` · `iconsUsedInGroup(groupId,
+excludePlayerId?)` and `groupIconsForPlayer(playerId)` — the group-side icon-exclusion sets (§1).
 
 ## 3. Guardrails that carry over (motivation.md + the STEAM briefs)
 - **Collective, never comparative.** Any future group goal is aggregate-only; **no per-child contribution

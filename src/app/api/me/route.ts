@@ -50,6 +50,9 @@ export function GET(req: NextRequest) {
       canSprint: hasSprintAvailable(p.id),
       hasDiplomas: hasDiplomas(p.id),
       needsToolTest: repo.toolRateCount(p.id) < TOOL_TEST_TARGET && !repo.measuredToolRateToday(p.id, now),
+      // Icons used by OTHER members of any group this child is in (docs/groups.md §1) — so the
+      // change-icon picker hides them too and a repick can't collide across a group, not just a family.
+      groupIcons: [...repo.groupIconsForPlayer(p.id)],
       // (GROUND is no longer a separate scene — its acquisition rungs are the graph's
       // bottom rungs now, served inside practice by the selector, so there is no
       // groundFirst/canGround routing flag any more. one-ova-track WS II.)

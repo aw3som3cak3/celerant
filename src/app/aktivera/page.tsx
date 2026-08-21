@@ -11,7 +11,7 @@ import { IconGrid } from '../_components/IconGrid';
 import { PinPad } from '../_components/PinPad';
 import { EmojiIcon } from '../_components/Icon';
 
-type Child = { playerId: string; icon: string; schoolYear: number };
+type Child = { playerId: string; icon: string; schoolYear: number; exclude?: string[] };
 type Loaded = { ok: boolean; iconPair?: string; children?: Child[] };
 
 function Activate() {
@@ -67,9 +67,17 @@ function Activate() {
       </div>
     );
 
-  // Icons already taken WITHIN the family (so a change never collides with a sibling).
-  const usedByChildren = (exceptId?: string) =>
-    new Set(children.filter((c) => c.playerId !== exceptId).map((c) => childIcons[c.playerId]).filter(Boolean));
+  // Icons already taken WITHIN the family (so a change never collides with a sibling), unioned — for a
+  // child slot — with the icons the server says are taken by OTHER members of this child's groups
+  // (docs/groups.md §1), so a repick can't collide across the STEAM-team either.
+  const usedByChildren = (exceptId?: string) => {
+    const taken = new Set(
+      children.filter((c) => c.playerId !== exceptId).map((c) => childIcons[c.playerId]).filter(Boolean),
+    );
+    const groupTaken = children.find((c) => c.playerId === exceptId)?.exclude ?? [];
+    for (const k of groupTaken) taken.add(k);
+    return taken;
+  };
 
   // An icon picker overlay for whichever slot is being edited.
   if (edit) {

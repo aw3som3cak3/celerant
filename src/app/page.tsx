@@ -27,7 +27,7 @@ function rememberFamily(pair: string): void {
   localStorage.setItem(CACHE_KEY, JSON.stringify(list));
 }
 
-type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean };
+type Player = { id: string; icon: string; schoolYear: number; canSprint?: boolean; hasDiplomas?: boolean; needsToolTest?: boolean; groupIcons?: string[] };
 type Goal = { label: string; target: number; reached: boolean; progress: number };
 type Celebrated = { id: number; label: string; target: number };
 type Me = { authenticated: boolean; parent?: boolean; spelling?: boolean; spellingReview?: boolean; icons?: string[]; players?: Player[]; goal?: Goal | null; celebrated?: Celebrated[] };
@@ -268,7 +268,8 @@ function Players({ me }: { me: Me }) {
       {changing && (
         <ChangeIconModal
           player={changing}
-          used={me.players!.filter((x) => x.id !== changing.id).map((x) => x.icon)}
+          // Siblings' icons AND this child's group icons (docs/groups.md §1) — both hidden in the picker.
+          used={[...me.players!.filter((x) => x.id !== changing.id).map((x) => x.icon), ...(changing.groupIcons ?? [])]}
           onClose={() => setChanging(null)}
         />
       )}
