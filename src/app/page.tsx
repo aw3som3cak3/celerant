@@ -74,6 +74,7 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
   const [b, setB] = useState<string | null>(null);
   const [modalSlot, setModalSlot] = useState<'a' | 'b' | null>(null);
   const [err, setErr] = useState('');
+  const [recovering, setRecovering] = useState(false);
 
   const both = a && b;
   // Device history first (localStorage, most-recent first), then any other
@@ -121,11 +122,20 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
       </div>
 
       {both ? (
-        <>
-          <PinPad label={t('login.pin')} onComplete={submit} />
-          {err && <p className="muted">{err}</p>}
-          <button className="idk" onClick={() => { setA(null); setB(null); setErr(''); }}>{t('login.restart')}</button>
-        </>
+        recovering ? (
+          <RecoverPin a={a} b={b} onCancel={() => { setRecovering(false); setErr(''); }} />
+        ) : (
+          <>
+            <PinPad label={t('login.pin')} onComplete={submit} />
+            {err && <p className="muted">{err}</p>}
+            <button className="idk" onClick={() => { setA(null); setB(null); setErr(''); }}>{t('login.restart')}</button>
+            {/* Forgot the entry PIN? Reset it here with the parent PIN — the only
+                recovery reachable while locked out. */}
+            <div style={{ marginTop: '0.4rem' }}>
+              <button className="idk" onClick={() => { setRecovering(true); setErr(''); }}>{t('recover.forgot')}</button>
+            </div>
+          </>
+        )
       ) : (
         <p className="muted" style={{ fontSize: '0.85rem' }}>{t('login.pressPlus')}</p>
       )}
@@ -158,6 +168,72 @@ function LoginCard({ pairs, onCreate }: { pairs: string[]; onCreate: () => void 
           onPick={pick}
         />
       )}
+    </div>
+  );
+}
+
+// Forgot-entry-PIN recovery, gated by the parent PIN — reachable while locked out
+// (the parent-settings change screen sits behind the entry PIN this rescues). Enter
+// the parent PIN once, then set a new entry PIN confirm-twice. Both are sent together;
+// the server verifies the pair + parent PIN and applies the same weak/≠-parent rules.
+function RecoverPin({ a, b, onCancel }: { a: string; b: string; onCancel: () => void }) {
+  const { t } = useI18n();
+  const [parentPin, setParentPin] = useState<string | null>(null);
+  const [first, setFirst] = useState<string | null>(null); // new entry PIN awaiting confirmation
+  const [err, setErr] = useState('');
+  const [done, setDone] = useState(false);
+
+  async function submit(newPin: string) {
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/login/recover', {
+      iconPair: `${a}+${b}`,
+      parentPin,
+      newPin,
+    });
+    if (r.ok) { setDone(true); return; }
+    // Any failure restarts the flow; the message says which. A wrong parent PIN is
+    // uniform ("wrong icons or parent PIN") so it never confirms a family exists.
+    setParentPin(null);
+    setFirst(null);
+    setErr(
+      r.error === 'weak_pin' ? t('recover.weakPin')
+        : r.error === 'pins_equal' ? t('recover.pinsEqual')
+          : r.error === 'rate_limited' ? t('recover.rateLimited')
+            : t('recover.invalid'),
+    );
+  }
+
+  if (done)
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <p><Emoji e="✅" /> {t('recover.done')}</p>
+        <button className="primary" onClick={onCancel}>{t('recover.backToLogin')}</button>
+      </div>
+    );
+
+  if (!parentPin)
+    return (
+      <div style={{ textAlign: 'center' }}>
+        <p className="muted">{t('recover.enterParent')}</p>
+        <PinPad label={t('parent.pinLabel')} onComplete={setParentPin} />
+        {err && <p className="muted">{err}</p>}
+        <button className="idk" onClick={onCancel}>{t('common.back')}</button>
+      </div>
+    );
+
+  return (
+    <div style={{ textAlign: 'center' }}>
+      <p className="muted">{t('recover.setNew')}</p>
+      <PinPad
+        label={first ? t('pin.again') : t('recover.newPin')}
+        onComplete={(p) => {
+          setErr('');
+          if (!first) setFirst(p);
+          else if (p === first) submit(p);
+          else { setErr(t('pin.noMatch')); setFirst(null); }
+        }}
+      />
+      {err && <p className="muted">{err}</p>}
+      <button className="idk" onClick={() => { setParentPin(null); setFirst(null); setErr(''); }}>{t('common.back')}</button>
     </div>
   );
 }
