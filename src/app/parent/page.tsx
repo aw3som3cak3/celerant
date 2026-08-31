@@ -117,6 +117,11 @@ export default function Parent() {
           the shared family screen the kids see. */}
       {players && <AddChild used={players.map((p) => p.icon)} onDone={loadAll} />}
 
+      {/* Self-serve PIN change — the only place a forgotten entry PIN can be reset
+          without touching the DB. Both PINs are family-level, so this sits with the
+          other family-scoped parent actions, not under a selected child. */}
+      <ChangePin />
+
       {data && (
         <>
           <p className="muted">
@@ -384,6 +389,53 @@ function AddChild({ used, onDone }: { used: string[]; onDone: () => void }) {
               </div>
             )}
             {err && <p className="muted">{err}</p>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Change the family entry PIN or the parent PIN — behind the parent session, so
+// a forgotten entry PIN no longer needs a DB touch. Confirm-twice: the new PIN is
+// entered, then re-entered, and only a match is sent. That's the guard against the
+// exact "typed it wrong once and it stuck" failure this screen was built to fix.
+function ChangePin() {
+  const { t } = useI18n();
+  const [which, setWhich] = useState<'entry' | 'parent' | null>(null);
+  const [first, setFirst] = useState<string | null>(null); // the new PIN, awaiting confirmation
+  const [msg, setMsg] = useState('');
+  const [saved, setSaved] = useState<'entry' | 'parent' | null>(null);
+
+  function open(w: 'entry' | 'parent') { setWhich(w); setFirst(null); setMsg(''); setSaved(null); }
+  function close() { setWhich(null); setFirst(null); setMsg(''); }
+
+  async function onPin(pin: string) {
+    if (!which) return;
+    setMsg('');
+    if (first == null) { setFirst(pin); return; } // first entry → ask for confirmation
+    if (pin !== first) { setFirst(null); setMsg(t('parent.pinMismatch')); return; }
+    const r = await postJSON<{ ok?: boolean; error?: string }>('/api/parent/pin', { which, pin });
+    if (r.ok) { setSaved(which); setWhich(null); setFirst(null); setMsg(''); return; }
+    setFirst(null);
+    setMsg(r.error === 'weak_pin' ? t('parent.pinWeak') : r.error === 'pins_equal' ? t('parent.pinEqual') : t('parent.wrongPin'));
+  }
+
+  return (
+    <div style={{ margin: '0.5rem 0' }}>
+      <button className="idk" onClick={() => open('entry')}>{t('parent.changeEntryPin')}</button>
+      {' · '}
+      <button className="idk" onClick={() => open('parent')}>{t('parent.changeParentPin')}</button>
+      {saved && <span className="muted" style={{ marginLeft: '0.5rem' }}>✓ {t('parent.pinSaved')}</span>}
+      {which && (
+        <div className="modal-backdrop" onClick={close}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <strong>{which === 'entry' ? t('parent.changeEntryPin') : t('parent.changeParentPin')}</strong>
+              <button className="idk" onClick={close}>{t('common.close')}</button>
+            </div>
+            <PinPad label={first == null ? t('parent.pinNew') : t('parent.pinConfirm')} onComplete={onPin} />
+            {msg && <p className="muted" style={{ textAlign: 'center' }}>{msg}</p>}
           </div>
         </div>
       )}
