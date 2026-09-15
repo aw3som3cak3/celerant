@@ -357,13 +357,33 @@ const tier0: Skill[] = [
         steps: [`${a} + ${b} = ${sum}`] };
     },
   }),
+  S({
+    // Pictured addition into the 6–10 range: the bridge from add_within_5 (sum ≤5, pictured) to
+    // bare-digit add_within_10 (sum ≤10). It splits a DOUBLE jump into two single ones —
+    // add_within_5 → here changes only the MAGNITUDE (still emoji you can count); here →
+    // add_within_10 changes only the FORM (same range, drop the pictures). Before this rung a
+    // beginner leapt both at once, which is exactly where a real one stalled (prod: a fresh åk0
+    // kid at add_within_5 ~89% but add_within_10 ~53%, so add_within_10 fell out of her p-band and
+    // was never re-served). Also requires count_within_10, so that previously dead-end 6–10 count
+    // rung now leads somewhere. year 0 → seedGradeFor floors at 0, so it seeds FLUENT for every
+    // child (like the other on-ramp rungs); add_within_10 therefore stays unlocked for every older
+    // child who already does it — no one is bricked by the new prerequisite.
+    code: "add_within_10_pics", year: 0, mode: "component", requires: ["add_within_5", "count_within_10"],
+    generate: (r) => {
+      const e = r.pick(PIC);
+      const sum = r.int(6, 10);
+      const a = r.int(1, sum - 1), b = sum - a;
+      return { prompt: `${e.repeat(a)} + ${e.repeat(b)} =`, answer: int(sum),
+        steps: [`${a} + ${b} = ${sum}`] };
+    },
+  }),
 ];
 
 /* ═══ TIER 1 · additive within 20 ═══════════════════════════════ year 1 */
 
 const tier1: Skill[] = [
   S({
-    code: "add_within_10", year: 1, mode: "component", requires: ["add_within_5"],
+    code: "add_within_10", year: 1, mode: "component", requires: ["add_within_10_pics"],
     generate: (r) => {
       const [a, b] = until(() => [r.int(1, 8), r.int(1, 8)], ([a, b]) => a + b <= 10 && a !== b);
       return { prompt: `${a} + ${b} =`, answer: int(a + b), steps: [`${a} + ${b} = ${a + b}`] };

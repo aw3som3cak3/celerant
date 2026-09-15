@@ -54,6 +54,7 @@ const EXACT: Record<string, string> = {
   count_to_5: 'räkna till 5',
   count_within_10: 'räkna till 10',
   add_within_5: 'plus till 5',
+  add_within_10_pics: 'plus till 10 med bilder',
   add_within_10: 'plus till 10',
   add_doubles: 'dubblor',
   double_within_20: 'dubbla',

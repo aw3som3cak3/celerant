@@ -8,7 +8,9 @@ process.env.DATABASE_PATH = path.join(dir, 'test.db');
 process.env.SESSION_SECRET = 'test-secret-abcdefghijklmnop';
 
 import * as repo from '@/db/repo';
-import { issueNext, sessionSelectOpts } from '@/lib/practice';
+import { issueNext, sessionSelectOpts, buildStates } from '@/lib/practice';
+import { computeUnlocked } from '@/lib/selector';
+import { skillByCode } from '@/skills';
 
 const NOW = Date.UTC(2026, 7, 11);
 
@@ -60,5 +62,25 @@ describe('the youngest climbs the recognition ladder in order (E + D2a)', () => 
     const old = repo.createPlayer(fam, 'mouse', 3, NOW);
     const seen = spellingCodes(old, 3);
     expect([...seen].some((c) => c !== 'spelling_t0'), 'åk3 was stuck at the floor').toBe(true);
+  });
+});
+
+// #1 (frontier fixes): the pictured 6–10 rung that bridges the add_within_5 → add_within_10 cliff,
+// so a beginner isn't asked to leap magnitude AND lose the pictures at once.
+describe('add_within_10_pics bridges the addition cliff without bricking older kids', () => {
+  it('add_within_10 now requires the pictured bridge, which requires add_within_5 + count_within_10', () => {
+    const bridge = skillByCode('add_within_10_pics');
+    expect(bridge, 'the bridge rung does not exist').toBeTruthy();
+    expect(bridge!.year, 'bridge must be year 0 so it seeds fluent for everyone').toBe(0);
+    expect(bridge!.requires).toEqual(expect.arrayContaining(['add_within_5', 'count_within_10']));
+    expect(skillByCode('add_within_10')!.requires).toContain('add_within_10_pics');
+  });
+
+  it('a fresh åk3 child still has add_within_10 unlocked (the new prereq seeds fluent — no brick)', () => {
+    const fam = repo.createFamily(`brick-${Math.random().toString(36).slice(2)}`, 'p:q', 'p:r', NOW);
+    const old = repo.createPlayer(fam, 'panda', 3, NOW);
+    const unlocked = computeUnlocked(buildStates(old, 3));
+    expect(unlocked.get('add_within_10_pics'), 'bridge not unlocked for åk3').toBe(true);
+    expect(unlocked.get('add_within_10'), 'add_within_10 got bricked for åk3 by the new prereq').toBe(true);
   });
 });
